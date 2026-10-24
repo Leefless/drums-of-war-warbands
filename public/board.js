@@ -58,9 +58,17 @@ function drawPath24(ctx, d, x, y, size, rot = 0) {
   ctx.restore();
 }
 
+// When several players pick the same army, the first (lowest seat) keeps the army colour and
+// the others are marked in these, chosen to stand apart from all six army colours.
+const SEAT_MARKS = ["#F1ECDD", "#3D6FE0", "#C93F9C"]; // bone white, cobalt, magenta
+
+/** The colour that marks a player's units: their army colour, or a seat mark if another player shares the army. */
 export function playerColor(state, pid) {
-  const p = state.players.find((x) => x.id === pid);
-  return p?.faction ? FACTIONS[p.faction].color : "#9C8F74";
+  const p = state?.players.find((x) => x.id === pid);
+  if (!p?.faction) return "#9C8F74";
+  const same = state.players.filter((x) => x.faction === p.faction).sort((a, b) => a.seat - b.seat);
+  const i = same.indexOf(p);
+  return i <= 0 ? FACTIONS[p.faction].color : SEAT_MARKS[(i - 1) % SEAT_MARKS.length];
 }
 
 // ── Canvas sizing and hit-testing ────────────────────────────────────────────
@@ -955,7 +963,7 @@ function drawGhost(ctx, u, code) {
 function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   const size = BASE_SIZE[u.base] * scale;
   const half = size / 2;
-  const col = FACTIONS[u.faction].color;
+  const col = playerColor(current.state, u.owner); // army colour, or a seat mark when an army is shared
   const isSel = opts.selected === u.id;
   const isActive = opts.active === u.id;
   const isHi = opts.highlight?.has(u.id);

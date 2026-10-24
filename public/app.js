@@ -95,7 +95,7 @@ function header() {
   $("#players").innerHTML = (S?.players || []).map((p) => {
     const f = p.faction ? FACTIONS[p.faction] : null;
     const status = S.phase === "over" ? `${p.vp} VP` : p.surrendered ? "surrendered" : p.eliminated ? "broken" : p.ready && S.phase !== "activation" && S.phase !== "engagement" ? "ready" : "";
-    return `<span class="chip ${p.connected ? "" : "off"}" title="${p.surrendered ? "Surrendered" : ""}"><i class="sw" style="background:${f?.color ?? "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${status}</span></span>`;
+    return `<span class="chip ${p.connected ? "" : "off"}" title="${p.surrendered ? "Surrendered" : ""}"><i class="sw" style="background:${f ? playerColor(S, p.id) : "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${status}</span></span>`;
   }).join("");
   $("#stale").hidden = !S?.serverStale;
   if (S?.serverStale) {
@@ -453,6 +453,7 @@ function renderMuster(app) {
     ${f ? `<div class="muster">
       <div class="roster">
         <div><div class="label">Step 2 · Muster</div><h2>${esc(f.name)}</h2></div>
+        ${S.players.some((x) => x.id !== S.you && x.faction === f.id) ? `<p style="margin:0"><span class="sw" style="display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;background:${playerColor(S, S.you)}"></span> Another player has this army too. ${playerColor(S, S.you) === f.color ? "You keep the army colour; theirs are marked in a different colour" : "Your units are marked in this colour"} so both sides are easy to tell apart.</p>` : ""}
         <p style="margin:0"><b>Action economy.</b> ${esc(f.economy)}</p>
         <p style="margin:0" class="muted"><b>Dial.</b> ${esc(f.dialNote)}</p>
         ${presetsHTML(f, locked)}

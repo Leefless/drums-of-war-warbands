@@ -74,6 +74,10 @@ Larger budgets field larger armies on a larger battlefield, so space per point s
 
 Deployment zones deepen with the battlefield. Prebuilt warbands scale to the budget in the same proportions.
 
+**Same army twice.** Several players may pick the same army. The first of them
+keeps the army colour; the others' units, name chips and deployment zones are
+marked in bone white, cobalt or magenta so every side stays easy to tell apart.
+
 ## 3. Unit profile
 
 | Stat | Meaning |
