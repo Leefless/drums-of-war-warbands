@@ -366,3 +366,33 @@ test("surrender: the warband quits without scoring, and the battle ends when no 
   assert.equal(u.phase, "plan");
   assert.ok(E.player(u, "c").eliminated);
 });
+
+test("Calamity Rift Ambush: flank and rear attacks get around a defensive stance and add a die", () => {
+  const s = setup("calamity", "holds");
+  E.submitArmy(s, "a", [{ unit: "mutants" }]);
+  E.submitArmy(s, "b", [{ unit: "ironbreakers" }]);
+  for (const p of ["a", "b"]) E.ready(s, p);
+  E.run(s);
+  const cal = s.units.find((u) => u.owner === "a");
+  const ib = s.units.find((u) => u.owner === "b");
+  const w = cal.weapons[0];
+  s.obstacles = []; // open ground, so only facing changes between the three positions
+  Object.assign(ib, { x: 450, y: 450, h: 0, stance: 1 }); // facing north (up)
+  const at = (x, y) => Object.assign(cal, { x, y, h: 0 });
+  at(450, 330); // in front
+  assert.equal(E.attackSide(cal, ib), "front");
+  const frontDef = E.defenseDice(s, cal, ib, w, 1);
+  const frontAtk = E.attackDice(s, cal, ib, w, 1);
+  at(570, 450); // beside: the flank
+  assert.equal(E.attackSide(cal, ib), "flank");
+  assert.equal(E.defenseDice(s, cal, ib, w, 1), frontDef - 1, "flank ignores the stance");
+  assert.equal(E.attackDice(s, cal, ib, w, 1), frontAtk + 1, "flank adds a die");
+  at(450, 570); // behind
+  assert.equal(E.attackSide(cal, ib), "rear");
+  assert.equal(E.defenseDice(s, cal, ib, w, 1), frontDef - 1, "rear ignores the stance");
+  assert.equal(E.attackDice(s, cal, ib, w, 1), frontAtk + 1, "rear adds a die");
+  // Other armies get neither benefit.
+  const ib2 = { ...ib, owner: "a", faction: "holds" };
+  Object.assign(cal, { faction: "holds" });
+  assert.equal(E.defenseDice(s, cal, ib2, w, 1), frontDef, "no Rift Ambush, the stance still counts from behind");
+});

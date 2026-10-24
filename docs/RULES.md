@@ -157,6 +157,11 @@ rolls extra attack dice equal to the smaller of its Aim and the target's stance
 bonus. Against a target that is not in a stance, Aim adds nothing, so it never
 changes the normal attack and defence numbers.
 
+**Calamity Rift Ambush.** The Calamity Host strikes around a braced line: when a
+Calamity unit attacks from outside the target's front arc (its flank or rear,
+judged from the attacker's base centre), the target's defensive stance does not
+count and the attacker rolls +1 attack die.
+
 The base travels its own length plus the template, exactly like X-Wing.
 
 - **Bumping.** If the unit would end overlapping another base, it backs up
@@ -285,7 +290,7 @@ Raise (Umbral Covenant).
 | **Sylvan Courts** | Speeds 1 to 4 (cavalry and flyers 5), blue banks, white turns. | **Fleetfoot:** actions link into red Sidestep or Surge. **Wildwood:** forests never hinder them. |
 | **Greenskin Warhorde** | No Stop, blue fast straights, red hard turns. | **Mob Rule:** Strained only at 2. **Momentum:** speed 4+ gives Frenzy. No Guard. |
 | **Umbral Covenant** | Mostly speeds 1 to 3, white turns, no blue. | **Puppet Strings:** thralls have no actions; masters take 2 (and may Command twice) to drive thralls to Steel, Guard or Surge. **Deathless:** strain becomes 1 damage instead. |
-| **Calamity Host** | Low and white, plus Rift jumps (mostly red). | **Overreach:** a second action, then roll Taint (Strike = 1 damage, Rend = 1 damage and a critical). **Channel** charges. |
+| **Calamity Host** | Low and white, plus Rift jumps (mostly red). | **Overreach:** a second action, then roll Taint (Strike = 1 damage, Rend = 1 damage and a critical). **Channel** charges. **Rift Ambush:** flank and rear attacks ignore a defensive stance and roll +1 die. |
 | **Dawnward Concord** | Balanced 1 to 4. | **Discipline:** +1 defence die while another friendly unit is at range 1. **Rally** while Strained. Commanders and Command. Bane vs undead and Calamity. |
 
 ## 12. Abilities

@@ -854,6 +854,13 @@ export function attackOptions(state, u) {
   return out;
 }
 
+/** Where an attacker's base centre stands relative to the target's facing: "front", "flank" or "rear". */
+export function attackSide(u, t) {
+  const c = { x: u.x, y: u.y, h: 0 };
+  if (inArc(t, "front", c, 0)) return "front";
+  return inArc(t, "rear", c, 0) ? "rear" : "flank";
+}
+
 export function attackDice(state, u, t, w, r) {
   let n = w.dice - (u.cond.broken || 0);
   if (r === 1 && !w.noRangeBonus) n += 1;
@@ -863,6 +870,8 @@ export function attackDice(state, u, t, w, r) {
   if (has(u, "berserk") && u.wounds < u.maxWounds) n += 1;
   if (onKind(state, u, "thicket") && !rule(u, "wildwood")) n -= 1;
   if (!visibleTo(state, t.owner).has(u.id)) n += 1; // ambush from out of sight
+  // Calamity Rift Ambush: +1 die from outside the target's front arc (flank or rear).
+  if (rule(u, "riftAmbush") && attackSide(u, t) !== "front") n += 1;
   // Aim only cancels a defensive stance: never more dice than the target's stance added.
   if (u.aim && t.stance) n += Math.min(u.aim, t.stance);
   if (has(u, "swarm")) {
@@ -873,7 +882,9 @@ export function attackDice(state, u, t, w, r) {
 }
 
 export function defenseDice(state, u, t, w, r) {
-  let n = t.def + (t.stance || 0);
+  // A stance braces the way the unit faces; Calamity Rift Ambush strikes around it from the flank or rear.
+  const braced = t.stance && !(rule(u, "riftAmbush") && attackSide(u, t) !== "front");
+  let n = t.def + (braced ? t.stance : 0);
   if (r >= 3 && !w.noRangeBonus && !has(u, "sniper")) n += 1;
   if (obstructed(state, u, t)) n += 1;
   if (inCover(state, t)) n += 1;
@@ -907,7 +918,9 @@ export function declareAttack(state, pid, msg) {
     def: [], rerolled: [], used: [], brace: false, defDice: defenseDice(state, u, t, w, opt.range),
   };
   state.attack.ambush = ambush;
-  log(state, `${ambush ? "Ambush! " : ""}${u.name} attacks ${t.name} with ${w.name} at range ${opt.range}: ${state.attack.atk.join(", ")}.`);
+  const side = rule(u, "riftAmbush") ? attackSide(u, t) : "front";
+  const around = side === "rear" ? " from the rear (Rift Ambush)" : side === "flank" ? " from the flank (Rift Ambush)" : "";
+  log(state, `${ambush ? "Ambush! " : ""}${u.name} attacks ${t.name}${around} with ${w.name} at range ${opt.range}: ${state.attack.atk.join(", ")}.`);
   state.pending = null;
   offerAttackMods(state);
 }

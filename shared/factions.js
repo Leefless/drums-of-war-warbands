@@ -70,9 +70,9 @@ export const FACTIONS = {
     kin: "Demons of Calamity, Calamity Mages, and the Mutant-touched",
     color: "#D0644B",
     tagline: "Raw power that bites the hand that wields it.",
-    economy: "Overreach: every unit may take a second action, but then rolls a Taint die (Strike: 1 damage, Rend: 1 damage and a critical). Channel banks Calamity charges (max 2) that turn any die into a Rend. Rift maneuvers teleport straight ahead, ignoring everything in the way.",
+    economy: "Overreach: every unit may take a second action, but then rolls a Taint die (Strike: 1 damage, Rend: 1 damage and a critical). Channel banks Calamity charges (max 2) that turn any die into a Rend. Rift maneuvers teleport straight ahead, ignoring everything in the way. Rift Ambush: attacking from outside a target's front arc (its flank or rear) ignores its defensive stance and rolls +1 attack die.",
     dialNote: "Plain and white at low speed, plus Rift jumps that teleport straight ahead (mostly red, speed 2 to 5).",
-    rules: ["overreach"],
+    rules: ["overreach", "riftAmbush"],
   },
 
   concord: {
