@@ -1150,18 +1150,49 @@ function endPhase(state) {
   }
   const standing = activePlayers(state);
   if (standing.length <= 1 || state.round >= state.settings.maxRounds) {
-    state.phase = "over";
-    const score = (p) => p.vp * 1000 + alive(state).filter((u) => u.owner === p.id).reduce((a, u) => a + u.cost, 0);
-    // At the round limit, only warbands still on the field can win.
-    const pool = standing.length ? standing : state.players;
-    const ranked = [...pool].sort((a, b) => score(b) - score(a));
-    state.winner = standing.length === 1 ? standing[0].id : ranked[0]?.id ?? null;
-    log(state, `The drums fall silent. ${player(state, state.winner)?.name ?? "Nobody"} holds the field.`);
+    endBattle(state);
     return;
   }
   const seats = activePlayers(state).map((p) => p.seat).sort((a, b) => a - b);
   state.firstSeat = seats.find((s) => s > state.firstSeat) ?? seats[0];
   startRound(state);
+}
+
+/** Close the battle and name the winner: the last warband standing, else the best score still on the field. */
+function endBattle(state) {
+  const standing = activePlayers(state);
+  state.phase = "over";
+  state.pending = null;
+  state.attack = null;
+  const score = (p) => p.vp * 1000 + alive(state).filter((u) => u.owner === p.id).reduce((a, u) => a + u.cost, 0);
+  // At the round limit, only warbands still on the field can win.
+  const pool = standing.length ? standing : state.players;
+  const ranked = [...pool].sort((a, b) => score(b) - score(a));
+  state.winner = standing.length === 1 ? standing[0].id : ranked[0]?.id ?? null;
+  log(state, `The drums fall silent. ${player(state, state.winner)?.name ?? "Nobody"} holds the field.`);
+}
+
+/**
+ * A player concedes: their warband quits the field (no points to anyone) and the battle
+ * ends when one warband is left, or when only computer opponents are still fighting.
+ */
+export function surrender(state, pid) {
+  const p = player(state, pid) || fail("Join the table first.");
+  if (state.phase === "muster" || state.phase === "over") fail("There is no battle to surrender.");
+  if (p.eliminated) fail("Your warband has already left the field.");
+  p.eliminated = true;
+  p.surrendered = true;
+  p.ready = true;
+  const theirs = new Set(state.units.filter((u) => u.owner === pid).map((u) => u.id));
+  for (const u of state.units) if (theirs.has(u.id)) Object.assign(u, { dead: true, dying: false });
+  // Drop any choice or attack in progress that involves the departing warband.
+  if (state.pending?.pid === pid || (state.attack && (theirs.has(state.attack.attacker) || theirs.has(state.attack.target)))) {
+    state.pending = null;
+    state.attack = null;
+  }
+  log(state, `${p.name} surrenders and quits the field.`);
+  const standing = activePlayers(state);
+  if (standing.length <= 1 || standing.every((x) => x.ai)) endBattle(state);
 }
 
 /** Advance the game until a player decision is needed. Idempotent when waiting. */

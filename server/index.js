@@ -166,6 +166,7 @@ function handle(ws, info, m) {
     case "attack": E.declareAttack(game, pid, m); break;
     case "mod": E.modify(game, pid, m); break;
     case "leave": E.removePlayer(game, pid); break;
+    case "surrender": E.surrender(game, pid); break;
     case "addAI": addAI(pid, m.faction); break;
     case "removeAI": removeAI(pid, m.seat); break;
     case "saveArmy": return saveArmy(E.player(game, pid) ? pid : null, E.player(game, pid)?.name || "Unknown", m);

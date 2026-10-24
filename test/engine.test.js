@@ -315,3 +315,54 @@ test("fuzz: 4 random seeds for each of the 36 faction pairings finish cleanly", 
   }
   assert.equal(games, 144);
 });
+
+test("surrender: the warband quits without scoring, and the battle ends when no human is left fighting", () => {
+  const toPlan = (s, pids) => {
+    for (const p of pids) E.ready(s, p);
+    E.run(s);
+    for (const p of pids) E.ready(s, p);
+    E.run(s);
+  };
+  // Two players: the other one wins at once, and nobody scores the routed units.
+  const s = setup("holds", "sylvan");
+  E.submitArmy(s, "a", [{ unit: "ironbreakers" }]);
+  E.submitArmy(s, "b", [{ unit: "wardens" }]);
+  toPlan(s, ["a", "b"]);
+  assert.equal(s.phase, "plan");
+  E.surrender(s, "a");
+  assert.equal(s.phase, "over");
+  assert.equal(s.winner, "b");
+  assert.ok(s.units.filter((u) => u.owner === "a").every((u) => u.dead));
+  assert.equal(E.player(s, "b").vp, 0);
+  assert.throws(() => E.surrender(s, "b"), /no battle/);
+
+  // One person against two computers: surrendering ends the battle for everyone.
+  const t = E.createGame({ seed: 3, budget: 100 });
+  for (const [pid, f] of [["h", "holds"], ["c1", "sylvan"], ["c2", "greenskin"]]) {
+    E.addPlayer(t, pid, pid);
+    E.setFaction(t, pid, f);
+  }
+  E.player(t, "c1").ai = true;
+  E.player(t, "c2").ai = true;
+  E.submitArmy(t, "h", [{ unit: "ironbreakers" }]);
+  E.submitArmy(t, "c1", [{ unit: "wardens" }]);
+  E.submitArmy(t, "c2", [{ unit: "boyz" }]);
+  toPlan(t, ["h", "c1", "c2"]);
+  E.surrender(t, "h");
+  assert.equal(t.phase, "over");
+  assert.ok(["c1", "c2"].includes(t.winner));
+
+  // Three people: the other two keep fighting.
+  const u = E.createGame({ seed: 4, budget: 100 });
+  for (const [pid, f] of [["a", "holds"], ["b", "sylvan"], ["c", "greenskin"]]) {
+    E.addPlayer(u, pid, pid);
+    E.setFaction(u, pid, f);
+  }
+  E.submitArmy(u, "a", [{ unit: "ironbreakers" }]);
+  E.submitArmy(u, "b", [{ unit: "wardens" }]);
+  E.submitArmy(u, "c", [{ unit: "boyz" }]);
+  toPlan(u, ["a", "b", "c"]);
+  E.surrender(u, "c");
+  assert.equal(u.phase, "plan");
+  assert.ok(E.player(u, "c").eliminated);
+});
