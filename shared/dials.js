@@ -49,6 +49,12 @@ export const DIALS = {
   concordEngine: dial(`0X:w 1S:w 1BL:w 1BR:w 2S:w 2BL:r 2BR:r`),
 };
 
+/** Defensive stance row every unit gets in battle (added at muster, so it never affects unit cost). */
+export const STANCE_ROW = dial(`0DL:w 0DBL:w 0D:w 0DBR:w 0DR:w 0DA:w`);
+
+/** Aim row for ranged units (a weapon reaching range 2 or more): offsets a target's defensive stance. */
+export const AIM_ROW = dial(`0ML:w 0MBL:w 0M:w 0MBR:w 0MR:w 0MA:w`);
+
 /** Which dials each army may use (keeps each army's movement identity). */
 export const FACTION_DIALS = {
   holds: ["holds", "holdsSteady", "holdsSlow", "holdsGiant", "holdsRam", "holdsGyro"],

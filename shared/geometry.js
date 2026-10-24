@@ -20,11 +20,19 @@ export const turnRadius = (s) => 35 + 25 * (s - 1);
 // ── Maneuver notation ────────────────────────────────────────────────────────
 // "2BL:w" = speed 2, bank left, white. Types: X stop, S straight, BL/BR bank,
 // TL/TR turn, A wheel-about (straight then face the rear), RF rift (straight
-// teleport that ignores everything on the way).
-export const MANEUVER_TYPES = ["TL", "BL", "S", "BR", "TR", "A", "RF", "X"];
+// teleport that ignores everything on the way). Defensive stances (speed 0) hold
+// position and pivot in place: D keeps facing, DL/DR turn 90, DBL/DBR turn 45,
+// DA faces the rear. Aim (M, ML, MBL, MBR, MR, MA) pivots the same way for ranged units.
+export const MANEUVER_TYPES = ["TL", "BL", "S", "BR", "TR", "A", "RF", "X", "D", "DL", "DBL", "DBR", "DR", "DA", "M", "ML", "MBL", "MBR", "MR", "MA"];
+export const STANCE_TURN = { D: 0, DL: -90, DBL: -45, DBR: 45, DR: 90, DA: 180 };
+export const AIM_TURN = { M: 0, ML: -90, MBL: -45, MBR: 45, MR: 90, MA: 180 };
+export const isStance = (man) => Object.hasOwn(STANCE_TURN, man.type);
+export const isAim = (man) => Object.hasOwn(AIM_TURN, man.type);
+/** Stance or Aim: the unit stays put and only pivots. */
+export const isHold = (man) => isStance(man) || isAim(man);
 
 export function parseManeuver(code) {
-  const m = /^(\d)(X|S|BL|BR|TL|TR|A|RF):([bwr])$/.exec(code);
+  const m = /^(\d)(X|S|BL|BR|TL|TR|A|RF|DBL|DBR|DL|DR|DA|D|MBL|MBR|ML|MR|MA|M):([bwr])$/.exec(code);
   if (!m) throw new Error(`bad maneuver ${code}`);
   return { code, speed: Number(m[1]), type: m[2], color: { b: "blue", w: "white", r: "red" }[m[3]] };
 }
@@ -34,6 +42,18 @@ export function maneuverSegments(man, size) {
   const s = man.speed;
   switch (man.type) {
     case "X":
+    case "D":
+    case "DL":
+    case "DBL":
+    case "DBR":
+    case "DR":
+    case "DA":
+    case "M":
+    case "ML":
+    case "MBL":
+    case "MBR":
+    case "MR":
+    case "MA":
       return [];
     case "S":
     case "A":
@@ -92,6 +112,7 @@ export function poseAlong(start, segs, t) {
 export function maneuverPose(start, man, size, t = 1) {
   const p = poseAlong(start, maneuverSegments(man, size), t);
   if (man.type === "A" && t >= 1) p.h = norm(p.h + 180);
+  if (isHold(man) && t >= 1) p.h = norm(p.h + (STANCE_TURN[man.type] ?? AIM_TURN[man.type]));
   return p;
 }
 

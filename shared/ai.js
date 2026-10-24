@@ -5,7 +5,7 @@
 //   if it did something; the server calls it on a timer so moves stay watchable.
 import * as E from "./engine.js";
 import { FACTIONS, MAX_COPIES, MAX_UNITS, upgradesFor, validateArmy } from "./factions.js";
-import { BOARD, parseManeuver } from "./geometry.js";
+import { BOARD, isAim, isStance, parseManeuver } from "./geometry.js";
 import { visibleTo } from "./terrain.js";
 
 export const AI_NAMES = {
@@ -78,6 +78,13 @@ function planDials(state, pid) {
       if (m.color === "blue" && u.strain > 0) score += 15;
       if (mv.bumped.length || mv.blockedBy) score -= 40;
       if (mv.slowedBy?.kind === "lava" && u.faction !== "calamity") score -= 30;
+      // A defensive stance only pays when an enemy is close enough to attack this round, and a
+      // brawler only braces once it is in contact; until then it keeps closing.
+      if (isAim(m)) continue; // the computer cannot see enemy dials, so it does not gamble on Aim
+      if (isStance(m)) {
+        const near = Math.min(Infinity, ...foes.map((f) => dist(f, u)));
+        score += near <= 300 && (want > 40 || near <= 110) ? 6 : -30;
+      }
       // Face the target at the end of the move so front arcs can fire.
       const ang = (Math.atan2(target.x - mv.pose.x, -(target.y - mv.pose.y)) * 180) / Math.PI;
       const off = Math.abs(((ang - mv.pose.h + 540) % 360) - 180);

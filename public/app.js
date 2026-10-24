@@ -3,10 +3,10 @@
 import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
 import { PRESETS } from "/shared/presets.js";
-import { parseManeuver } from "/shared/geometry.js";
-import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
+import { BASE_SIZE, BOARD, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
+import { CRIT_TEXT, parseAction, planMove, stanceBonus, strained, zoneFor } from "/shared/engine.js";
 import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
-import { TERRAIN, terrainAt as terrainUnder } from "/shared/terrain.js";
+import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -34,6 +34,9 @@ const L = {
   sub: null, // in-progress choice for a multi-step action
   diceSel: new Set(),
   mode: null,
+  order: null, // quick order for this planning phase: { mode, round }
+  chargeAt: null, // board point the Charge order drives at (draggable banner)
+  manual: new Set(), // units whose dial the player changed by hand after an order
 };
 let ws;
 
@@ -80,7 +83,9 @@ const unitName = (id) => unitById(id)?.name ?? "an unseen unit";
 const nameOf = (pid) => S.players.find((p) => p.id === pid)?.name ?? "?";
 const myUnits = () => S.units.filter((u) => u.owner === S.you && !u.dead);
 const PHASES = { muster: "Muster", deploy: "Deployment", plan: "Planning", activation: "Activation", engagement: "Engagement", over: "Battle over" };
-const GLYPH = { TL: "↰", BL: "↖", S: "↑", BR: "↗", TR: "↱", A: "U", RF: "Rift", X: "■" };
+const GLYPH = { TL: "↰", BL: "↖", S: "↑", BR: "↗", TR: "↱", A: "U", RF: "Rift", X: "■", DL: "←", DBL: "↖", D: "◆", DBR: "↗", DR: "→", DA: "↓", ML: "←", MBL: "↖", M: "◎", MBR: "↗", MR: "→", MA: "↓" };
+const STANCE_NAME = { D: "hold facing", DL: "turn left", DBL: "turn half left", DBR: "turn half right", DR: "turn right", DA: "face the rear" };
+const holdName = (m) => STANCE_NAME[m.type.replace(/^M/, "D")];
 
 function header() {
   $("#phase").textContent = S ? `${PHASES[S.phase]}${S.round ? ` · Round ${S.round} of ${S.settings.maxRounds}` : ""}` : "Connecting";
@@ -456,16 +461,29 @@ function weaponText(w) {
 
 function dialHTML(dial, current, mini = false, strainedNow = false) {
   const cols = ["TL", "BL", "S", "BR", "TR", "*"];
-  const ms = dial.map(parseManeuver);
+  const all = dial.map(parseManeuver);
+  const ms = all.filter((m) => !isHold(m));
+  const stances = all.filter(isStance);
+  const aims = all.filter(isAim);
   const speeds = [...new Set(ms.map((m) => m.speed))].sort((a, b) => b - a);
+  // The defensive stance row sits under the speeds: hold position, pick a facing, gain defence.
+  const STANCE_COL = { TL: "DL", BL: "DBL", S: "D", BR: "DBR", TR: "DR", "*": "DA" };
+  const AIM_COL = { TL: "ML", BL: "MBL", S: "M", BR: "MBR", TR: "MR", "*": "MA" };
+  const bonus = stances.length ? stanceBonus({ dial }) : 0;
   let html = `<div class="dial" ${mini ? 'style="max-width:260px"' : ""}>`;
-  for (const s of speeds) {
-    html += `<span class="sp">${s}</span>`;
+  for (const s of [...speeds, ...(stances.length ? ["def"] : []), ...(aims.length ? ["aim"] : [])]) {
+    html += s === "def" ? `<span class="sp def" title="Defensive stance: no movement, +${bonus} defence ${bonus === 1 ? "die" : "dice"} this round">Def</span>`
+      : s === "aim" ? `<span class="sp aim" title="Aim: no movement; attacks cancel up to ${bonus} of a target's stance dice this round">Aim</span>`
+      : `<span class="sp">${s}</span>`;
     for (const c of cols) {
-      const m = ms.find((x) => x.speed === s && (c === "*" ? ["A", "RF", "X"].includes(x.type) : x.type === c));
+      const m = s === "def"
+        ? stances.find((x) => x.type === STANCE_COL[c])
+        : s === "aim"
+          ? aims.find((x) => x.type === AIM_COL[c])
+          : ms.find((x) => x.speed === s && (c === "*" ? ["A", "RF", "X"].includes(x.type) : x.type === c));
       if (!m) { html += `<button class="empty" disabled></button>`; continue; }
       const blocked = strainedNow && m.color === "red";
-      html += `<button class="${m.color} ${current === m.code ? "on" : ""}" ${mini ? "disabled" : `data-man="${m.code}"`} ${blocked ? "disabled" : ""} title="${blocked ? "Strained: no red maneuvers" : m.code}">${GLYPH[m.type]}</button>`;
+      html += `<button class="${m.color} ${isStance(m) ? "stance" : isAim(m) ? "aim" : ""} ${current === m.code ? "on" : ""}" ${mini ? "disabled" : `data-man="${m.code}"`} ${blocked ? "disabled" : ""} title="${blocked ? "Strained: no red maneuvers" : isStance(m) ? `Defensive stance, ${holdName(m)}: +${bonus} defence this round` : isAim(m) ? `Aim, ${holdName(m)}: offsets up to ${bonus} of a target's stance dice this round` : m.code}">${GLYPH[m.type]}</button>`;
     }
   }
   return `${html}</div>`;
@@ -479,8 +497,27 @@ function renderBattle(app) {
       <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div><div id="umodal"></div>`;
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
-    canvas.onmousemove = (ev) => {
+    canvas.onpointerdown = (ev) => {
       const pt = toBoard(canvas, ev);
+      if (L.order?.mode === "charge" && L.chargeAt && Math.hypot(pt.x - L.chargeAt.x, pt.y - L.chargeAt.y) < 34) {
+        L.dragging = true;
+        canvas.setPointerCapture(ev.pointerId);
+      }
+    };
+    canvas.onpointerup = () => {
+      if (!L.dragging) return;
+      L.dragging = false;
+      L.dragged = true; // the click that follows a drag is not a selection
+      issueOrder("charge", true);
+    };
+    canvas.onpointermove = (ev) => {
+      const pt = toBoard(canvas, ev);
+      if (L.dragging) {
+        L.chargeAt = { x: Math.max(20, Math.min(BOARD - 20, pt.x)), y: Math.max(20, Math.min(BOARD - 20, pt.y)) };
+        canvas.style.cursor = "grabbing";
+        return drawBoard();
+      }
+      canvas.style.cursor = L.order?.mode === "charge" && L.chargeAt && Math.hypot(pt.x - L.chargeAt.x, pt.y - L.chargeAt.y) < 34 ? "grab" : "";
       const u = unitAt(S, pt);
       const o = u ? null : terrainAt(S, pt);
       const tt = o && TERRAIN[o.kind];
@@ -512,6 +549,7 @@ function renderBattle(app) {
     $("#prompt").innerHTML = `<p class="muted">Something in this prompt could not be shown.</p>${S.pending?.pid === S.you ? `<button class="cta" id="pass">Done</button>` : ""}`;
   }
   $("#prompt").className = `scroll ${S.pending?.pid === S.you ? "prompt" : ""}`;
+  if (L.order && (S.phase !== "plan" || L.order.round !== S.round)) Object.assign(L, { order: null, chargeAt: null, manual: new Set() });
   $("#card").innerHTML = cardHTML();
   renderRoster();
   $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
@@ -544,6 +582,8 @@ function drawBoard() {
     selected: L.selected,
     active: p?.uid || A?.attacker,
     ghost,
+    ghosts: L.order && S.phase === "plan" ? myUnits().filter((u) => S.dials[u.id] && u.id !== sel?.id).map((u) => ({ uid: u.id, code: S.dials[u.id] })) : [],
+    marker: L.order?.mode === "charge" && S.phase === "plan" ? L.chargeAt : null,
     highlight,
     zones: S.phase === "deploy",
     fog: !S.spectator && !!me() && S.phase !== "over",
@@ -552,6 +592,7 @@ function drawBoard() {
 }
 
 function onBoardClick(ev) {
+  if (L.dragged) { L.dragged = false; return; }
   const canvas = $("#board");
   const pt = toBoard(canvas, ev);
   const u = unitAt(S, pt);
@@ -616,7 +657,10 @@ function promptHTML() {
       const units = myUnits();
       const sel = unitById(L.selected);
       const allSet = units.every((u) => S.dials[u.id]);
+      const ord = L.order?.mode;
       html = `<div class="label">Planning · secret</div><h3>Set a maneuver for every unit</h3>
+        <div class="orders"><div class="btns">${Object.entries(ORDERS).map(([k, o]) => `<button data-order="${k}" class="${ord === k ? "on" : ""}" title="${esc(o.hint)}" ${mine.ready ? "disabled" : ""}>${o.name}</button>`).join("")}</div>
+          <p class="muted">${ord ? esc(ORDERS[ord].hint) : "Quick orders set every dial at once. You can still change any unit afterwards."}</p></div>
         <div class="ulist" style="margin:8px 0">${units.map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)} <span class="muted">i${u.init}${strained(u) ? " · strained" : ""}</span></span><span class="set">${S.dials[u.id] ? esc(S.dials[u.id].replace(":", " ")) : ""}</span></button>${u === sel ? `<div class="inline-dial" id="seldial"><div class="label">Dial (hover to preview)</div>${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}</div>` : ""}`).join("")}</div>
         ${sel && sel.owner === S.you ? "" : `<p class="muted">Select a unit to open its dial.</p>`}
         <div class="btns" style="margin-top:10px">${mine.ready ? `<span class="muted">Orders locked. Waiting for the others.</span><button id="unready">Change orders</button>` : `<button class="cta" id="ready" ${allSet ? "" : "disabled"}>Lock in orders</button>`}</div>`;
@@ -741,7 +785,11 @@ function wirePrompt() {
     if (u) send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + Number(el.dataset.rot) });
   });
   on("[data-sel]", (el) => { L.selected = el.dataset.sel; L.hover = null; render(); });
-  on("[data-man]", (el) => send("dial", { uid: L.selected, code: el.dataset.man }));
+  on("[data-man]", (el) => {
+    if (L.order) L.manual.add(L.selected);
+    send("dial", { uid: L.selected, code: el.dataset.man });
+  });
+  on("[data-order]", (el) => issueOrder(el.dataset.order));
   root.querySelectorAll("[data-man]").forEach((el) => {
     el.onmouseenter = () => { L.hover = el.dataset.man; drawBoard(); };
     el.onmouseleave = () => { L.hover = null; drawBoard(); };
@@ -803,6 +851,94 @@ function cardHTML() {
     ${u.abilities.length ? `<div style="font-size:13px;margin-top:6px" class="muted">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}`;
 }
 
+// ── Quick orders (planning) ─────────────────────────────────────────────────
+const ORDERS = {
+  charge: { name: "Charge", hint: "Every unit drives as fast as it can at the thickest knot of enemies. Drag the banner on the map to redirect the charge." },
+  scatter: { name: "Scatter", hint: "Every unit breaks away from the enemy mass and spreads out, keeping off the table edges." },
+  defend: { name: "Defend", hint: "The warband closes ranks on the most defensible ground nearby, takes cover, and braces in defensive stances once it arrives." },
+};
+
+const gap = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const centroid = (ps) => ({ x: ps.reduce((a, p) => a + p.x, 0) / ps.length, y: ps.reduce((a, p) => a + p.y, 0) / ps.length });
+const facingOff = (pose, to) => Math.abs(((((Math.atan2(to.x - pose.x, -(to.y - pose.y)) * 180) / Math.PI) - pose.h + 540) % 360) - 180);
+
+/** Where your side believes the enemy is thickest: the densest visible group, else their deployment zones. */
+function enemyFocus() {
+  const foes = S.units.filter((u) => !u.dead && u.owner !== S.you);
+  if (foes.length) {
+    const near = (f) => foes.filter((o) => gap(o, f) <= 200);
+    const core = foes.reduce((a, f) => (near(f).length > near(a).length ? f : a));
+    return centroid(near(core));
+  }
+  const zones = S.players.filter((p) => p.id !== S.you && !p.eliminated).map((p) => zoneFor(p.seat)).filter(Boolean);
+  return zones.length ? centroid(zones.map((z) => ({ x: (z.x0 + z.x1) / 2, y: (z.y0 + z.y1) / 2 }))) : { x: BOARD / 2, y: BOARD / 2 };
+}
+
+/** The best nearby ground to hold: cover or high ground close to the warband and away from the enemy. */
+function rallyPoint(units, focus) {
+  const home = centroid(units);
+  const spots = [home, ...S.obstacles.filter((o) => ["hill", "thicket", "ruins"].includes(o.kind)).map((o) => ({ x: o.x, y: o.y, good: true }))];
+  const score = (c) => -gap(c, home) + 0.6 * Math.min(gap(c, focus), 500) + (c.good ? 140 : 0);
+  return spots.reduce((a, c) => (score(c) > score(a) ? c : a));
+}
+
+/** Pick a dial for each unit for the chosen quick order and send them as one batch. */
+function issueOrder(mode, keepManual = false) {
+  const units = myUnits();
+  if (!units.length || S.phase !== "plan" || me()?.ready) return;
+  if (!keepManual) L.manual = new Set();
+  const focus = enemyFocus();
+  if (mode === "charge" && (!keepManual || !L.chargeAt)) L.chargeAt = L.chargeAt && L.order?.mode === "charge" ? L.chargeAt : focus;
+  const target = mode === "charge" ? L.chargeAt : focus;
+  const rally = mode === "defend" ? rallyPoint(units, focus) : null;
+  L.order = { mode, round: S.round };
+  const ends = [];
+  const dials = {};
+  const plan = units.filter((u) => !L.manual.has(u.id)).sort((a, b) => gap(a, target) - gap(b, target));
+  for (const u of units.filter((x) => L.manual.has(x.id) && S.dials[x.id])) ends.push({ u, pose: planMove(S, u, S.dials[u.id]).pose });
+  for (const u of plan) {
+    let best = null;
+    for (const code of u.dial) {
+      const m = parseManeuver(code);
+      if (m.color === "red" && strained(u)) continue;
+      if (isAim(m)) continue; // Aim is a deliberate call; quick orders leave it to the player
+      if (mode === "charge" && isStance(m)) continue; // a charge never stands still
+      const mv = planMove(S, u, code);
+      if (mv.fled) continue;
+      const end = mv.pose;
+      let sc = 0;
+      if (mv.bumped.length || mv.blockedBy) sc -= 40;
+      if (mv.slowedBy?.kind === "lava" && u.faction !== "calamity") sc -= 30;
+      if (m.color === "red") sc -= mode === "charge" ? 6 : 15;
+      if (isStance(m) && m.type !== "D" && end.h === u.h) sc -= 30; // a pivot with no room to turn
+      if (m.color === "blue" && u.strain > 0) sc += 10;
+      // Keep planned bases from landing on each other.
+      for (const o of ends) if (gap(end, o.pose) < ((BASE_SIZE[u.base] + BASE_SIZE[o.u.base]) / 2) * 1.05) sc -= 60;
+      if (mode === "charge") {
+        sc += -gap(end, target) - facingOff(end, target) / 4;
+      } else if (mode === "scatter") {
+        const edge = Math.min(end.x, end.y, BOARD - end.x, BOARD - end.y);
+        const spread = Math.min(150, ...ends.map((o) => gap(end, o.pose)), 150);
+        sc += gap(end, focus) + 0.5 * spread - Math.max(0, 90 - edge) * 3;
+      } else {
+        const arrived = gap(u, rally) < 110;
+        sc += -gap(end, rally) - facingOff(end, focus) / 1.5; // a defensive line keeps its front to the enemy
+        if (["hill", "thicket", "ruins"].some((k) => onKind(S, end, k))) sc += 25;
+        if (onKind(S, end, "marsh")) sc -= 20;
+        if (isStance(m)) sc += arrived ? 45 : -25;
+        const mates = ends.filter((o) => gap(end, o.pose) < 120).length;
+        sc += Math.min(3, mates) * 8;
+      }
+      if (!best || sc > best.sc) best = { code, sc, end };
+    }
+    if (!best) continue;
+    dials[u.id] = best.code;
+    ends.push({ u, pose: best.end });
+  }
+  if (Object.keys(dials).length) send("dials", { dials });
+  render();
+}
+
 // ── Roster strip and full unit card ─────────────────────────────────────────
 /** Buffs and debuffs currently on a unit: tokens, conditions, strain and the terrain under it. */
 function unitStatus(u) {
@@ -816,6 +952,8 @@ function unitStatus(u) {
   if (t.charge) buffs.push([`Calamity ×${t.charge}`, "Calamity charges, spent on Calamity abilities."]);
   if (t.mark) buffs.push([`Mark: ${unitName(t.mark)}`, ACTIONS.mark.text]);
   if (u.souls) buffs.push([`Souls ×${u.souls}`, "Spent in the End phase to heal thralls."]);
+  if (u.aim) buffs.push([`Aimed ${u.aim}`, `Attacks gain up to ${u.aim} ${u.aim === 1 ? "die" : "dice"} against a target in a defensive stance, never more than its stance added.`]);
+  if (u.stance) buffs.push([`Defensive stance +${u.stance}`, `Rolls ${u.stance} extra defence ${u.stance === 1 ? "die" : "dice"} until the end of the round.`]);
   if (u.strain) debuffs.push([`Strain ${u.strain}/${u.faction === "greenskin" ? 2 : 1}`, strained(u) ? "Strained: cannot pick red maneuvers or red actions." : "Strain builds from red maneuvers and actions."]);
   for (const c of Object.keys(u.cond)) if (CRIT_TEXT[c] && c !== "broken") debuffs.push([c[0].toUpperCase() + c.slice(1), CRIT_TEXT[c]]);
   if (u.cond.broken) debuffs.push([`Broken Arms ×${u.cond.broken}`, CRIT_TEXT.broken]);

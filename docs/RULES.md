@@ -84,6 +84,16 @@ orders**; the round continues when everyone has locked in.
 
 A **Strained** unit (section 6) cannot plan a red maneuver.
 
+**Quick orders.** Three buttons at the top of the planning panel set every
+dial at once. You can change any unit afterwards, and the order leaves units
+you set by hand alone.
+
+| Order | What it does |
+| --- | --- |
+| **Charge** | Every unit drives as fast as it can at the densest group of enemies you can see (or their deployment zone if none are in sight). A banner marks the target: drag it on the map to redirect the charge. |
+| **Scatter** | Every unit breaks away from the enemy mass and spreads out, keeping off the table edges. |
+| **Defend** | The warband closes ranks on the most defensible ground nearby (cover or high ground, away from the enemy) and units that have arrived take a defensive stance facing the enemy. |
+
 ### 4.2 Activation (lowest initiative first)
 
 Units activate one at a time from initiative 1 upward. Ties go in seat order,
@@ -116,6 +126,22 @@ charges stay. Then check for victory.
 | U | Wheel About | Straight, then the unit faces its rear. |
 | Rift | Rift | Straight teleport that ignores units and obstacles on the way. |
 | ■ | Stop | Stays in place. |
+| ← ↖ ◆ ↗ → ↓ | Defensive stance | Every unit's bottom row (**Def**). Stays in place and pivots to a new facing (90° or 45° left or right, hold, or face the rear), then gains extra defence dice until the end of the round. |
+
+**Defensive stance.** The unit gives up its movement for defence, so faster
+units gain more: top speed 1 to 3 gives **+1 defence die**, top speed 4 or 5
+gives **+2**. If pivoting would overlap another base or rocks, the unit keeps
+its old facing but still gains the bonus. A stance is white: it neither adds
+nor removes strain, and the unit still takes its actions and attacks.
+
+**Aim (ranged units only).** Units with a weapon that reaches range 2 or more
+have a second bottom row, **Aim** (← ↖ ◎ ↗ → ↓). Like a stance, the unit stays
+in place and pivots, but instead of bracing it lines up its shots. Aim is worth
+the same number of dice as that unit's stance (+1 or +2), and it only ever
+cancels a defensive stance: when an aimed unit attacks a target in a stance, it
+rolls extra attack dice equal to the smaller of its Aim and the target's stance
+bonus. Against a target that is not in a stance, Aim adds nothing, so it never
+changes the normal attack and defence numbers.
 
 The base travels its own length plus the template, exactly like X-Wing.
 
@@ -209,14 +235,16 @@ no player can glance at).
 
 1. **Declare** a target and weapon.
 2. **Roll attack dice:** weapon dice, +1 at range 1 (not for artillery), +1 for
-   an ambush, plus abilities (Bane, Brutal, Swarm, Charge, Berserk), minus Broken
+   an ambush, plus Aim against a target in a stance (never more than its stance
+   added), plus abilities (Bane, Brutal, Swarm, Charge, Berserk), minus Broken
    Arms, minus 1 if attacking from inside a forest. Always at least 1 die.
 3. **Attacker modifies:** Steel, Mark, Frenzy, Inspire, Channel. Each die may be
    rerolled only once.
 4. **Roll defence dice:** Defence, +1 at range 3 or more (not vs artillery),
    +1 for haze (lava or marsh between), +1 in cover, +1 on high ground against
    an attacker below, -1 standing in marsh, plus Elusive, Shieldwall or
-   Guardian, +1 for Concord Discipline, minus 1 for Pierce.
+   Guardian, +1 for Concord Discipline, plus a defensive stance (+1 or +2),
+   minus 1 for Pierce.
 5. **Defender modifies:** Steel, Guard, Brace.
 6. **Cancel:** each Parry cancels a Strike, then Rends. Brace cancels one more
    Strike.

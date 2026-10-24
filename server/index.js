@@ -160,6 +160,7 @@ function handle(ws, info, m) {
     case "unready": E.unready(game, pid); break;
     case "deploy": E.deployUnit(game, pid, m.uid, m.x, m.y, m.h); break;
     case "dial": E.setDial(game, pid, m.uid, m.code); break;
+    case "dials": E.setDials(game, pid, m.dials); break;
     case "act": E.act(game, pid, m); break;
     case "pass": E.pass(game, pid); break;
     case "attack": E.declareAttack(game, pid, m); break;

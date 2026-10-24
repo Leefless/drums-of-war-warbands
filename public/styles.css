@@ -240,15 +240,22 @@ canvas { display: block; cursor: crosshair; touch-action: none; border: 1px soli
 .side > section { padding: 12px 14px; border-bottom: 1px solid var(--line); box-shadow: 0 1px 0 var(--inset); }
 .side .scroll { overflow: auto; }
 .prompt { border-left: 3px solid var(--accent); }
+.orders { margin: 8px 0 4px; display: grid; gap: 4px; }
+.orders .btns button { flex: 1; font-family: var(--display); letter-spacing: 0.06em; }
+.orders p { margin: 0; font-size: 14px; }
 .btns { display: flex; gap: 6px; flex-wrap: wrap; }
 .log { flex: 1; overflow: auto; font-size: 15px; color: var(--ink-2); min-height: 120px; }
 .log div { padding: 2px 0; border-bottom: 1px solid var(--grid); }
 
 .dial { display: grid; grid-template-columns: 24px repeat(6, 1fr); gap: 3px; }
 .dial .sp { font: 13px var(--sans); font-variant-numeric: tabular-nums; color: var(--ink-3); display: flex; align-items: center; }
+.dial .sp.def { font: 600 11px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--good); }
 .dial button { padding: 4px 0; font-size: 17px; line-height: 1.2; }
 .dial button.blue { color: var(--blue); }
 .dial button.red { color: var(--red); }
+.dial button.stance { color: var(--good); border-style: dashed; }
+.dial button.aim { color: var(--blue); border-style: dashed; }
+.dial .sp.aim { font: 600 11px var(--display); letter-spacing: 0.06em; text-transform: uppercase; color: var(--blue); }
 /* Codex dials are reference only: disabled, but they must stay readable. */
 .ucard .dial button:disabled:not(.empty) { opacity: 1; cursor: default; }
 .dial .empty { visibility: hidden; }

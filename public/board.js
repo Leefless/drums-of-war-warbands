@@ -644,6 +644,14 @@ function render(canvas, state, opts, now) {
 
   const sel = state.units.find((u) => u.id === opts.selected && !u.dead);
   if (sel) drawReach(ctx, { ...sel, ...displayPose(sel, now) });
+  for (const g of opts.ghosts || []) {
+    const u = state.units.find((x) => x.id === g.uid);
+    if (!u) continue;
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    drawGhost(ctx, u, g.code);
+    ctx.restore();
+  }
   if (opts.ghost) {
     const u = state.units.find((x) => x.id === opts.ghost.uid);
     if (u) drawGhost(ctx, u, opts.ghost.code);
@@ -664,6 +672,7 @@ function render(canvas, state, opts, now) {
   }
 
   if (opts.fog) drawFog(ctx, canvas, state);
+  if (opts.marker) drawChargeBanner(ctx, opts.marker, now);
   if (opts.attackLine) drawAttackLine(ctx, state, opts.attackLine, now);
   drawEffects(ctx, k, now);
   drawFloaters(ctx, now);
@@ -853,6 +862,46 @@ function drawReach(ctx, u) {
     ctx.fill();
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+/** The Charge order's rally banner: a pulsing ring with a war banner the player can drag. */
+function drawChargeBanner(ctx, p, now) {
+  const pulse = 0.5 + 0.5 * Math.sin(now / 300);
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  ctx.beginPath();
+  ctx.arc(0, 0, 22 + pulse * 6, 0, Math.PI * 2);
+  ctx.strokeStyle = `rgba(225, 110, 80, ${0.35 + 0.4 * pulse})`;
+  ctx.lineWidth = 2;
+  ctx.setLineDash([5, 4]);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.shadowColor = "rgba(0, 0, 0, 0.6)";
+  ctx.shadowBlur = 6;
+  // Pole.
+  ctx.fillStyle = "#2A1F12";
+  ctx.fillRect(-2, -26, 4, 34);
+  // Pennant.
+  ctx.beginPath();
+  ctx.moveTo(2, -26);
+  ctx.lineTo(24, -19);
+  ctx.lineTo(2, -11);
+  ctx.closePath();
+  ctx.fillStyle = "#B8402E";
+  ctx.fill();
+  ctx.strokeStyle = GOLD;
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = GOLD;
+  ctx.beginPath();
+  ctx.arc(0, -27, 3, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.font = "600 10px Cinzel, Georgia, serif";
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#F7EBCB";
+  ctx.fillText("CHARGE", 0, 20);
   ctx.restore();
 }
 

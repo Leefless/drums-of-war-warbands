@@ -101,6 +101,62 @@ test("Unyielding grants a second Steel/Brace action after holding ground", () =>
   assert.equal(ib.tokens.brace, 1);
 });
 
+test("a defensive stance holds position, pivots, and adds defence dice for the round", () => {
+  const s = setup("holds", "sylvan");
+  E.submitArmy(s, "a", [{ unit: "ironbreakers" }]);
+  E.submitArmy(s, "b", [{ unit: "thornriders" }]);
+  for (const p of ["a", "b"]) E.ready(s, p);
+  E.run(s);
+  for (const p of ["a", "b"]) E.ready(s, p);
+  E.run(s);
+  const ib = s.units.find((u) => u.owner === "a");
+  const tr = s.units.find((u) => u.owner === "b");
+  assert.ok(ib.dial.includes("0DL:w") && tr.dial.includes("0DA:w"), "every unit gets the stance row");
+  // Bonus follows top speed: Ironbreakers (3) +1, Thornriders (5) +2.
+  assert.equal(E.stanceBonus(ib), 1);
+  assert.equal(E.stanceBonus(tr), Math.max(1, Math.floor(Math.max(...tr.dial.map(parseManeuver).filter((m) => m.speed).map((m) => m.speed)) / 2)));
+  const before = { x: ib.x, y: ib.y, h: ib.h };
+  const base = E.defenseDice(s, tr, ib, tr.weapons[0], 1);
+  E.setDial(s, "a", ib.id, "0DR:w");
+  E.setDial(s, "b", tr.id, "0D:w");
+  E.ready(s, "a");
+  E.ready(s, "b");
+  E.run(s);
+  close(ib.x, before.x);
+  close(ib.y, before.y);
+  close(ib.h, (before.h + 90) % 360);
+  assert.equal(ib.stance, 1);
+  assert.equal(E.defenseDice(s, tr, ib, tr.weapons[0], 1), base + 1);
+  let guard = 0;
+  while (s.phase !== "plan" && s.phase !== "over" && guard++ < 50) {
+    if (s.pending) E.pass(s, s.pending.pid);
+    E.run(s);
+  }
+  assert.equal(ib.stance, 0, "stance clears at the next round");
+});
+
+test("Aim only offsets a defensive stance and never adds more than the stance did", () => {
+  const s = setup("holds", "sylvan");
+  E.submitArmy(s, "a", [{ unit: "ironbreakers" }, { unit: "gunners" }]);
+  E.submitArmy(s, "b", [{ unit: "wardens" }]);
+  for (const p of ["a", "b"]) E.ready(s, p);
+  E.run(s);
+  const [ib, gun] = s.units.filter((u) => u.owner === "a");
+  const wd = s.units.find((u) => u.owner === "b");
+  assert.ok(gun.dial.includes("0M:w") && wd.dial.includes("0ML:w"), "ranged units get the Aim row");
+  assert.ok(!ib.dial.some((c) => c.startsWith("0M")), "melee units do not");
+  const w = wd.weapons[0];
+  const base = E.attackDice(s, wd, gun, w, 2);
+  wd.aim = 2;
+  assert.equal(E.attackDice(s, wd, gun, w, 2), base, "no stance: Aim adds nothing");
+  gun.stance = 1;
+  assert.equal(E.attackDice(s, wd, gun, w, 2), base + 1, "capped at the stance's dice");
+  gun.stance = 2;
+  wd.aim = 1;
+  assert.equal(E.attackDice(s, wd, gun, w, 2), base + 1, "capped at the Aim's dice");
+  assert.equal(E.attackDice(s, wd, gun, w, 2) - E.defenseDice(s, wd, gun, w, 2), base - E.defenseDice(s, wd, { ...gun, stance: 0 }, w, 2) - 1, "net effect never beats the unbraced matchup");
+});
+
 test("Deathless units take damage instead of strain on red maneuvers", () => {
   const s = setup("umbral", "concord");
   E.submitArmy(s, "a", [{ unit: "skeletons" }]);

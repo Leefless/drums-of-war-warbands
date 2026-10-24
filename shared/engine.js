@@ -10,9 +10,10 @@
 //   end         tokens clear, regeneration, victory check
 
 import {
-  BASE_SIZE, BOARD, corners, inArc, insideBoard, maneuverPose, maneuverSegments, parseManeuver, polyCircleOverlap,
+  BASE_SIZE, BOARD, corners, inArc, insideBoard, isAim, isHold, isStance, maneuverPose, maneuverSegments, parseManeuver, polyCircleOverlap,
   polyDistance, polysOverlap, rangeBand, right,
 } from "./geometry.js";
+import { AIM_ROW, STANCE_ROW } from "./dials.js";
 import { FACTION_TAGS, FACTIONS, UPGRADES, unitDef, validateArmy } from "./factions.js";
 import { COVER, SLOW_DEPTH, hazeBetween, inside, layTerrain, lineOfSight, onKind, touches, visibleTo } from "./terrain.js";
 
@@ -186,10 +187,12 @@ function buildUnit(state, p, entry) {
     maxWard: ward,
     actions,
     abilities,
-    dial: d.dial,
+    dial: [...d.dial, ...STANCE_ROW, ...(d.weapons.some((w) => w.range[1] >= 2) ? AIM_ROW : [])],
     tags: FACTION_TAGS[p.faction] || [],
     x: 0, y: 0, h: 0,
     strain: 0,
+    stance: 0,
+    aim: 0,
     tokens: { steel: 0, guard: 0, brace: 0, frenzy: 0, charge: 0, mark: null },
     cond: {},
     souls: abilities.includes("phylactery") && abilities.includes("raise") ? 2 : 0,
@@ -300,6 +303,20 @@ export function setDial(state, pid, uid, code) {
   player(state, pid).ready = false;
 }
 
+/** Set several dials in one go (quick orders). All or nothing: any bad entry rejects the batch. */
+export function setDials(state, pid, dials) {
+  if (!dials || typeof dials !== "object" || Array.isArray(dials)) fail("Bad dials.");
+  const entries = Object.entries(dials);
+  if (entries.length > 30) fail("Too many dials.");
+  const before = { ...state.dials };
+  try {
+    for (const [uid, code] of entries) setDial(state, pid, uid, code);
+  } catch (err) {
+    state.dials = before;
+    throw err;
+  }
+}
+
 const activePlayers = (state) => state.players.filter((p) => !p.eliminated);
 
 function seatOrder(state) {
@@ -325,6 +342,8 @@ function startRound(state) {
     u.revealed = null;
     u.trail = null;
     u.lastSpeed = 0;
+    u.stance = 0;
+    u.aim = 0;
   }
   log(state, `Round ${state.round}: set your dials.`);
 }
@@ -392,6 +411,12 @@ export function planMove(state, u, code) {
   const size = sizeOf(u);
   const start = { x: u.x, y: u.y, h: u.h };
   if (man.type === "X") return { man, pose: start, t: 1, bumped: [], path: [start], fled: false };
+  if (isHold(man)) {
+    // Pivot in place; if the new facing would overlap a neighbour or rocks, keep the old one.
+    const turned = maneuverPose(start, man, size, 1);
+    const pose = overlapsAny(state, u, turned).length || blocksAt(state, u, turned) ? start : turned;
+    return { man, pose, t: 1, bumped: [], path: [start, pose], fled: false };
+  }
   const STEP = 0.02;
   let t = 1;
   let slowedBy = null;
@@ -441,6 +466,12 @@ export function planMove(state, u, code) {
   return { man, pose, t, bumped, path, slowedBy, blockedBy, fled: !insideBoard(corners(pose, size)) };
 }
 
+/** Dice a stance (or Aim) is worth: the movement given up, so faster units gain more (top speed 1 to 3: 1, 4 to 5: 2). */
+export function stanceBonus(u) {
+  const top = Math.max(0, ...u.dial.map(parseManeuver).filter((m) => !isHold(m)).map((m) => m.speed));
+  return Math.max(1, Math.floor(top / 2));
+}
+
 function maneuverLength(man, size) {
   const segs = maneuverSegments(man, size);
   return segs.reduce((a, g) => a + (g.kind === "line" ? g.len : g.r * (Math.abs(g.deg) * Math.PI) / 180), 0);
@@ -456,7 +487,18 @@ function executeManeuver(state, u, code) {
   u.revealed = code;
   const climbed = !wasHigh && onKind(state, u, "hill");
   const bumpNote = mv.bumped.length ? `, bumping ${mv.bumped.map((b) => b.name).join(", ")}` : mv.blockedBy ? ", stopped by rocks" : mv.slowedBy ? `, slowed by the ${mv.slowedBy.kind}` : "";
-  log(state, `${u.name} executes ${code.replace(":", " ")}${bumpNote}.`);
+  if (isHold(man)) {
+    const turn = { D: "holds its facing", DL: "turns left", DBL: "turns half left", DBR: "turns half right", DR: "turns right", DA: "turns to face the rear" }[man.type.replace(/^M/, "D")];
+    const stuck = mv.pose.h === mv.path[0].h && man.type !== "D" && man.type !== "M";
+    const how = stuck ? ", but has no room to turn" : ` and ${turn}`;
+    if (isStance(man)) {
+      u.stance = stanceBonus(u);
+      log(state, `${u.name} sets a defensive stance${how}: +${u.stance} defence ${u.stance === 1 ? "die" : "dice"} this round.`);
+    } else {
+      u.aim = stanceBonus(u);
+      log(state, `${u.name} takes aim${how}: offsets up to ${u.aim} stance ${u.aim === 1 ? "die" : "dice"} this round.`);
+    }
+  } else log(state, `${u.name} executes ${code.replace(":", " ")}${bumpNote}.`);
   if (mv.fled) {
     log(state, `${u.name} leaves the field and is lost.`);
     kill(state, u, "fled");
@@ -817,6 +859,8 @@ export function attackDice(state, u, t, w, r) {
   if (has(u, "berserk") && u.wounds < u.maxWounds) n += 1;
   if (onKind(state, u, "thicket") && !rule(u, "wildwood")) n -= 1;
   if (!visibleTo(state, t.owner).has(u.id)) n += 1; // ambush from out of sight
+  // Aim only cancels a defensive stance: never more dice than the target's stance added.
+  if (u.aim && t.stance) n += Math.min(u.aim, t.stance);
   if (has(u, "swarm")) {
     const buddy = friendsOf(state, u).some((f) => has(f, "swarm") && rangeBetween(f, t) <= 2 && inArc(f, "front", t, sizeOf(t)));
     if (buddy) n += 1;
@@ -825,7 +869,7 @@ export function attackDice(state, u, t, w, r) {
 }
 
 export function defenseDice(state, u, t, w, r) {
-  let n = t.def;
+  let n = t.def + (t.stance || 0);
   if (r >= 3 && !w.noRangeBonus && !has(u, "sniper")) n += 1;
   if (obstructed(state, u, t)) n += 1;
   if (inCover(state, t)) n += 1;
