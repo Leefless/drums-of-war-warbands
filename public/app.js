@@ -184,6 +184,7 @@ window.addEventListener("keydown", (ev) => {
 });
 
 function render() {
+  applyArmyTheme();
   // Broadcasts re-render the page; keep the field being typed in focused.
   const active = document.activeElement;
   const keep = active?.id && (active.tagName === "INPUT" || active.tagName === "SELECT") ? { id: active.id, a: active.selectionStart, b: active.selectionEnd } : null;
@@ -1158,6 +1159,35 @@ function unitModalHTML(u) {
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
+// Dark is the default. Once you pick an army, the whole interface takes on its colour:
+// the accent becomes the army colour and the grounds are tinted toward it.
+const THEME_BASE = {
+  dark: { "--bg": "#14110C", "--panel": "#1D1913", "--raise": "#2A241B", "--line": "#4A3F2E", "--board": "#17130E", "--grid": "#2F2719" },
+  light: { "--bg": "#EFE4CB", "--panel": "#F7EFDC", "--raise": "#E9DDC0", "--line": "#CDBB97", "--board": "#D9CBA9", "--grid": "#CDBB97" },
+};
+const TINT = { "--bg": 0.06, "--panel": 0.08, "--raise": 0.1, "--line": 0.24, "--board": 0.07, "--grid": 0.14 };
+const ARMY_PROPS = [...Object.keys(TINT), "--accent", "--accent-text", "--on-accent", "--glow"];
+const hexRGB = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+const mixRGB = (a, b, t) => `rgb(${a.map((v, i) => Math.round(v + (b[i] - v) * t)).join(",")})`;
+
+function applyArmyTheme() {
+  const root = document.documentElement;
+  const f = me()?.faction ? FACTIONS[me().faction] : null;
+  const light = root.dataset.theme === "light";
+  const key = f ? `${f.id}:${light}` : "";
+  if (L.themeKey === key) return;
+  L.themeKey = key;
+  if (!f) return ARMY_PROPS.forEach((p) => root.style.removeProperty(p));
+  const col = hexRGB(f.color);
+  const base = THEME_BASE[light ? "light" : "dark"];
+  for (const [p, t] of Object.entries(TINT)) root.style.setProperty(p, mixRGB(hexRGB(base[p]), col, t));
+  root.style.setProperty("--accent", f.color);
+  // Accent text: lifted on dark grounds, deepened on light ones, so it stays readable (4.5:1 or better).
+  root.style.setProperty("--accent-text", light ? mixRGB(col, [0, 0, 0], 0.5) : mixRGB(col, [255, 255, 255], 0.15));
+  root.style.setProperty("--on-accent", "#14110C");
+  root.style.setProperty("--glow", `rgba(${col.join(",")}, 0.25)`);
+}
+
 const savedTheme = store.get("dow.theme");
 if (savedTheme) document.documentElement.dataset.theme = savedTheme;
 $("#theme").onclick = () => {
