@@ -970,11 +970,23 @@ function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   ctx.lineTo(half * 0.45, -half * 0.45);
   ctx.stroke();
 
+  // Army band: a solid faction-colour border outside the base, edged in black on
+  // both sides so it reads against grass, terrain and neighbouring tokens.
+  const band = Math.max(3, size * 0.09);
+  roundRect(ctx, -half - band / 2, -half - band / 2, size + band, size + band, 5 + band / 2);
+  ctx.lineWidth = band + 3;
+  ctx.strokeStyle = "rgba(8, 6, 4, 0.85)";
+  ctx.stroke();
+  ctx.lineWidth = band;
+  ctx.strokeStyle = col;
+  ctx.stroke();
+
   // Selection, activation and target rings follow the base.
   if (isSel || isActive || isHi) {
     const pulse = 0.5 + 0.5 * Math.sin(now / 260);
     const target = isHi && !isSel;
-    roundRect(ctx, -half - 5, -half - 5, size + 10, size + 10, 7);
+    const ring = band + 5;
+    roundRect(ctx, -half - ring, -half - ring, size + ring * 2, size + ring * 2, 7 + band);
     ctx.lineWidth = isActive ? 2.5 + pulse : 2;
     ctx.strokeStyle = target ? `rgba(225, 110, 80, ${0.55 + 0.45 * pulse})` : GOLD;
     ctx.shadowColor = target ? "#E16E50" : GOLD;
