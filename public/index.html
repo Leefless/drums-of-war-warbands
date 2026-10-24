@@ -18,7 +18,7 @@
     <button id="surrender" class="ghost small danger" title="Concede the battle and leave the field" hidden>Surrender</button>
     <button id="theme" class="ghost small" title="Toggle light or dark">Theme</button>
   </header>
-  <div id="stale" class="stale" role="alert" hidden>The game server is running older code than this page. Double-click Start Game and press R to restart with the latest rules (the current battle will end).</div>
+  <div id="stale" class="stale" role="alert" hidden><span id="staleMsg"></span> <button id="restartNow" class="small" hidden>Restart now</button></div>
   <div id="rulesHost"></div>
   <main id="app"></main>
   <div id="toast" class="toast" hidden></div>

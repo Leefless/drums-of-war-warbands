@@ -1,8 +1,8 @@
 // Browser client. Holds no game logic beyond previews: the server is
 // authoritative and sends a fresh filtered state after every change.
-import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
+import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
-import { PRESETS } from "/shared/presets.js";
+import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
 import { BASE_SIZE, BOARD, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, planMove, stanceBonus, strained, zoneFor } from "/shared/engine.js";
 import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
@@ -95,6 +95,12 @@ function header() {
     return `<span class="chip ${p.connected ? "" : "off"}" title="${p.surrendered ? "Surrendered" : ""}"><i class="sw" style="background:${f?.color ?? "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${status}</span></span>`;
   }).join("");
   $("#stale").hidden = !S?.serverStale;
+  if (S?.serverStale) {
+    $("#staleMsg").textContent = S.canRestart
+      ? "The game has been updated. Restart the server to load the latest rules (the current battle will end)."
+      : "The game has been updated. Stop the server and open Start Game again to load the latest rules.";
+    $("#restartNow").hidden = !S.canRestart || !me();
+  }
   // Surrender: only for a seated player whose warband is still fighting.
   const mine = me();
   const canQuit = !!mine && !mine.eliminated && ["deploy", "plan", "activation", "engagement"].includes(S?.phase);
@@ -180,6 +186,12 @@ async function openRules() {
   }
 }
 $("#rulesBtn").onclick = openRules;
+$("#restartNow").onclick = () => {
+  send("restart");
+  $("#restartNow").disabled = true;
+  $("#staleMsg").textContent = "Restarting the game server...";
+  setTimeout(() => location.reload(), 2500);
+};
 window.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && $("#rulesHost").innerHTML) $("#rulesHost").innerHTML = "";
 });
@@ -260,23 +272,27 @@ function presetsHTML(f, locked) {
   const list = PRESETS[f.id] || [];
   if (!list.length) return "";
   const same = (a, b) => a.length === b.length && a.every((e, i) => e.unit === b[i].unit && (e.upgrade || null) === (b[i].upgrade || null));
-  return `<div class="presets"><div class="label">Prebuilt warbands · balanced 100 point lists, one per play style</div>
+  const budget = S.settings.budget;
+  return `<div class="presets"><div class="label">Prebuilt warbands · one per play style, ${budget === PRESET_BUDGET ? "tuned at 100 points" : `scaled to ${budget} points`}</div>
     <div class="pgrid">${list.map((pr) => {
-      const v = validateArmy(f.id, pr.list, S.settings.budget);
+      const scaled = presetList(f.id, pr, budget);
+      const v = validateArmy(f.id, scaled, budget);
       const counts = new Map();
-      for (const e of pr.list) {
+      for (const e of scaled) {
         const u = unitIn(f.id, e.unit);
         if (u) counts.set(u, (counts.get(u) || 0) + 1);
       }
       const champ = [...counts.keys()].find((u) => u.champion);
       const troops = [...counts].filter(([u]) => !u.champion).map(([u, n]) => `${n > 1 ? `${n} ` : ""}${esc(u.name)}`).join(", ");
-      const on = same(L.draft, pr.list);
+      const on = same(L.draft, scaled);
+      const capped = v.cost < budget * 0.94; // the 12-unit limit stops a cheap army spending everything
       return `<div class="pcard ${on ? "on" : ""}" style="--fc:${f.color}">
         <div class="lrow"><span class="label">${esc(pr.style)}</span><span class="num muted">${v.cost} pts</span></div>
         <h4>${esc(pr.name)}</h4>
         <p class="pblurb">${esc(pr.blurb)}</p>
         <p class="pcomp">${champ ? `<b>${esc(champ.name)}</b> leads ` : ""}${troops}</p>
-        <button class="small ${on ? "" : "cta"}" data-preset="${esc(pr.id)}" ${locked || !v.ok || on ? "disabled" : ""}>${on ? "Loaded" : v.ok ? "Use this army" : `Needs a ${v.cost} pt budget`}</button>
+        ${capped ? `<p class="pcomp">At the ${MAX_UNITS} unit limit: fills ${v.cost} of ${budget} points.</p>` : ""}
+        <button class="small ${on ? "" : "cta"}" data-preset="${esc(pr.id)}" ${locked || !v.ok || on ? "disabled" : ""}>${on ? "Loaded" : "Use this army"}</button>
       </div>`;
     }).join("")}</div></div>`;
 }
@@ -306,24 +322,6 @@ function draftCost() {
 }
 
 // Broad categories for the roster filter (each army has around 30 distinct roles).
-const CATEGORIES = [
-  ["Artillery and machines", /artiller|machine|engine|cannon|wagon|ballista|catapult|lobba|flinga|mortar|organ|bolt thrower|siege|buggy|cart|vehicle/],
-  ["Flyers", /fly|flyer|eagle|gyro|winged|bat|pegasus|griffon|sprite|wisp|imp/],
-  ["Cavalry", /cavalr|rider|lancer|chariot|horse|knight|charger/],
-  ["Support and casters", /caster|mage|priest|support|heal|shaman|engineer|seer|warlock|acolyte|banner|drum|herald|oracle|mystic|witch|cult/],
-  ["Ranged", /ranged|archer|marksm|crossbow|sling|gun|bow|thrower|javelin|sniper/],
-  ["Monsters", /monster|brute|giant|troll|ogre|treant|tree|elemental|construct|colossus|beast|demon|golem|horror|hulk|spider|bear|stag|wolf|warg|hound|fiend|abomination/],
-  ["Skirmishers", /skirmish|scout|hunter|assassin|stalker|raider/],
-];
-function categoryOf(u) {
-  const role = u.role.toLowerCase();
-  const hit = CATEGORIES.find(([, re]) => re.test(role));
-  if (hit) return hit[0];
-  if (u.abilities.includes("flying")) return "Flyers";
-  if (Math.max(...u.weapons.map((w) => w.range[1])) >= 3) return "Ranged";
-  return "Infantry";
-}
-
 const rangeText = (w) => `R${w.range[0]}${w.range[1] > w.range[0] ? `-${w.range[1]}` : ""}`;
 function statLine(u) {
   const atk = u.weapons.map((w) => `${w.dice} ${w.arc === "full" ? "all-round" : w.arc} ${rangeText(w)}`).join(" / ");
@@ -489,7 +487,7 @@ function wireMuster(app, f) {
   on("[data-preset]", "onclick", (b) => {
     const pr = (PRESETS[f.id] || []).find((x) => x.id === b.dataset.preset);
     if (!pr) return;
-    Object.assign(L, { draft: cleanList(f.id, pr.list), armyName: pr.name, loadedId: null });
+    Object.assign(L, { draft: cleanList(f.id, presetList(f.id, pr, S.settings.budget)), armyName: pr.name, loadedId: null });
     changed();
   });
   on("[data-load]", "onclick", (b) => {

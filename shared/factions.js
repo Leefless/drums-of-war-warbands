@@ -186,6 +186,25 @@ export function upgradesFor(factionId, unit) {
   });
 }
 
+/** Roster categories for the army builder and preset scaling, matched on a unit's role. */
+export const CATEGORIES = [
+  ["Artillery and machines", /artiller|machine|engine|cannon|wagon|ballista|catapult|lobba|flinga|mortar|organ|bolt thrower|siege|buggy|cart|vehicle/],
+  ["Flyers", /fly|flyer|eagle|gyro|winged|bat|pegasus|griffon|sprite|wisp|imp/],
+  ["Cavalry", /cavalr|rider|lancer|chariot|horse|knight|charger/],
+  ["Support and casters", /caster|mage|priest|support|heal|shaman|engineer|seer|warlock|acolyte|banner|drum|herald|oracle|mystic|witch|cult/],
+  ["Ranged", /ranged|archer|marksm|crossbow|sling|gun|bow|thrower|javelin|sniper/],
+  ["Monsters", /monster|brute|giant|troll|ogre|treant|tree|elemental|construct|colossus|beast|demon|golem|horror|hulk|spider|bear|stag|wolf|warg|hound|fiend|abomination/],
+  ["Skirmishers", /skirmish|scout|hunter|assassin|stalker|raider/],
+];
+export function categoryOf(u) {
+  const role = u.role.toLowerCase();
+  const hit = CATEGORIES.find(([, re]) => re.test(role));
+  if (hit) return hit[0];
+  if (u.abilities.includes("flying")) return "Flyers";
+  if (Math.max(...u.weapons.map((w) => w.range[1])) >= 3) return "Ranged";
+  return "Infantry";
+}
+
 /** Validate a muster list. Returns { ok, cost, errors }. */
 export function validateArmy(factionId, list, budget) {
   const errors = [];

@@ -177,6 +177,7 @@ main { flex: 1; min-height: 0; }
 .rchip .dot { position: absolute; top: -6px; min-width: 16px; height: 16px; border-radius: 8px; font: 600 10px/16px var(--sans); text-align: center; color: #F7EFDC; border: 1px solid var(--bg); }
 .rchip .dot.buff { left: -6px; background: var(--good); }
 .rchip .dot.debuff { right: -6px; background: var(--crit); }
+.stale button { margin-left: 8px; background: #F7EFDC; color: #3A1A12; border-color: #F7EFDC; }
 .stale { padding: 8px 16px; background: var(--crit); color: #F7EFDC; font-size: 15px; text-align: center; }
 button.danger { color: var(--crit); border-color: var(--crit); }
 button.danger.armed { background: var(--crit); color: #F7EFDC; }

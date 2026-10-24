@@ -40,7 +40,11 @@ setInterval(async () => {
     broadcast();
   }
 }, 10000).unref();
-const STALE_HINT = "The game server is running older code. Double-click Start Game and press R to restart with the latest rules.";
+// Started from Start Game, exit code 75 asks that window to start a fresh server.
+const SUPERVISED = process.env.DOW_SUPERVISED === "1";
+const STALE_HINT = SUPERVISED
+  ? "The game server is running older code. Press Restart now in the banner to load the latest rules."
+  : "The game server is running older code. Stop it and open Start Game again to load the latest rules.";
 
 // ── Saved armies (persist across battles and restarts, shared by the table) ──
 const DATA = join(ROOT, "data");
@@ -165,6 +169,7 @@ function broadcast() {
     view.spectator = info.spectator || !E.player(game, info.token);
     view.armies = publicArmies(info.spectator ? null : info.token);
     view.serverStale = stale;
+    view.canRestart = SUPERVISED;
     ws.send(JSON.stringify({ t: "state", state: view }));
   }
 }
@@ -193,6 +198,13 @@ function handle(ws, info, m) {
     case "mod": E.modify(game, pid, m); break;
     case "leave": E.removePlayer(game, pid); break;
     case "surrender": E.surrender(game, pid); break;
+    case "restart": {
+      if (!SUPERVISED || !stale) throw new Error("The server can only restart itself when it is out of date.");
+      if (!E.player(game, pid)) throw new Error("Only seated players can restart the server.");
+      console.log("Restart requested from the game: loading the latest rules.");
+      setTimeout(() => process.exit(75), 300); // let this reply and the broadcast go out first
+      return;
+    }
     case "addAI": addAI(pid, m.faction); break;
     case "removeAI": removeAI(pid, m.seat); break;
     case "saveArmy": return saveArmy(E.player(game, pid) ? pid : null, E.player(game, pid)?.name || "Unknown", m);

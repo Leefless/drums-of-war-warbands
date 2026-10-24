@@ -1,6 +1,7 @@
 // Check prebuilt warbands:  node scripts/check-presets.mjs [faction]
 // Prints each list with its cost and any rule problems. Exit code 1 on errors.
 import { FACTIONS, validateArmy } from "../shared/factions.js";
+import { presetList } from "../shared/presets.js";
 
 const ALL = Object.keys(FACTIONS);
 const only = process.argv[2];
@@ -27,6 +28,11 @@ for (const fid of only ? [only] : ALL) {
       return `${u ? u.name : e.unit}${u?.champion ? " [C]" : ""}${e.upgrade ? ` +${e.upgrade}` : ""}`;
     });
     console.log(`  ${String(v.cost).padStart(3)}  ${p.name} (${p.style}): ${names.join(", ")}`);
+    // Scaled versions must be legal at every budget the host can pick.
+    for (const b of [60, 150, 200, 300]) {
+      const sv = validateArmy(fid, presetList(fid, p, b), b);
+      if (!sv.ok) problems.push(`at ${b}: ${sv.errors.join(" ")}`);
+    }
     for (const x of problems) console.log(`       ! ${x}`);
     if (problems.length) bad++;
   }
