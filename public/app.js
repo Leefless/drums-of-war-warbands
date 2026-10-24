@@ -1,11 +1,11 @@
 // Browser client. Holds no game logic beyond previews: the server is
 // authoritative and sends a fresh filtered state after every change.
-import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, upgradesFor, validateArmy } from "/shared/factions.js";
+import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
 import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
-import { TERRAIN } from "/shared/terrain.js";
+import { TERRAIN, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -441,8 +441,8 @@ function dialHTML(dial, current, mini = false, strainedNow = false) {
 function renderBattle(app) {
   if (L.mode !== "battle") {
     L.mode = "battle";
-    app.innerHTML = `<div class="battle"><div class="boardwrap"><canvas id="board"></canvas></div>
-      <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div>`;
+    app.innerHTML = `<div class="battle"><div class="boardcol"><div class="boardwrap"><canvas id="board"></canvas></div><div class="roster" id="roster"></div></div>
+      <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div><div id="umodal"></div>`;
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
     canvas.onmousemove = (ev) => {
@@ -457,6 +457,7 @@ function renderBattle(app) {
       L.resizeTimer = setTimeout(drawBoard, 150); // repaint the battlefield once resizing settles
     };
     window.onkeydown = (ev) => {
+      if (ev.key === "Escape" && L.cardFor) { L.cardFor = null; return render(); }
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
       if (!u || u.owner !== S.you) return;
@@ -478,6 +479,7 @@ function renderBattle(app) {
   }
   $("#prompt").className = `scroll ${S.pending?.pid === S.you ? "prompt" : ""}`;
   $("#card").innerHTML = cardHTML();
+  renderRoster();
   $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
   wirePrompt();
   // Bring a newly opened dial into view once, so it sits under its unit without manual scrolling.
@@ -765,6 +767,101 @@ function cardHTML() {
     ${conds.length ? `<div style="font-size:13px;color:var(--crit);margin-top:6px">${conds.map(esc).join("<br>")}</div>` : ""}
     <div class="tags" style="margin-top:6px">${u.actions.map((a) => `<span class="tag">${esc(actionLabel(a))}</span>`).join("")}</div>
     ${u.abilities.length ? `<div style="font-size:13px;margin-top:6px" class="muted">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}`;
+}
+
+// ── Roster strip and full unit card ─────────────────────────────────────────
+/** Buffs and debuffs currently on a unit: tokens, conditions, strain and the terrain under it. */
+function unitStatus(u) {
+  const t = u.tokens;
+  const buffs = [];
+  const debuffs = [];
+  if (t.steel) buffs.push([`Steel ×${t.steel}`, ACTIONS.steel.text]);
+  if (t.guard) buffs.push([`Guard ×${t.guard}`, ACTIONS.guard.text]);
+  if (t.brace) buffs.push([`Brace ×${t.brace}`, ACTIONS.brace.text]);
+  if (t.frenzy) buffs.push(["Frenzy", "Spend while attacking to reroll up to 2 dice."]);
+  if (t.charge) buffs.push([`Calamity ×${t.charge}`, "Calamity charges, spent on Calamity abilities."]);
+  if (t.mark) buffs.push([`Mark: ${unitName(t.mark)}`, ACTIONS.mark.text]);
+  if (u.souls) buffs.push([`Souls ×${u.souls}`, "Spent in the End phase to heal thralls."]);
+  if (u.strain) debuffs.push([`Strain ${u.strain}/${u.faction === "greenskin" ? 2 : 1}`, strained(u) ? "Strained: cannot pick red maneuvers or red actions." : "Strain builds from red maneuvers and actions."]);
+  for (const c of Object.keys(u.cond)) if (CRIT_TEXT[c] && c !== "broken") debuffs.push([c[0].toUpperCase() + c.slice(1), CRIT_TEXT[c]]);
+  if (u.cond.broken) debuffs.push([`Broken Arms ×${u.cond.broken}`, CRIT_TEXT.broken]);
+  if (u.cond.noAction) debuffs.push(["No actions", "Bumped, blocked or in rubble: no actions this activation."]);
+  if (!u.dead) for (const o of terrainUnder(S, u)) {
+    const tt = TERRAIN[o.kind];
+    if (!tt) continue;
+    buffs.push([`In ${tt.name}`, tt.up]);
+    if (tt.down) debuffs.push([`In ${tt.name}`, tt.down]);
+  }
+  return { buffs, debuffs };
+}
+
+const meter = (label, now, max, cls = "") => `<div class="meter ${cls}"><span class="label">${label}</span><span class="pips">${Array.from({ length: max }, (_, i) => `<i class="${i < now ? "on" : ""}"></i>`).join("")}</span><b>${now}/${max}</b></div>`;
+
+function renderRoster() {
+  const el = $("#roster");
+  if (!el) return;
+  const units = S.phase === "muster" ? [] : myUnits();
+  el.innerHTML = units.map((u) => {
+    const { buffs, debuffs } = unitStatus(u);
+    return `<button class="rchip ${L.cardFor === u.id ? "on" : ""}" data-card="${u.id}" title="${esc(u.name)}" style="--fc:${playerColor(S, u.owner)}">
+      <span class="portrait small">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span>
+      <span class="hp"><i style="width:${Math.round((100 * u.wounds) / u.maxWounds)}%"></i></span>
+      ${buffs.length ? `<span class="dot buff">${buffs.length}</span>` : ""}${debuffs.length ? `<span class="dot debuff">${debuffs.length}</span>` : ""}
+    </button>`;
+  }).join("");
+  el.querySelectorAll("[data-card]").forEach((b) => (b.onclick = () => {
+    L.cardFor = L.cardFor === b.dataset.card ? null : b.dataset.card;
+    L.selected = b.dataset.card;
+    render();
+  }));
+  const host = $("#umodal");
+  const u = unitById(L.cardFor);
+  if (!u) { L.cardFor = null; host.innerHTML = ""; return; }
+  const scroll = $(".umodal-card", host)?.scrollTop || 0;
+  host.innerHTML = `<div class="umodal" data-close><div class="umodal-card" role="dialog" aria-label="${esc(u.name)}">${unitModalHTML(u)}</div></div>`;
+  $(".umodal-card", host).scrollTop = scroll;
+  host.querySelectorAll("[data-close]").forEach((x) => (x.onclick = (ev) => {
+    if (ev.target !== x) return;
+    L.cardFor = null;
+    render();
+  }));
+}
+
+function unitModalHTML(u) {
+  let def = null;
+  try { def = unitDef(u.faction, u.type); } catch { /* unknown roster entry: show live stats only */ }
+  const { buffs, debuffs } = unitStatus(u);
+  const fx = (list, cls) => list.map(([n, txt]) => `<li class="${cls}"><b>${esc(n)}</b> <span>${esc(txt)}</span></li>`).join("");
+  return `<div class="row" style="--fc:${playerColor(S, u.owner)}">
+      <span class="portrait">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span>
+      <div style="flex:1"><h3>${esc(u.name)}</h3>
+        <div class="label" style="color:var(--fc)">${esc(FACTIONS[u.faction].name)}${def?.role ? ` · ${esc(def.role)}` : ""}${u.champion ? " · champion" : ""}</div></div>
+      <button class="ghost" data-close aria-label="Close">Close</button>
+    </div>
+    <section><div class="label">Current status${u.dead ? " · destroyed" : ""}</div>
+      ${meter("Wounds", u.wounds, u.maxWounds, "w")}
+      ${u.maxWard ? meter("Ward", u.ward, u.maxWard, "ward") : ""}
+      ${u.revealed ? `<div class="muted" style="font-size:14px">Revealed maneuver: ${esc(u.revealed.replace(":", " "))}</div>` : ""}
+      ${buffs.length || debuffs.length ? `<ul class="fx">${fx(buffs, "buff")}${fx(debuffs, "debuff")}</ul>` : `<p class="muted" style="margin:4px 0;font-size:14px">No buffs or debuffs right now.</p>`}
+    </section>
+    <section><div class="label">What it is</div>
+      ${def?.flavor ? `<p class="flavor">${esc(def.flavor)}</p>` : ""}
+      <div class="stats"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Base <b>${esc(u.base)}</b></span><span>Cost <b>${u.cost}</b></span></div>
+      <div class="label" style="margin-top:8px">Weapons</div>
+      <div class="stats" style="flex-direction:column;gap:2px">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
+    </section>
+    <section><div class="label">What it can do</div>
+      <ul class="fx">${u.actions.map((a) => {
+        const x = parseAction(a);
+        return `<li><b>${esc(actionLabel(a))}</b> <span>${esc(ACTIONS[x.a].text)}${x.link ? ` Then: ${esc(ACTIONS[x.link.a].text)}` : ""}</span></li>`;
+      }).join("")}
+      ${u.abilities.map((a) => {
+        const [name, ...rest] = (ABILITIES[a] || a).split(": ");
+        return `<li><b>${esc(name)}</b> <span>${esc(rest.join(": "))}</span></li>`;
+      }).join("")}
+      ${u.upgrade ? `<li><b>${esc(UPGRADES[u.upgrade].name)}</b> <span>${esc(UPGRADES[u.upgrade].text)}</span></li>` : ""}</ul>
+      ${Array.isArray(u.dial) ? `<div class="label" style="margin-top:8px">Maneuver dial</div>${dialHTML(u.dial, null, true)}` : ""}
+    </section>`;
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
