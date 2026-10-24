@@ -3,8 +3,10 @@
 import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, UPGRADES, armyLimits, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
+import { itemById, itemCost, itemsFor } from "/shared/items.js";
+import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
-import { CRIT_TEXT, parseAction, planMove, stanceBonus, strained, zoneFor } from "/shared/engine.js";
+import { CRIT_TEXT, boughtRadius, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
 import { healthColor, panBy, playerColor, resetBoard, resetView, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
@@ -37,6 +39,8 @@ const L = {
   order: null, // quick order for this planning phase: { mode, round }
   chargeAt: null, // board point the Charge order drives at (draggable banner)
   manual: new Set(), // units whose dial the player changed by hand after an order
+  buys: (() => { try { return JSON.parse(store.get("dow.buys") || "[]"); } catch { return []; } })(), // terrain bought in the muster
+  placing: null, // bought terrain kind being placed during deployment
 };
 let ws;
 
@@ -55,7 +59,8 @@ function connect() {
       // Back to the muster after a battle: start the new one from a blank warband.
       if (S.phase === "muster" && wasPhase && wasPhase !== "muster") {
         for (const fid of Object.keys(FACTIONS)) store.set(draftKey(fid), "[]");
-        Object.assign(L, { draft: [], draftFaction: null, armyName: "", loadedId: null });
+        store.set("dow.buys", "[]");
+        Object.assign(L, { draft: [], buys: [], draftFaction: null, armyName: "", loadedId: null });
       }
       // The page or the server was updated: reload so this tab runs the same code (the battle lives on the server).
       if (L.build && S.build && S.build !== L.build) return location.reload();
@@ -67,6 +72,7 @@ function connect() {
       }
       if (L.selected && !unitById(L.selected)) L.selected = null; // hidden by fog or gone
       if (S.pending?.uid && S.pending.pid === S.you) L.selected = S.pending.uid;
+      if (L.placing && !(me()?.toPlace || []).includes(L.placing)) Object.assign(L, { placing: null, preview: null }); // placed
       render();
     } else if (m.t === "error") toast(m.msg);
   };
@@ -328,7 +334,8 @@ function cleanList(fid, list) {
   if (!Array.isArray(list)) return [];
   return list.filter((e) => e && unitIn(fid, e.unit)).map((e) => {
     const ok = e.upgrade && upgradesFor(fid, unitIn(fid, e.unit)).some((g) => g.id === e.upgrade);
-    return { unit: e.unit, upgrade: ok ? e.upgrade : null };
+    const it = e.item && itemById(fid, e.item);
+    return { unit: e.unit, upgrade: ok ? e.upgrade : null, item: it && it.units.includes(e.unit) ? e.item : null };
   });
 }
 
@@ -342,10 +349,11 @@ function loadDraft(p) {
 }
 function keepDraft() {
   if (L.draftFaction) store.set(draftKey(L.draftFaction), JSON.stringify(L.draft));
+  store.set("dow.buys", JSON.stringify(L.buys || []));
 }
 function draftCost() {
   const p = me();
-  return p?.faction ? validateArmy(p.faction, L.draft, S.settings.budget) : { ok: false, cost: 0, errors: [] };
+  return p?.faction ? validateArmy(p.faction, L.draft, S.settings.budget, L.buys || []) : { ok: false, cost: 0, errors: [] };
 }
 
 // Broad categories for the roster filter (each army has around 30 distinct roles).
@@ -395,10 +403,41 @@ function rowHTML(f, u, locked, counts, champ) {
 function entryHTML(f, e, i, locked) {
   const u = unitIn(f.id, e.unit);
   const ups = upgradesFor(f.id, u);
+  // Magic items this unit may carry; ones already carried elsewhere in the warband are greyed out.
+  const taken = new Set(L.draft.filter((x, j) => j !== i && x.item).map((x) => x.item));
+  const its = itemsFor(f.id, u.id);
+  const it = e.item && itemById(f.id, e.item);
   return `<div class="lrow entry"><span class="portrait tiny">${iconSVG(unitIcon(u), "emblem")}${artTag(`units/${u.id}.png`, "")}</span>
-    <span style="flex:1">${esc(u.name)} <span class="muted num">${u.cost}${UPGRADES[e.upgrade] ? ` +${UPGRADES[e.upgrade].cost}` : ""}</span></span>
+    <span style="flex:1">${esc(u.name)} <span class="muted num">${u.cost}${UPGRADES[e.upgrade] ? ` +${UPGRADES[e.upgrade].cost}` : ""}${it ? ` +${itemCost(f.id, it, u.id)}` : ""}</span></span>
     <select data-up="${i}" ${locked ? "disabled" : ""} aria-label="Upgrade"><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
+    ${its.length ? `<select data-item="${i}" ${locked ? "disabled" : ""} aria-label="Magic item" class="itemsel"><option value="">No magic item (${its.length} fit)</option>${its.map((x) => `<option value="${x.id}" ${e.item === x.id ? "selected" : ""} ${taken.has(x.id) ? "disabled" : ""}>${esc(x.name)} +${itemCost(f.id, x, u.id)}: ${esc(x.text)}</option>`).join("")}</select>` : ""}
+    ${it ? `<span class="itemnote"><b>${esc(it.kind)}.</b> ${esc(it.text)} <i>${esc(it.flavor)}</i></span>` : ""}
     <button class="small ghost" data-rm="${i}" ${locked ? "disabled" : ""} aria-label="Remove">✕</button></div>`;
+}
+
+/** Matchup and battlefield summary for an army, shown in the muster. */
+function armyEdgesHTML(f) {
+  const good = Object.values(MAPS).find((m) => { const e = mapEffect(m.id, f.id); return e && (e.init || 0) + (e.melee || 0) + (e.ranged || 0) > 0; });
+  const bad = Object.values(MAPS).find((m) => { const e = mapEffect(m.id, f.id); return e && (e.init || 0) + (e.melee || 0) + (e.ranged || 0) < 0; });
+  const fx = (m) => { const e = mapEffect(m.id, f.id); return `${esc(m.name)}: ${esc(e.name)}, ${esc(e.text)}`; };
+  return `<p style="margin:0"><b>Hunts ${esc(FACTIONS[preyOf(f.id)].name)}</b> (+1 attack die against them). <span class="muted">Hunted by ${esc(FACTIONS[hunterOf(f.id)].name)}. ${esc(HUNT_REASON[f.id])}</span></p>
+    <p style="margin:0" class="muted"><b>Battlefields.</b> Favoured on ${good ? fx(good) : "none"}. Hindered on ${bad ? fx(bad) : "none"}. The player with the most points left unspent chooses the battlefield.</p>`;
+}
+
+/** The terrain shop: buy pieces in the muster, place them during deployment. */
+function terrainShopHTML(locked) {
+  const buys = L.buys || [];
+  const lim = terrainLimit(S.settings.budget);
+  const name = { hill: "Hill", thicket: "Forest", ruins: "Ruins", marsh: "Marsh", lava: "Lava", rift: "Rift", block: "Rocks" };
+  return `<div class="label">Terrain to place <span class="num">${buys.length} / ${lim}</span></div>
+    <p class="muted" style="margin:0;font-size:14px">Buy pieces now and place them on the battlefield during deployment.</p>
+    <div class="shop">${Object.entries(TERRAIN_SHOP).map(([k, c]) => {
+      const n = buys.filter((x) => x === k).length;
+      return `<div class="lrow"><span style="flex:1" title="${esc(TERRAIN[k]?.up || "")}">${name[k]} <span class="muted num">${c} pts</span></span>
+        <button class="small ghost" data-buyless="${k}" ${locked || !n ? "disabled" : ""} aria-label="One fewer ${name[k]}">−</button>
+        <span class="num" style="min-width:16px;text-align:center">${n}</span>
+        <button class="small ghost" data-buy="${k}" ${locked || buys.length >= lim ? "disabled" : ""} aria-label="Buy a ${name[k]}">+</button></div>`;
+    }).join("")}</div>`;
 }
 
 function renderMuster(app) {
@@ -461,6 +500,7 @@ function renderMuster(app) {
         ${S.players.some((x) => x.id !== S.you && x.faction === f.id) ? `<p style="margin:0"><span class="sw" style="display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:middle;background:${playerColor(S, S.you)}"></span> Another player has this army too. ${playerColor(S, S.you) === f.color ? "You keep the army colour; theirs are marked in a different colour" : "Your units are marked in this colour"} so both sides are easy to tell apart.</p>` : ""}
         <p style="margin:0"><b>Action economy.</b> ${esc(f.economy)}</p>
         <p style="margin:0" class="muted"><b>Dial.</b> ${esc(f.dialNote)}</p>
+        ${armyEdgesHTML(f)}
         ${presetsHTML(f, locked)}
         <div class="rtabs" role="tablist">
           <button role="tab" data-tab="champions" class="${L.tab === "champions" ? "on" : ""}">Champions <span class="muted">${f.units.filter((u) => u.champion).length}</span></button>
@@ -491,6 +531,7 @@ function renderMuster(app) {
         ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} pts · ${esc(a.author)}</span></span>
           <button class="small" data-load="${esc(a.id)}" ${locked ? "disabled" : ""}>Load</button>
           ${a.mine || host ? `<button class="small ghost" data-del="${esc(a.id)}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button>` : ""}</div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
+        <hr>${terrainShopHTML(locked)}
         <hr><div class="label">Upgrades</div>
         ${upgradesFor(f.id, { abilities: [], actions: [] }).map((g) => `<div style="font-size:14px"><b>${esc(g.name)}</b> <span class="muted">+${g.cost}${g.relic ? ", relic" : ""}</span>: ${esc(g.text)}</div>`).join("")}
       </aside>
@@ -517,6 +558,9 @@ function wireMuster(app, f) {
   });
   on("[data-rm]", "onclick", (b) => { L.draft.splice(Number(b.dataset.rm), 1); changed(); });
   on("[data-up]", "onchange", (s) => { L.draft[Number(s.dataset.up)].upgrade = s.value || null; changed(); });
+  on("[data-item]", "onchange", (s) => { L.draft[Number(s.dataset.item)].item = s.value || null; changed(); });
+  on("[data-buy]", "onclick", (b) => { L.buys = [...(L.buys || []), b.dataset.buy]; changed(); });
+  on("[data-buyless]", "onclick", (b) => { const i = (L.buys || []).lastIndexOf(b.dataset.buyless); if (i >= 0) L.buys.splice(i, 1); changed(); });
   on("[data-preset]", "onclick", (b) => {
     const pr = (PRESETS[f.id] || []).find((x) => x.id === b.dataset.preset);
     if (!pr) return;
@@ -560,7 +604,7 @@ function wireMuster(app, f) {
     toast(`Saved "${name}".`, "ok");
   });
   $("#clearArmy") && ($("#clearArmy").onclick = () => { Object.assign(L, { draft: [], loadedId: null, armyName: "" }); changed(); });
-  $("#submit") && ($("#submit").onclick = () => send("army", { list: L.draft }));
+  $("#submit") && ($("#submit").onclick = () => send("army", { list: L.draft, buys: L.buys || [] }));
   $("#edit") && ($("#edit").onclick = () => send("unready"));
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
   $("#rounds") && ($("#rounds").onchange = (e) => send("settings", { maxRounds: Number(e.target.value) }));
@@ -672,6 +716,11 @@ function renderBattle(app) {
         canvas.style.cursor = "grabbing";
         return drawBoard();
       }
+      if (S?.phase === "deploy" && L.placing) {
+        const o = { id: "preview", kind: L.placing, r: boughtRadius(L.placing), x: pt.x, y: pt.y };
+        L.preview = { ...o, ok: terrainSpotOk(S, o) };
+        drawBoard();
+      } else L.preview = null;
       canvas.style.cursor = L.order?.mode === "charge" && L.chargeAt && Math.hypot(pt.x - L.chargeAt.x, pt.y - L.chargeAt.y) < 34 ? "grab" : "";
       const u = unitAt(S, pt);
       const o = u ? null : terrainAt(S, pt);
@@ -741,6 +790,7 @@ function drawBoard() {
     ghost,
     ghosts: L.order && S.phase === "plan" ? myUnits().filter((u) => S.dials[u.id] && u.id !== sel?.id).map((u) => ({ uid: u.id, code: S.dials[u.id] })) : [],
     marker: L.order?.mode === "charge" && S.phase === "plan" ? L.chargeAt : null,
+    preview: S.phase === "deploy" && L.placing ? L.preview : null,
     highlight,
     zones: S.phase === "deploy",
     fog: !S.spectator && !!me() && S.phase !== "over",
@@ -751,6 +801,13 @@ function drawBoard() {
 function onBoardClick(ev) {
   if (L.dragged) { L.dragged = false; return; }
   const canvas = $("#board");
+  // Placing bought terrain during deployment: the click puts the selected piece down.
+  if (S.phase === "deploy" && L.placing) {
+    const pt = toBoard(canvas, ev);
+    // Keep the piece selected; it clears once the server confirms it is down.
+    send("placeTerrain", { kind: L.placing, x: Math.round(pt.x), y: Math.round(pt.y) });
+    return;
+  }
   const pt = toBoard(canvas, ev);
   const u = unitAt(S, pt);
   if (S.phase === "deploy" && !u && L.selected) {
@@ -803,6 +860,8 @@ function promptHTML() {
   if (S.phase === "deploy") {
     html = `<div class="label">Deployment</div><h3>Place your warband</h3>
       <p class="muted" style="margin:6px 0">Select one of your units (on the board or below), then click inside your shaded zone to move it, or nudge it with the arrow keys. Rotate with Q and E or the buttons.</p>
+      ${battlefieldHTML()}
+      ${placeTerrainHTML()}
       ${mine ? `<div class="ulist" style="margin:8px 0">${myUnits().map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)}</span><span class="muted">${u.base}</span></button>`).join("")}</div>
       <div class="btns">
         <button data-rot="-45" ${L.selected ? "" : "disabled"}>Rotate left</button><button data-rot="45" ${L.selected ? "" : "disabled"}>Rotate right</button>
@@ -947,6 +1006,9 @@ function wirePrompt() {
     send("dial", { uid: L.selected, code: el.dataset.man });
   });
   on("[data-order]", (el) => issueOrder(el.dataset.order));
+  on("[data-map]", (el) => send("chooseMap", { map: el.dataset.map }));
+  on("[data-placing]", (el) => { L.placing = L.placing === el.dataset.placing ? null : el.dataset.placing; render(); });
+  on("[data-pickup]", (el) => { send("pickUpTerrain", { id: el.dataset.pickup }); });
   root.querySelectorAll("[data-man]").forEach((el) => {
     el.onmouseenter = () => { L.hover = el.dataset.man; drawBoard(); };
     el.onmouseleave = () => { L.hover = null; drawBoard(); };
@@ -1006,6 +1068,40 @@ function cardHTML() {
     ${conds.length ? `<div style="font-size:13px;color:var(--crit);margin-top:6px">${conds.map(esc).join("<br>")}</div>` : ""}
     <div class="tags" style="margin-top:6px">${u.actions.map((a) => `<span class="tag">${esc(actionLabel(a))}</span>`).join("")}</div>
     ${u.abilities.length ? `<div style="font-size:13px;margin-top:6px" class="muted">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}`;
+}
+
+// ── Battlefield choice and bought terrain (deployment) ─────────────────────
+const TERRAIN_NAME = { hill: "Hill", thicket: "Forest", ruins: "Ruins", marsh: "Marsh", lava: "Lava", rift: "Rift", block: "Rocks" };
+
+/** The battlefield panel: the chooser picks one of three; everyone sees its effects on the armies here. */
+function battlefieldHTML() {
+  const armies = [...new Set(S.players.map((p) => p.faction).filter(Boolean))];
+  const effectsFor = (m) => armies.map((f) => { const e = mapEffect(m.id, f); return e ? `<li class="${(e.init || 0) + (e.melee || 0) + (e.ranged || 0) > 0 ? "buff" : "debuff"}"><b>${esc(FACTIONS[f].name)}</b> ${esc(e.name)}: ${esc(e.text)}. <i>${esc(e.why)}</i></li>` : ""; }).join("") || `<li class="none">No effect on the armies here.</li>`;
+  const chooser = S.players.find((p) => p.id === S.mapChooser);
+  const canChoose = S.mapChooser === S.you && !S.mapChosen;
+  if (canChoose) {
+    return `<div class="bf"><div class="label">You kept the most points in reserve: choose the battlefield</div>
+      ${Object.values(MAPS).map((m) => `<div class="bfcard ${S.map === m.id ? "on" : ""}"><div class="lrow"><b>${esc(m.name)}</b><button class="small ${S.map === m.id ? "" : "cta"}" data-map="${m.id}">Fight here</button></div>
+        <p class="muted">${esc(m.text)}</p><ul class="bffx">${effectsFor(m)}</ul></div>`).join("")}
+      <p class="muted" style="font-size:13px;margin:0">If you ready without choosing, the battle is fought on ${esc(MAPS[S.map]?.name ?? "")}.</p></div>`;
+  }
+  const m = MAPS[S.map];
+  return m ? `<div class="bf"><div class="label">Battlefield: ${esc(m.name)}${S.mapChosen ? "" : ` · ${esc(chooser?.name ?? "")} may still choose another`}</div>
+    <ul class="bffx">${effectsFor(m)}</ul></div>` : "";
+}
+
+/** Bought terrain still to place, and placed pieces that can be picked up again. */
+function placeTerrainHTML() {
+  const mine = me();
+  if (!mine) return "";
+  const left = mine.toPlace || [];
+  const placed = S.obstacles.filter((o) => o.owner === S.you);
+  if (!left.length && !placed.length) return "";
+  return `<div class="bf"><div class="label">Your terrain</div>
+    ${left.length ? `<p class="muted" style="margin:0;font-size:14px">Pick a piece, then click the battlefield outside the deployment zones. Anything left is placed for you when you ready.</p>
+      <div class="btns">${left.map((k, i) => `<button class="small ${L.placing === k && left.indexOf(k) === i ? "on" : ""}" data-placing="${k}">${TERRAIN_NAME[k]}</button>`).join("")}</div>` : ""}
+    ${placed.length ? `<div class="btns">${placed.map((o) => `<button class="small ghost" data-pickup="${o.id}" title="Pick it up to move it">Move ${TERRAIN_NAME[o.kind]}</button>`).join("")}</div>` : ""}
+  </div>`;
 }
 
 // ── Quick orders (planning) ─────────────────────────────────────────────────
@@ -1109,6 +1205,11 @@ function unitStatus(u) {
   if (t.charge) buffs.push([`Calamity ×${t.charge}`, "Calamity charges, spent on Calamity abilities."]);
   if (t.mark) buffs.push([`Mark: ${unitName(t.mark)}`, ACTIONS.mark.text]);
   if (u.souls) buffs.push([`Souls ×${u.souls}`, "Spent in the End phase to heal thralls."]);
+  const foes = [...new Set(S.players.filter((p) => p.faction && p.id !== u.owner).map((p) => p.faction))];
+  if (foes.includes(preyOf(u.faction))) buffs.push([`Hunting ${FACTIONS[preyOf(u.faction)].name}`, `+1 attack die against them. ${HUNT_REASON[u.faction]}`]);
+  if (foes.includes(hunterOf(u.faction))) debuffs.push([`Hunted by ${FACTIONS[hunterOf(u.faction)].name}`, "They roll +1 attack die against this army."]);
+  const me2 = S.map && mapEffect(S.map, u.faction);
+  if (me2) ((me2.init || 0) + (me2.melee || 0) + (me2.ranged || 0) > 0 ? buffs : debuffs).push([`${me2.name} (${MAPS[S.map].name})`, `${me2.text}. ${me2.why}`]);
   if (u.aim) buffs.push([`Aimed ${u.aim}`, `Attacks gain up to ${u.aim} ${u.aim === 1 ? "die" : "dice"} against a target in a defensive stance, never more than its stance added.`]);
   if (u.stance) buffs.push([`Defensive stance +${u.stance}`, `Rolls ${u.stance} extra defence ${u.stance === 1 ? "die" : "dice"} until the end of the round.`]);
   if (u.strain) debuffs.push([`Strain ${u.strain}/${u.faction === "greenskin" ? 2 : 1}`, strained(u) ? "Strained: cannot pick red maneuvers or red actions." : "Strain builds from red maneuvers and actions."]);
@@ -1203,6 +1304,7 @@ function unitModalHTML(u) {
       return row(++n, "burst", name, "Always on", esc(rest.join(": ")), `<p><b>Type:</b> Ability</p>`);
     }),
     ...(u.upgrade ? [row(++n, "crown", UPGRADES[u.upgrade].name, "Upgrade, bought at muster", esc(UPGRADES[u.upgrade].text), `<p><b>Type:</b> Upgrade</p>`)] : []),
+    ...(u.item && itemById(u.faction, u.item) ? [((it) => row(++n, "sun", it.name, `Magic item (${it.kind}), bought at muster`, `${esc(it.text)}<br><i>${esc(it.flavor)}</i>`, `<p><b>Type:</b> ${esc(it.kind)}</p><p><b>Carried by:</b> ${it.units.length} kind${it.units.length === 1 ? "" : "s"} of unit</p>`))(itemById(u.faction, u.item))] : []),
   ];
   return `<header class="cbanner">
       <span class="medal lg">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "icon")}${artTag(`units/${u.type}.png`, "")}</span>

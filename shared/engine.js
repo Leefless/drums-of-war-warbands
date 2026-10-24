@@ -14,8 +14,10 @@ import {
   polyDistance, polysOverlap, rangeBand, right, zoneDepth,
 } from "./geometry.js";
 import { AIM_ROW, STANCE_ROW } from "./dials.js";
+import { MAPS, mapEffect, matchupDice } from "./battlefield.js";
+import { applyItem, itemById, itemCost } from "./items.js";
 import { FACTION_TAGS, FACTIONS, UPGRADES, unitDef, validateArmy } from "./factions.js";
-import { COVER, SLOW_DEPTH, hazeBetween, inside, layTerrain, lineOfSight, onKind, touches, visibleTo } from "./terrain.js";
+import { COVER, RADIUS, SLOW_DEPTH, hazeBetween, inside, layTerrain, lineOfSight, onKind, terrainCount, touches, visibleTo } from "./terrain.js";
 
 export const MAX_PLAYERS = 4;
 export const ATTACK_FACES = ["strike", "strike", "strike", "rend", "omen", "omen", "blank", "blank"];
@@ -129,12 +131,14 @@ export function setFaction(state, pid, faction) {
   p.ready = false;
 }
 
-export function submitArmy(state, pid, list) {
+export function submitArmy(state, pid, list, buys = []) {
   const p = player(state, pid) || fail("Join the table first.");
   if (state.phase !== "muster") fail("Muster is over.");
-  const v = validateArmy(p.faction, list, state.settings.budget);
+  const v = validateArmy(p.faction, list, state.settings.budget, buys);
   if (!v.ok) fail(v.errors.join(" "));
-  p.army = list.map((e) => ({ unit: e.unit, upgrade: e.upgrade || null }));
+  p.army = list.map((e) => ({ unit: e.unit, upgrade: e.upgrade || null, item: e.item || null }));
+  p.buys = Array.isArray(buys) ? [...buys] : [];
+  p.spent = v.cost;
   p.ready = true;
   log(state, `${p.name} musters ${FACTIONS[p.faction].name} (${v.cost} pts).`);
 }
@@ -162,6 +166,19 @@ function inZone(u, z) {
 }
 
 function buildUnit(state, p, entry) {
+  const u = baseUnit(state, p, entry);
+  const it = entry.item ? itemById(p.faction, entry.item) : null;
+  if (!it) return u;
+  // A magic item changes the profile (shared/items.js) and adds its price.
+  const x = applyItem(u, it);
+  return {
+    ...u, item: it.id, cost: u.cost + itemCost(p.faction, it, u.type),
+    init: x.init, def: x.def, wounds: x.wounds, maxWounds: x.wounds, ward: x.ward, maxWard: x.ward,
+    weapons: x.weapons, abilities: x.abilities, actions: x.actions,
+  };
+}
+
+function baseUnit(state, p, entry) {
   const d = unitDef(p.faction, entry.unit);
   const g = entry.upgrade ? UPGRADES[entry.upgrade] : null;
   const abilities = [...d.abilities];
@@ -206,8 +223,102 @@ function buildUnit(state, p, entry) {
   };
 }
 
+/** Lay the random terrain for the chosen battlefield around any pieces players have already placed. */
 function placeObstacles(state) {
-  state.obstacles = layTerrain(() => rand(state), state.board);
+  const bought = state.obstacles.filter((o) => o.owner);
+  const buys = state.players.reduce((a, p) => a + (p.buys?.length || 0), 0);
+  const count = Math.max(4, terrainCount(state.board) - Math.ceil(buys * 1.5)); // bought pieces replace scenery
+  const laid = layTerrain(() => rand(state), state.board, { weights: MAPS[state.map]?.weights, count, avoid: bought });
+  state.obstacles = [...laid, ...bought];
+}
+
+/** The battlefield is settled when the battle starts: lock it in and apply its initiative effects. */
+function applyBattlefield(state) {
+  state.mapChosen = true;
+  for (const u of state.units) {
+    const e = mapEffect(state.map, u.faction);
+    if (e?.init) u.init = Math.max(1, Math.min(6, u.init + e.init));
+  }
+  const m = MAPS[state.map];
+  if (m) log(state, `The battle is fought on ${m.name}.`);
+}
+
+/** The chooser picks the battlefield during deployment (once); random terrain is re-laid for it. */
+export function chooseMap(state, pid, mapId) {
+  if (state.phase !== "deploy") fail("The battlefield is chosen during deployment.");
+  if (state.mapChooser !== pid) fail("Only the player with the most points in reserve chooses the battlefield.");
+  if (state.mapChosen) fail("The battlefield is already chosen.");
+  if (!Object.hasOwn(MAPS, mapId)) fail("Unknown battlefield.");
+  state.map = mapId;
+  state.mapChosen = true;
+  placeObstacles(state);
+  // Units stand in their zones, which terrain never enters, so nothing needs to move.
+  log(state, `${player(state, pid).name} chooses ${MAPS[mapId].name}.`);
+}
+
+/** Where a bought piece may go: on the board, clear of every deployment zone and of other terrain. */
+export function terrainSpotOk(state, o) {
+  if (o.x < o.r || o.y < o.r || o.x > state.board - o.r || o.y > state.board - o.r) return false;
+  // Clear of the deployment zones actually in use (a two-player battle leaves both flanks open).
+  for (const p of state.players) {
+    const z = zoneFor(p.seat, state.board);
+    const nx = Math.max(z.x0, Math.min(z.x1, o.x));
+    const ny = Math.max(z.y0, Math.min(z.y1, o.y));
+    if (Math.hypot(o.x - nx, o.y - ny) < o.r + 5) return false;
+  }
+  return state.obstacles.every((q) => q.id === o.id || Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 10);
+}
+export const boughtRadius = (kind) => Math.round((RADIUS[kind][0] + RADIUS[kind][1]) / 2);
+
+/** Place one bought terrain piece during deployment. */
+export function placeTerrain(state, pid, msg) {
+  if (state.phase !== "deploy") fail("Terrain is placed during deployment.");
+  const p = player(state, pid) || fail("Join the table first.");
+  const kind = msg?.kind;
+  const i = (p.toPlace || []).indexOf(kind);
+  if (i < 0) fail("You have no such terrain piece left to place.");
+  const o = { id: `b${state.nextUid++}`, kind, r: boughtRadius(kind), x: Number(msg.x), y: Number(msg.y), owner: pid };
+  if (!Number.isFinite(o.x) || !Number.isFinite(o.y) || !terrainSpotOk(state, o)) fail("Terrain must go outside every deployment zone and clear of other terrain.");
+  state.obstacles.push(o);
+  p.toPlace.splice(i, 1);
+  p.ready = false;
+}
+
+/** Pick a placed bought piece back up to move it. */
+export function pickUpTerrain(state, pid, oid) {
+  if (state.phase !== "deploy") fail("Terrain is placed during deployment.");
+  const p = player(state, pid) || fail("Join the table first.");
+  const o = state.obstacles.find((x) => x.id === oid && x.owner === pid);
+  if (!o) fail("That is not your terrain piece.");
+  state.obstacles = state.obstacles.filter((x) => x !== o);
+  p.toPlace.push(o.kind);
+  p.ready = false;
+}
+
+/** Put any pieces a player has not placed somewhere legal, leaning toward their own side. */
+function autoPlaceTerrain(state, p) {
+  const z = zoneFor(p.seat, state.board);
+  const home = { x: (z.x0 + z.x1) / 2, y: (z.y0 + z.y1) / 2 };
+  const mid = state.board / 2;
+  for (const kind of [...(p.toPlace || [])]) {
+    const r = boughtRadius(kind);
+    // Sample the whole board; of the legal spots, prefer ones between home and the centre.
+    let spot = null;
+    let best = Infinity;
+    for (let t = 0; t < 600; t++) {
+      const o = { id: "tmp", kind, r, x: r + rand(state) * (state.board - 2 * r), y: r + rand(state) * (state.board - 2 * r) };
+      if (!terrainSpotOk(state, o)) continue;
+      const aim = { x: home.x + (mid - home.x) * 0.55, y: home.y + (mid - home.y) * 0.55 };
+      const d = Math.hypot(o.x - aim.x, o.y - aim.y);
+      if (d < best) [best, spot] = [d, o];
+    }
+    const label = kind === "block" ? "rocks" : kind === "thicket" ? "forest" : kind;
+    if (spot) {
+      state.obstacles.push({ ...spot, id: `b${state.nextUid++}`, owner: p.id });
+      log(state, `${p.name}'s ${label} is placed.`);
+    } else log(state, `There is no room left for ${p.name}'s ${label}; it stays off the field.`);
+    p.toPlace.splice(p.toPlace.indexOf(kind), 1);
+  }
 }
 
 /** Default placement: ranks of evenly spaced bases from the zone's back edge, never overlapping. */
@@ -246,6 +357,15 @@ function layoutZone(units, z) {
 
 function startDeploy(state) {
   state.phase = "deploy";
+  // Battlefield: the player with the most points left unspent chooses it (ties: lowest seat).
+  const left = (p) => state.settings.budget - (p.spent ?? 0);
+  state.mapChooser = [...state.players].sort((a, b) => left(b) - left(a) || a.seat - b.seat)[0]?.id ?? null;
+  // Until the chooser picks, the battlefield is a random one (no army is favoured by default).
+  const maps = Object.keys(MAPS);
+  state.map = maps[Math.floor(rand(state) * maps.length)];
+  state.mapChosen = false;
+  for (const p of state.players) p.toPlace = [...(p.buys || [])];
+  state.obstacles = [];
   placeObstacles(state);
   for (const p of state.players) {
     p.ready = false;
@@ -258,7 +378,9 @@ function startDeploy(state) {
   const byName = {};
   for (const u of state.units) (byName[u.name] ||= []).push(u);
   for (const group of Object.values(byName)) if (group.length > 1) group.forEach((u, i) => (u.name = `${u.name} (${i + 1})`));
-  log(state, "Deployment begins. Arrange your warband inside your edge zone, then press Ready.");
+  const chooser = player(state, state.mapChooser);
+  if (chooser) log(state, `${chooser.name} kept the most points in reserve (${left(chooser)}) and chooses the battlefield.`);
+  log(state, "Deployment begins. Arrange your warband inside your edge zone, place any terrain you bought, then press Ready.");
 }
 
 export function deployUnit(state, pid, uid, x, y, h) {
@@ -285,6 +407,7 @@ export function ready(state, pid) {
     const mine = alive(state).filter((u) => u.owner === pid);
     if (mine.some((u) => !state.dials[u.id])) fail("Set a maneuver for every unit first.");
   } else if (state.phase === "deploy") {
+    if (p.toPlace?.length) autoPlaceTerrain(state, p); // unplaced terrain goes somewhere sensible
     const mine = alive(state).filter((u) => u.owner === pid);
     for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) {
       if (polysOverlap(poly(mine[i]), poly(mine[j]))) fail(`${mine[i].name} and ${mine[j].name} overlap; move one before readying.`);
@@ -869,6 +992,11 @@ export function attackDice(state, u, t, w, r) {
   if (has(u, "berserk") && u.wounds < u.maxWounds) n += 1;
   if (onKind(state, u, "thicket") && !rule(u, "wildwood")) n -= 1;
   if (!visibleTo(state, t.owner).has(u.id)) n += 1; // ambush from out of sight
+  // Matchups: +1 die against the army you hunt, -1 against the one that hunts you.
+  n += matchupDice(u.faction, t.faction);
+  // Battlefield: Fury / Blunted change dice at range 1.
+  const me = mapEffect(state.map, u.faction);
+  if (r === 1 && me?.melee) n += me.melee;
   // Calamity Rift Ambush: +1 die from outside the target's front arc (flank or rear).
   if (rule(u, "riftAmbush") && attackSide(u, t) !== "front") n += 1;
   // Aim only cancels a defensive stance: never more dice than the target's stance added.
@@ -895,6 +1023,9 @@ export function defenseDice(state, u, t, w, r) {
   if (rule(t, "discipline") && friendsOf(state, t).some((f) => rangeBetween(f, t) <= 1)) n += 1;
   if (friendsOf(state, t).some((f) => has(f, "guardian") && rangeBetween(f, t) <= 1)) n += 1;
   if (has(u, "pierce")) n -= 1;
+  // Battlefield: Stalwart / Exposed change defence against attacks from range 2 or more.
+  const te = mapEffect(state.map, t.faction);
+  if (r >= 2 && te?.ranged) n += te.ranged;
   return Math.max(0, n);
 }
 
@@ -1221,7 +1352,10 @@ export function run(state) {
       if (!state.hold && state.players.length >= 2 && state.players.every((p) => p.ready && fits(p))) startDeploy(state);
       else return;
     } else if (state.phase === "deploy") {
-      if (allReady(state)) startRound(state);
+      if (allReady(state)) {
+        applyBattlefield(state);
+        startRound(state);
+      }
       else return;
     } else if (state.phase === "plan") {
       if (allReady(state)) startActivation(state);
@@ -1302,6 +1436,9 @@ export function viewFor(state, pid) {
   for (const u of v.units) u.owner = pub[u.owner];
   if (v.pending) v.pending.pid = pub[v.pending.pid];
   if (v.winner) v.winner = pub[v.winner];
+  // Tokens are private: the battlefield chooser and bought terrain are shown by public seat id.
+  if (v.mapChooser) v.mapChooser = pub[v.mapChooser] ?? null;
+  for (const o of v.obstacles) if (o.owner) o.owner = pub[o.owner] ?? null;
   v.you = seated ? pub[pid] : null;
   return v;
 }

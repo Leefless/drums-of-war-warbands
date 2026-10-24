@@ -37,6 +37,9 @@ For the world and its armies, see [LORE.md](LORE.md).
      any one unit.
    - Each unit may take **one upgrade**. An army may carry **one relic** (the
      faction-specific upgrades).
+   - Each unit may also carry **one magic item**. Every army has 33 to 38 items
+     drawn from its own lore, and each item names the units that may carry
+     it. An item can appear only once per army.
 4. **Saved armies:** name a list and press Save. Saved armies live on the host
    computer (`data/armies.json`), survive restarts, and can be loaded by anyone
    at the table. A saved list may be over the current budget; it just cannot
@@ -78,6 +81,55 @@ Deployment zones deepen with the battlefield. Prebuilt warbands scale to the bud
 **Same army twice.** Several players may pick the same army. The first of them
 keeps the army colour; the others' units, name chips and deployment zones are
 marked in bone white, cobalt or magenta so every side stays easy to tell apart.
+
+### Magic items
+
+An item changes a unit's profile: extra attack dice or range, defence, wounds,
+ward or initiative, an ability, or an action. Its price comes from the same cost
+model that prices units: the unit's cost with the item minus its cost without,
+times 1.5 (1.0 for the Greenskin Warhorde), at least 3 points. So the same blade
+costs more on a monster than on a goblin. The 1.5 comes from battle simulations:
+priced at the plain modelled value, an army that spent points on items beat the
+same style spending them on units 63% of the time; at these prices it is 53%.
+
+### Terrain to place
+
+Armies may buy terrain in the muster and place it before the battle: a Hill 8,
+Forest 5, Ruins 5, Lava 5, Rift 5, Marsh 4 or Rocks 3 points, up to 3 pieces at
+100 points (more in bigger games). Pieces go anywhere on the battlefield that is
+clear of every player's deployment zone and of other terrain; the board shows a
+green or red outline while you place. Each piece bought replaces one and a half
+pieces of random scenery. Anything not placed when you ready is placed for you,
+leaning toward your side.
+
+### Battlefields
+
+The player with the **most points left unspent** chooses the battlefield during
+deployment (ties go to the lowest seat), so keeping points in reserve is a real
+choice. Until they choose, the battle is set for a random one. The battlefield
+sets the ground and the mix of random terrain, and gives two armies an edge and
+two a handicap. Every army is favoured on exactly one battlefield and hindered on
+exactly one.
+
+| Battlefield | Favoured | Hindered |
+| --- | --- | --- |
+| **Greenmeadow** (open grass, hills) | Concord **Swift** (+1 initiative), Greenskin **Fury** (+1 attack die at range 1) | Sylvan **Exposed** (-1 defence die against attacks from range 2+), Holds **Sluggish** (-1 initiative) |
+| **Grey Moor** (mist, marsh, rocks) | Umbral **Stalwart** (+1 defence die against attacks from range 2+), Sylvan **Swift** | Concord **Sluggish**, Calamity **Blunted** (-1 attack die at range 1) |
+| **Riftscar Waste** (rifts, lava) | Calamity **Fury**, Holds **Stalwart** | Umbral **Blunted**, Greenskin **Sluggish** |
+
+### Matchups
+
+The armies form a ring. Each army **hunts** the next one and rolls **+1 attack
+die** against it:
+
+Iron Holds hunt the Sylvan Courts, who hunt the Calamity Host, who hunts the
+Dawnward Concord, who hunt the Greenskin Warhorde, who hunt the Umbral Covenant,
+who hunt the Iron Holds.
+
+So every army has one army it is strong against and one it is weak against. The
+ring order was chosen from measured results so no hunter was already dominant
+against its prey: in simulated battles each hunter wins 59 to 72% of games
+against its prey.
 
 ## 3. Unit profile
 

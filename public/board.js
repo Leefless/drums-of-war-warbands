@@ -169,7 +169,8 @@ function paintTerrain(state, px) {
   // tiling texture, else procedural meadow. Mottling is layered on top either way.
   g.fillStyle = "#566F3A";
   g.fillRect(0, 0, SIZE, SIZE);
-  const map = pickArt(state, "ground/", 0);
+  // The chosen battlefield's own ground art when there is one.
+  const map = (state.map && artImage(`ground/${state.map}.jpg`)) || pickArt(state, "ground/", 0);
   const ground = map ? null : artImage("ground.jpg");
   if (map) {
     g.drawImage(map, 0, 0, SIZE, SIZE);
@@ -537,7 +538,7 @@ function paintRift(g, o, R) {
 function ensureTerrain(state, px) {
   const paths = ["ground.jpg", "terrain/ruins.png", "terrain/thicket.png", "terrain/rift.png", ...artList("ground/"), ...artList("terrain/"), ...artList("decor/")];
   const art = paths.map((p) => (artImage(p) ? 1 : 0)).join("");
-  const key = `${seedOf(state)}|${px}|${SIZE}|${art}`;
+  const key = `${seedOf(state)}|${px}|${SIZE}|${state.map}|${art}`;
   if (terrain?.key !== key) terrain = { key, ...paintTerrain(state, px) };
   return terrain;
 }
@@ -705,6 +706,18 @@ function render(canvas, state, opts, now) {
 
   drawRiftGlow(ctx, k, now);
   for (const o of state.obstacles) drawFootprint(ctx, o);
+  // Bought terrain carries a dashed ring in its buyer's colour.
+  for (const o of state.obstacles) {
+    if (!o.owner) continue;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(o.x, o.y, o.r + 4, 0, Math.PI * 2);
+    ctx.setLineDash([7, 5]);
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = playerColor(state, o.owner);
+    ctx.stroke();
+    ctx.restore();
+  }
   if (opts.zones) drawZones(ctx, state);
   drawTrails(ctx, state);
 
@@ -739,6 +752,20 @@ function render(canvas, state, opts, now) {
 
   if (opts.fog) drawFog(ctx, canvas, state);
   if (opts.marker) drawChargeBanner(ctx, opts.marker, now);
+  if (opts.preview) {
+    // Bought terrain being placed: green where it may go, red where it may not.
+    const p = opts.preview;
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fillStyle = p.ok ? "rgba(127, 190, 107, 0.28)" : "rgba(200, 70, 50, 0.28)";
+    ctx.fill();
+    ctx.setLineDash([6, 4]);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = p.ok ? "#9FD38A" : "#E06A55";
+    ctx.stroke();
+    ctx.restore();
+  }
   if (opts.attackLine) drawAttackLine(ctx, state, opts.attackLine, now);
   drawEffects(ctx, k, now);
   drawFloaters(ctx, now);

@@ -7,6 +7,8 @@ import * as E from "./engine.js";
 import { FACTIONS, armyLimits, upgradesFor, validateArmy } from "./factions.js";
 import { isAim, isStance, parseManeuver } from "./geometry.js";
 import { visibleTo } from "./terrain.js";
+import { MAPS, mapEffect } from "./battlefield.js";
+import { itemCost, itemsFor } from "./items.js";
 
 export const AI_NAMES = {
   holds: "Thane Brokk (AI)", sylvan: "Lady Ithil (AI)", greenskin: "Warboss Grub (AI)",
@@ -32,13 +34,24 @@ export function randomArmy(fid, budget) {
       cost += c.cost;
     }
     const lim = armyLimits(budget);
+    const reserve = Math.round(budget * 0.15); // keep some points back for magic items
     for (let g = 0; g < 400 && list.filter((e) => !us.find((u) => u.id === e.unit).champion).length < lim.units; g++) {
-      const ok = regs.filter((u) => u.cost <= budget - cost && (copies[u.id] || 0) < lim.copies);
+      const ok = regs.filter((u) => u.cost <= budget - reserve - cost && (copies[u.id] || 0) < lim.copies);
       if (!ok.length) break;
       const u = pick(ok);
       list.push({ unit: u.id, upgrade: null });
       cost += u.cost;
       copies[u.id] = (copies[u.id] || 0) + 1;
+    }
+    // Magic items: give the best affordable item to units that can carry one.
+    const used = new Set();
+    for (const e of [...list].sort(() => Math.random() - 0.5)) {
+      const options = itemsFor(fid, e.unit).filter((it) => !used.has(it.id) && itemCost(fid, it, e.unit) <= budget - cost);
+      if (!options.length) continue;
+      const it = options.reduce((a, b) => (itemCost(fid, b, e.unit) > itemCost(fid, a, e.unit) ? b : a));
+      e.item = it.id;
+      used.add(it.id);
+      cost += itemCost(fid, it, e.unit);
     }
     // Spend leftovers on a cheap upgrade where one fits.
     for (const e of list) {
@@ -161,6 +174,14 @@ export function aiStep(state, pid) {
     return true;
   }
   if (state.phase === "deploy" && !me.ready) {
+    // Holding the most points in reserve: pick the battlefield that helps us and hurts the rest.
+    if (state.mapChooser === pid && !state.mapChosen) {
+      const value = (e) => (e ? (e.init || 0) + (e.melee || 0) + (e.ranged || 0) : 0);
+      const foes = state.players.filter((p) => p.id !== pid && !p.eliminated);
+      const score = (m) => value(mapEffect(m, me.faction)) * 2 - foes.reduce((a, p) => a + value(mapEffect(m, p.faction)), 0);
+      E.chooseMap(state, pid, Object.keys(MAPS).reduce((a, m) => (score(m) > score(a) ? m : a)));
+      return true;
+    }
     E.ready(state, pid);
     return true;
   }

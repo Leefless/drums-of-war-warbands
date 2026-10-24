@@ -126,21 +126,31 @@ export function terrainCount(size) {
   return Math.round(LAYOUT.length * (open(size) / open(BOARD)) * 0.8);
 }
 
-export function layTerrain(rand, size = BOARD) {
-  // The standard ten, then extras led by the smaller pieces so crowded boards still fit them all.
-  const EXTRA = ["thicket", "ruins", "block", "marsh", "hill", "lava", "block", "thicket", "rift", "ruins", "hill", "marsh", "block", "thicket", "hill", "lava"];
-  const count = terrainCount(size);
-  const layout = [...LAYOUT, ...Array.from({ length: Math.max(0, count - LAYOUT.length) }, (_, i) => EXTRA[i % EXTRA.length])].slice(0, count);
+export function layTerrain(rand, size = BOARD, { weights = null, count = terrainCount(size), avoid = [] } = {}) {
+  let layout;
+  if (weights) {
+    // A battlefield's mix: share the pieces out by weight (largest remainder), biggest pieces first.
+    const total = Object.values(weights).reduce((a, w) => a + w, 0);
+    const share = Object.entries(weights).map(([k, w]) => ({ k, exact: (count * w) / total }));
+    for (const x of share) x.n = Math.floor(x.exact);
+    let left = count - share.reduce((a, x) => a + x.n, 0);
+    for (const x of [...share].sort((a, b) => (b.exact % 1) - (a.exact % 1))) if (left-- > 0) x.n += 1;
+    layout = share.flatMap((x) => Array(x.n).fill(x.k)).sort((a, b) => RADIUS[b][1] - RADIUS[a][1]);
+  } else {
+    // The standard ten, then extras led by the smaller pieces so crowded boards still fit them all.
+    const EXTRA = ["thicket", "ruins", "block", "marsh", "hill", "lava", "block", "thicket", "rift", "ruins", "hill", "marsh", "block", "thicket", "hill", "lava"];
+    layout = [...LAYOUT, ...Array.from({ length: Math.max(0, count - LAYOUT.length) }, (_, i) => EXTRA[i % EXTRA.length])].slice(0, count);
+  }
   // Retry whole layouts until every piece fits (keeps the best attempt otherwise).
   let best = [];
   for (let attempt = 0; attempt < 25 && best.length < layout.length; attempt++) {
-    const pieces = layOnce(rand, size, layout);
+    const pieces = layOnce(rand, size, layout, avoid);
     if (pieces.length > best.length) best = pieces;
   }
   return best;
 }
 
-function layOnce(rand, size, layout) {
+function layOnce(rand, size, layout, avoid = []) {
   const pieces = [];
   for (const kind of layout) {
     const [lo, hi] = RADIUS[kind];
@@ -150,7 +160,7 @@ function layOnce(rand, size, layout) {
       const edge = zoneDepth(size) + 10 + r;
       const span = size - 2 * edge;
       const o = { id: `o${pieces.length + 1}`, kind, r, x: edge + rand() * span, y: edge + rand() * span };
-      if (pieces.every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 30)) {
+      if ([...avoid, ...pieces].every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 30)) {
         pieces.push(o);
         break;
       }

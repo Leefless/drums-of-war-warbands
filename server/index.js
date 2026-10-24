@@ -207,7 +207,10 @@ function handle(ws, info, m) {
       break;
     case "faction": E.setFaction(game, pid, m.faction); break;
     case "settings": E.setSettings(game, pid, m); break;
-    case "army": E.submitArmy(game, pid, m.list); E.ready(game, pid); break;
+    case "army": E.submitArmy(game, pid, m.list, m.buys); E.ready(game, pid); break;
+    case "chooseMap": E.chooseMap(game, pid, m.map); break;
+    case "placeTerrain": E.placeTerrain(game, pid, m); break;
+    case "pickUpTerrain": E.pickUpTerrain(game, pid, m.id); break;
     case "ready": E.ready(game, pid); break;
     case "unready": E.unready(game, pid); break;
     case "deploy": E.deployUnit(game, pid, m.uid, m.x, m.y, m.h); break;

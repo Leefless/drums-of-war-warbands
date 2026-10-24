@@ -8,6 +8,8 @@
 // "steel>r:sidestep" linked: after Steel you may immediately take a red Sidestep.
 // Dial notation: see shared/geometry.js parseManeuver ("2BL:w").
 
+import { TERRAIN_SHOP, terrainBuyCost, terrainLimit } from "./battlefield.js";
+import { itemById, itemCost } from "./items.js";
 import { unitCost } from "./cost.js";
 import { DIALS } from "./dials.js";
 import * as calamity from "./rosters/calamity.js";
@@ -211,7 +213,7 @@ export function categoryOf(u) {
 }
 
 /** Validate a muster list. Returns { ok, cost, errors }. */
-export function validateArmy(factionId, list, budget) {
+export function validateArmy(factionId, list, budget, buys = []) {
   const errors = [];
   const f = typeof factionId === "string" && Object.hasOwn(FACTIONS, factionId) ? FACTIONS[factionId] : null;
   if (!f) return { ok: false, cost: 0, errors: ["Pick a faction first."] };
@@ -238,6 +240,22 @@ export function validateArmy(factionId, list, budget) {
       if (g.relic) relics++;
     }
   }
+  // Magic items: one per unit, each item once per army, only on the units it names.
+  const usedItems = new Set();
+  for (const entry of Array.isArray(list) ? list : []) {
+    if (!entry?.item) continue;
+    const it = itemById(factionId, entry.item);
+    const u = f.units.find((x) => x.id === entry.unit);
+    if (!it || !u || !it.units.includes(u.id)) { errors.push(`${u?.name ?? "That unit"} cannot carry that item.`); continue; }
+    if (usedItems.has(it.id)) errors.push(`${it.name} can only be carried once.`);
+    usedItems.add(it.id);
+    cost += itemCost(factionId, it, u.id);
+  }
+  // Terrain bought in the muster, placed during deployment.
+  const shop = Array.isArray(buys) ? buys : [];
+  if (shop.some((k) => !Object.hasOwn(TERRAIN_SHOP, k))) errors.push("Unknown terrain piece.");
+  if (shop.length > terrainLimit(budget)) errors.push(`At most ${terrainLimit(budget)} terrain pieces.`);
+  cost += terrainBuyCost(shop);
   if (champions > 1) errors.push("Only one champion per army.");
   if (regulars > limits.units) errors.push(`No more than ${limits.units} units plus a champion.`);
   if (relics > 1) errors.push("Only one relic per army.");
