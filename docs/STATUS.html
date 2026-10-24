@@ -88,11 +88,11 @@ footer { border-top: 1px solid var(--line); padding-top: 16px; }
 
 <section aria-label="At a glance">
   <div class="figures">
-    <div class="key"><b>26 / 26</b><span class="label">Tests passing</span></div>
+    <div class="key"><b>28 / 28</b><span class="label">Tests passing</span></div>
     <div><b>247</b><span class="label">Units, all with portraits</span></div>
     <div><b>7</b><span class="label">Terrain kinds</span></div>
     <div><b>48 to 54%</b><span class="label">Faction win rates</span></div>
-    <div><b>13</b><span class="label">Commits on main</span></div>
+    <div><b>15</b><span class="label">Commits, backed up</span></div>
   </div>
 </section>
 
@@ -199,13 +199,11 @@ footer { border-top: 1px solid var(--line); padding-top: 16px; }
     <thead><tr><th>Item</th><th>Why it matters</th><th>Priority</th></tr></thead>
     <tbody>
       <tr><td>Playtest with real players</td><td>Balance is tuned against one bot policy that never uses red actions, upgrades or relics. Human play is the real test, especially fog and ambush.</td><td><span class="pill risk">First</span></td></tr>
-      <tr><td>Keyboard unit selection on the board</td><td>Arrow keys move a selected unit during deployment, but selecting one still needs a click. A unit list in the deploy panel would finish keyboard-only play.</td><td><span class="pill todo">Soon</span></td></tr>
-      <tr><td>Per-connection rate limiting</td><td>Message size and saved-army counts are capped, but one client can still send many small messages quickly. Low risk on a home LAN.</td><td><span class="pill todo">Soon</span></td></tr>
-      <tr><td>Resize performance</td><td>The painted battlefield repaints on every window size change. Debouncing it would smooth phone rotation.</td><td><span class="pill todo">Later</span></td></tr>
+      <tr><td>Keyboard deployment, rate limiting, resize smoothing</td><td>The deploy panel lists your units for keyboard selection; each connection is rate limited; the battlefield repaints once resizing settles.</td><td><span class="pill done">Done</span></td></tr>
       <tr><td>Rules for upgrades and relics in play</td><td>The bot never used them, so their prices are untested by simulation.</td><td><span class="pill todo">Later</span></td></tr>
-      <tr><td>Solo play against an AI</td><td>The simulation bot is a good base for a "play against the computer" mode.</td><td><span class="pill todo">Idea</span></td></tr>
+      <tr><td>Computer opponents</td><td>The host can add AI seats in muster (pick an army or random). They play from their own fogged view, one decision at a time so you can watch.</td><td><span class="pill done">Done</span></td></tr>
       <tr><td>Campaign layer</td><td>Persistent warbands and veteran champions between battles, which would tie back to the DoW character sheets.</td><td><span class="pill todo">Idea</span></td></tr>
-      <tr><td>Push to a remote</td><td>The repo has no remote, so all 13 commits exist only on this Mac.</td><td><span class="pill risk">Back up</span></td></tr>
+      <tr><td>Backup</td><td>Pushed to github.com/Leefless/drums-of-war-warbands (public). Commits use your GitHub no-reply address.</td><td><span class="pill done">Done</span></td></tr>
     </tbody>
   </table>
   </div>
@@ -217,14 +215,16 @@ footer { border-top: 1px solid var(--line); padding-top: 16px; }
   <table>
     <thead><tr><th>Commit</th><th>Change</th></tr></thead>
     <tbody>
-      <tr><td><code>87f5e5a</code></td><td>Deployment zones 180 deep, terrain layout retries until all ten fit</td></tr>
-      <tr><td><code>4d0ca1f</code></td><td>Review fixes: client robustness, rules text matches code</td></tr>
-      <tr><td><code>ee929b6</code></td><td>Adversarial review fixes: security, hidden info, engine, balance</td></tr>
-      <tr><td><code>6e217a1</code></td><td>Terrain with tactical effects, fog of war, painted battlefields</td></tr>
-      <tr><td><code>8fdc5ea</code></td><td>Commit 213 portraits (fix to the Art folder ignore rule)</td></tr>
-      <tr><td><code>92a2268</code></td><td>Portraits for all 213 new units; <code>npm run install-art</code></td></tr>
-      <tr><td><code>b55a264</code></td><td>Double-click launcher</td></tr>
-      <tr><td><code>0d87371</code></td><td>Full army builder: 247 units, computed costs, champions, saved armies</td></tr>
+      <tr><td><code>350271f</code></td><td>Computer opponents, keyboard deployment, rate limiting, resize debounce</td></tr>
+      <tr><td><code>9f3df9c</code></td><td>Add offline status report (docs/STATUS.html)</td></tr>
+      <tr><td><code>05b42e5</code></td><td>Deployment zones 180 deep, terrain layout retries until all ten fit</td></tr>
+      <tr><td><code>adee3b4</code></td><td>Review fixes: client robustness, rules text matches code</td></tr>
+      <tr><td><code>4f82874</code></td><td>Adversarial review fixes: security, hidden info, engine, balance</td></tr>
+      <tr><td><code>826da0d</code></td><td>Terrain with tactical effects, fog of war, painted battlefields</td></tr>
+      <tr><td><code>bea64d3</code></td><td>Fix .gitignore: ignore only the root Art/ drop folder, commit 213 portraits</td></tr>
+      <tr><td><code>020afe0</code></td><td>Add portraits for all 213 new units; add npm run install-art</td></tr>
+      <tr><td><code>64a15df</code></td><td>Add double-click launcher: Start Game.command</td></tr>
+      <tr><td><code>1560a82</code></td><td>Full army builder: 247 units, computed costs, champions, saved armies</td></tr>
     </tbody>
   </table>
   </div>
