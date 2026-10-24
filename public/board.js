@@ -5,7 +5,7 @@
 import { BASE_SIZE, BOARD, corners, maneuverPose, maneuverSegments, parseManeuver, poseAlong, pointInPoly } from "/shared/geometry.js";
 import { FACTIONS } from "/shared/factions.js";
 import { zoneFor } from "/shared/engine.js";
-import { EMBLEMS, ICONS, UNIT_ICON, path2d } from "/art.js";
+import { EMBLEMS, ICONS, UNIT_ICON, artImage, path2d } from "/art.js";
 
 const DISPLAY = '"Cinzel", "Trajan Pro", Georgia, serif';
 const PARCHMENT = "#EFE3C6";
@@ -106,11 +106,18 @@ function paintTerrain(state, px) {
   g.setTransform(px / BOARD, 0, 0, px / BOARD, 0, 0);
   const R = rng(seedOf(state));
 
-  // Meadow ground, mottled with soft blotches.
+  // Meadow ground: the painted texture when present, mottled with soft blotches.
   g.fillStyle = "#566F3A";
   g.fillRect(0, 0, BOARD, BOARD);
+  const ground = artImage("ground.jpg");
+  if (ground) {
+    const pat = g.createPattern(ground, "repeat");
+    pat.setTransform(new DOMMatrix().scale(320 / ground.width));
+    g.fillStyle = pat;
+    g.fillRect(0, 0, BOARD, BOARD);
+  }
   const greens = ["#4A6331", "#5D7840", "#6A8347", "#43592B", "#768A4C", "#52693A"];
-  for (let i = 0; i < 420; i++) blob(g, R() * BOARD, R() * BOARD, 15 + R() * 85, greens[(R() * greens.length) | 0], "55");
+  for (let i = 0; i < (ground ? 90 : 420); i++) blob(g, R() * BOARD, R() * BOARD, 15 + R() * 85, greens[(R() * greens.length) | 0], "55");
   for (let i = 0; i < 9; i++) blob(g, R() * BOARD, R() * BOARD, 40 + R() * 70, "#7B6643", "40");
 
   // Two winding dirt roads crossing the field.
@@ -163,7 +170,15 @@ function paintTerrain(state, px) {
 
   const rifts = [];
   for (const o of state.obstacles) {
-    if (o.kind === "ruins") paintRuins(g, o, R);
+    const sprite = artImage(`terrain/${o.kind}.png`);
+    if (sprite) {
+      g.save();
+      g.translate(o.x, o.y);
+      g.rotate(R() * Math.PI * 2);
+      g.drawImage(sprite, -o.r * 1.2, -o.r * 1.2, o.r * 2.4, o.r * 2.4);
+      g.restore();
+      if (o.kind === "rift") rifts.push({ o, cracks: [], phase: R() * 6 });
+    } else if (o.kind === "ruins") paintRuins(g, o, R);
     else if (o.kind === "thicket") paintThicket(g, o, R);
     else rifts.push(paintRift(g, o, R));
   }
@@ -307,7 +322,8 @@ function paintRift(g, o, R) {
 }
 
 function ensureTerrain(state, px) {
-  const key = `${seedOf(state)}|${px}`;
+  const art = ["ground.jpg", "terrain/ruins.png", "terrain/thicket.png", "terrain/rift.png"].map((p) => (artImage(p) ? 1 : 0)).join("");
+  const key = `${seedOf(state)}|${px}|${art}`;
   if (terrain?.key !== key) terrain = { key, ...paintTerrain(state, px) };
   return terrain;
 }
@@ -507,6 +523,17 @@ function drawRiftGlow(ctx, k, now) {
   ctx.lineCap = "round";
   for (const r of terrain.rifts) {
     const pulse = 0.55 + 0.35 * Math.sin(now / 420 + r.phase);
+    if (!r.cracks.length) {
+      ctx.globalCompositeOperation = "lighter";
+      const grd = ctx.createRadialGradient(r.o.x, r.o.y, 0, r.o.x, r.o.y, r.o.r);
+      grd.addColorStop(0, `rgba(255, 120, 60, ${0.35 * pulse})`);
+      grd.addColorStop(1, "rgba(255, 80, 40, 0)");
+      ctx.fillStyle = grd;
+      ctx.beginPath();
+      ctx.arc(r.o.x, r.o.y, r.o.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.globalCompositeOperation = "source-over";
+    }
     ctx.shadowColor = "#FF5A2C";
     ctx.shadowBlur = 10 * k;
     ctx.strokeStyle = `rgba(255, 110, 60, ${pulse})`;
@@ -702,10 +729,21 @@ function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   field.addColorStop(1, "#14110C");
   ctx.fillStyle = field;
   ctx.fill();
-  ctx.fillStyle = shade(col, -0.2);
-  ctx.globalAlpha = alpha * 0.22;
-  drawPath24(ctx, EMBLEMS[u.faction], 0, 0, size * 0.86);
-  ctx.globalAlpha = alpha;
+  const portrait = artImage(`units/${u.type}.png`);
+  if (portrait) {
+    // Painted portrait, clipped to the base but kept upright like the icon.
+    ctx.save();
+    ctx.clip();
+    ctx.rotate((-pose.h * Math.PI) / 180);
+    const s2 = (size - inset * 2) * 1.42;
+    ctx.drawImage(portrait, -s2 / 2, -s2 / 2, s2, s2);
+    ctx.restore();
+  } else {
+    ctx.fillStyle = shade(col, -0.2);
+    ctx.globalAlpha = alpha * 0.22;
+    drawPath24(ctx, EMBLEMS[u.faction], 0, 0, size * 0.86);
+    ctx.globalAlpha = alpha;
+  }
 
   // Front edge: a bright rule and a gold chevron (the facing of the mini).
   ctx.fillStyle = shade(col, 0.55);
@@ -744,6 +782,11 @@ function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   ctx.restore();
 
   // Unit icon stays upright for legibility; the base and chevron show facing.
+  // A painted portrait replaces it.
+  if (portrait) {
+    if (alpha >= 1) drawStatus(ctx, u, pose, BASE_SIZE[u.base]);
+    return;
+  }
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.fillStyle = "rgba(0,0,0,0.6)";

@@ -58,3 +58,25 @@ export function path2d(d) {
   if (!pathCache.has(d)) pathCache.set(d, new Path2D(d));
   return pathCache.get(d);
 }
+
+// ── Painted art (optional) ───────────────────────────────────────────────────
+// Generated images live in public/art/. Each is loaded once; until it loads (or
+// if the file does not exist) callers get null and fall back to vector art.
+const images = new Map();
+
+/** The loaded image for an art path such as "units/thane.png", or null. */
+export function artImage(path) {
+  let rec = images.get(path);
+  if (!rec) {
+    rec = { img: new Image(), ok: false };
+    rec.img.onload = () => {
+      rec.ok = true;
+    };
+    rec.img.src = `/art/${path}`;
+    images.set(path, rec);
+  }
+  return rec.ok ? rec.img : null;
+}
+
+/** Inline <img> for the DOM that removes itself if the file is missing. */
+export const artTag = (path, cls) => `<img class="${cls}" src="/art/${path}" alt="" loading="lazy" onerror="this.remove()">`;

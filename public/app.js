@@ -4,7 +4,7 @@ import { ABILITIES, ACTIONS, FACTIONS, UPGRADES, upgradesFor, validateArmy } fro
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
 import { playerColor, sizeCanvas, toBoard, unitAt, updateBoard } from "/board.js";
-import { DIE_ICON, UNIT_ICON, emblemSVG, iconSVG } from "/art.js";
+import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -103,6 +103,7 @@ function renderJoin(app) {
   const full = S && S.players.length >= 4;
   const started = S && S.phase !== "muster";
   app.innerHTML = `<div class="center">
+    ${artTag("title.jpg", "hero-img")}
     <div class="label">A high fantasy maneuver wargame</div>
     <h1 class="banner-title">Drums of War: Warbands</h1>
     <p class="muted">Every player opens this page on their own computer. Plan your moves in secret, then watch them play out together.</p>
@@ -162,7 +163,7 @@ function renderMuster(app) {
     </div>
     <div class="factions" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
       <button class="fcard ${p.faction === x.id ? "on" : ""}" style="--fc:${x.color}" data-faction="${x.id}" ${p.ready ? "disabled" : ""}>
-        ${emblemSVG(x.id)}<h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
+        ${artTag(`banners/${x.id}.jpg`, "banner-img")}${emblemSVG(x.id)}<h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
         <p>${esc(x.tagline)}</p>
       </button>`).join("")}</div>
     ${f ? `<div class="muster">
@@ -214,7 +215,7 @@ function weaponText(w) {
 
 function unitCardHTML(fid, u, locked) {
   return `<div class="ucard">
-    <div class="row" style="justify-content:space-between;--fc:${FACTIONS[fid].color}"><div class="row">${iconSVG(UNIT_ICON[u.id] || "sword", "emblem")}<div><h3>${esc(u.name)}${u.unique ? " <span class='tag'>unique</span>" : ""}</h3><div class="label">${esc(u.role)} · ${u.base} base</div></div></div>
+    <div class="row" style="justify-content:space-between;--fc:${FACTIONS[fid].color}"><div class="row"><span class="portrait">${iconSVG(UNIT_ICON[u.id] || "sword", "emblem")}${artTag(`units/${u.id}.png`, "")}</span><div><h3>${esc(u.name)}${u.unique ? " <span class='tag'>unique</span>" : ""}</h3><div class="label">${esc(u.role)} · ${u.base} base</div></div></div>
     <div class="row"><span class="num" style="font-size:20px;font-weight:600">${u.cost}</span><button class="small" data-add="${u.id}" ${locked ? "disabled" : ""}>Add</button></div></div>
     <div class="stats"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}</b></span><span>Ward <b>${u.ward}</b></span></div>
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
@@ -518,7 +519,7 @@ function cardHTML() {
   ].filter(Boolean);
   const conds = Object.keys(u.cond).filter((c) => CRIT_TEXT[c]).map((c) => CRIT_TEXT[c]);
   if (u.cond.broken) conds.push(`Broken Arms ×${u.cond.broken}`);
-  return `<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;--fc:${playerColor(S, u.owner)}"><span style="display:flex;align-items:center;gap:8px">${iconSVG(UNIT_ICON[u.type] || "sword", "emblem")}<h3>${esc(u.name)}</h3></span><span class="label">${esc(nameOf(u.owner))}</span></div>
+  return `<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;--fc:${playerColor(S, u.owner)}"><span style="display:flex;align-items:center;gap:8px"><span class="portrait small">${iconSVG(UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span><h3>${esc(u.name)}</h3></span><span class="label">${esc(nameOf(u.owner))}</span></div>
     <div class="label" style="color:${playerColor(S, u.owner)}">${esc(FACTIONS[u.faction].name)}${u.upgrade ? ` · ${esc(UPGRADES[u.upgrade].name)}` : ""}${u.dead ? " · destroyed" : ""}</div>
     <div class="stats" style="margin:6px 0"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}/${u.maxWounds}</b></span><span>Ward <b>${u.ward}/${u.maxWard}</b></span><span>Strain <b>${u.strain}</b>/${u.faction === "greenskin" ? 2 : 1}</span></div>
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>

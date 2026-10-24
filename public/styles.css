@@ -217,3 +217,11 @@ canvas { display: block; cursor: crosshair; touch-action: none; border: 1px soli
   .die.roll { animation: none; }
   button { transition: none; }
 }
+
+/* Painted art (optional files in public/art; each image removes itself if missing) */
+.portrait { position: relative; width: 60px; height: 60px; flex: none; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; border: 1px solid var(--line); border-radius: 3px; background: #14110C; color: var(--fc); box-shadow: var(--inset, none); }
+.portrait.small { width: 46px; height: 46px; }
+.portrait img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hero-img { display: block; width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border: 1px solid var(--line); border-radius: 3px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45); }
+.center:has(.hero-img) { max-width: 760px; margin-top: 4vh; }
+.fcard .banner-img { display: block; width: calc(100% + 32px); height: 96px; margin: -14px -14px 4px -18px; object-fit: cover; }
