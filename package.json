@@ -10,7 +10,8 @@
   "scripts": {
     "start": "node server/index.js",
     "test": "node --test test/*.test.js",
-    "art": "node --env-file-if-exists=.env scripts/gen-art.mjs"
+    "art": "node --env-file-if-exists=.env scripts/gen-art.mjs",
+    "install-art": "node scripts/install-art.mjs"
   },
   "dependencies": {
     "ws": "^8.18.0"
