@@ -3,7 +3,8 @@
 import { ABILITIES, ACTIONS, FACTIONS, UPGRADES, upgradesFor, validateArmy } from "/shared/factions.js";
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
-import { draw, playerColor, sizeCanvas, toBoard, unitAt } from "/board.js";
+import { playerColor, sizeCanvas, toBoard, unitAt, updateBoard } from "/board.js";
+import { DIE_ICON, UNIT_ICON, emblemSVG, iconSVG } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -72,7 +73,6 @@ const nameOf = (pid) => S.players.find((p) => p.id === pid)?.name ?? "?";
 const myUnits = () => S.units.filter((u) => u.owner === token && !u.dead);
 const PHASES = { muster: "Muster", deploy: "Deployment", plan: "Planning", activation: "Activation", engagement: "Engagement", over: "Battle over" };
 const GLYPH = { TL: "↰", BL: "↖", S: "↑", BR: "↗", TR: "↱", A: "U", RF: "Rift", X: "■" };
-const FACE = { strike: "STR", rend: "REND", omen: "OMEN", blank: "·", parry: "PAR" };
 
 function header() {
   $("#phase").textContent = S ? `${PHASES[S.phase]}${S.round ? ` · Round ${S.round} of ${S.settings.maxRounds}` : ""}` : "Connecting";
@@ -104,7 +104,7 @@ function renderJoin(app) {
   const started = S && S.phase !== "muster";
   app.innerHTML = `<div class="center">
     <div class="label">A high fantasy maneuver wargame</div>
-    <h1>Drums of War: Warbands</h1>
+    <h1 class="banner-title">Drums of War: Warbands</h1>
     <p class="muted">Every player opens this page on their own computer. Plan your moves in secret, then watch them play out together.</p>
     <input id="name" placeholder="Your name" value="${esc(L.name)}" maxlength="24">
     <div class="btns">
@@ -162,7 +162,7 @@ function renderMuster(app) {
     </div>
     <div class="factions" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
       <button class="fcard ${p.faction === x.id ? "on" : ""}" style="--fc:${x.color}" data-faction="${x.id}" ${p.ready ? "disabled" : ""}>
-        <h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
+        ${emblemSVG(x.id)}<h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
         <p>${esc(x.tagline)}</p>
       </button>`).join("")}</div>
     ${f ? `<div class="muster">
@@ -178,8 +178,8 @@ function renderMuster(app) {
         ${L.draft.length ? L.draft.map((e, i) => {
           const u = f.units.find((x) => x.id === e.unit);
           const ups = upgradesFor(f.id, u);
-          return `<div class="lrow"><span>${esc(u.name)} <span class="muted num">${u.cost}</span></span>
-            <span class="btns"><select data-up="${i}" ${p.ready ? "disabled" : ""}><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
+          return `<div class="lrow" style="flex-wrap:wrap"><span style="flex:1 1 100%">${esc(u.name)} <span class="muted num">${u.cost}</span></span>
+            <span class="btns" style="flex:1 1 100%"><select data-up="${i}" ${p.ready ? "disabled" : ""}><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
             <button class="small ghost" data-rm="${i}" ${p.ready ? "disabled" : ""}>Remove</button></span></div>`;
         }).join("") : `<p class="muted" style="margin:0">Add units from the roster.</p>`}
         ${v.errors.length && L.draft.length ? `<p style="margin:0;color:var(--crit)">${esc(v.errors.join(" "))}</p>` : ""}
@@ -214,7 +214,7 @@ function weaponText(w) {
 
 function unitCardHTML(fid, u, locked) {
   return `<div class="ucard">
-    <div class="row" style="justify-content:space-between"><div><h3>${esc(u.name)}${u.unique ? " <span class='tag'>unique</span>" : ""}</h3><div class="label">${esc(u.role)} · ${u.base} base</div></div>
+    <div class="row" style="justify-content:space-between;--fc:${FACTIONS[fid].color}"><div class="row">${iconSVG(UNIT_ICON[u.id] || "sword", "emblem")}<div><h3>${esc(u.name)}${u.unique ? " <span class='tag'>unique</span>" : ""}</h3><div class="label">${esc(u.role)} · ${u.base} base</div></div></div>
     <div class="row"><span class="num" style="font-size:20px;font-weight:600">${u.cost}</span><button class="small" data-add="${u.id}" ${locked ? "disabled" : ""}>Add</button></div></div>
     <div class="stats"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}</b></span><span>Ward <b>${u.ward}</b></span></div>
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
@@ -287,7 +287,7 @@ function drawBoard() {
     if (L.sub?.targets) L.sub.targets.forEach((t) => highlight.add(typeof t === "string" ? t : t.id));
   }
   const A = S.attack || null;
-  draw(canvas, S, {
+  updateBoard(canvas, S, {
     selected: L.selected,
     active: p?.uid || A?.attacker,
     ghost,
@@ -356,7 +356,7 @@ function promptHTML() {
     const winner = S.players.find((x) => x.id === S.winner);
     html = `<div class="label">Victory</div><div class="big">${esc(winner?.name ?? "Nobody")}</div>
       <p class="muted">${winner ? `Victory for ${esc(FACTIONS[winner.faction].name)}.` : ""}</p>
-      <table class="victory num" style="width:100%">${S.players.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.vp} VP</td><td class="muted">${S.units.filter((u) => u.owner === x.id && !u.dead).length} units left</td></tr>`).join("")}</table>
+      <table class="victory num" style="width:100%">${S.players.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.vp} VP</td><td class="muted">${((n) => `${n} unit${n === 1 ? "" : "s"} left`)(S.units.filter((u) => u.owner === x.id && !u.dead).length)}</td></tr>`).join("")}</table>
       <div class="btns" style="margin-top:10px"><button class="cta" id="reset">New battle</button></div>`;
   } else if (p && p.pid === token) {
     html = myPromptHTML(p);
@@ -429,15 +429,29 @@ function chooseTarget(id) {
   else send("act", { a: o.a, params: { target: id } });
 }
 
+// A die tumbles once when its face first appears or changes (a roll or reroll).
+const seenFaces = new Map();
+function rolled(side, i, face) {
+  const key = `${side}${i}`;
+  const fresh = seenFaces.get(key) !== face;
+  seenFaces.set(key, face);
+  return fresh ? "roll" : "";
+}
+
 function diceHTML(A, live) {
+  const sig = `${A.attacker}|${A.target}|${S.round}`;
+  if (seenFaces.get("sig") !== sig) {
+    seenFaces.clear();
+    seenFaces.set("sig", sig);
+  }
   const at = unitById(A.attacker);
   const df = unitById(A.target);
   const selectable = live && S.pending?.type === "attackMods" && S.pending.pid === token;
   const res = A.result ? ` · ${A.result.strikes} Strike, ${A.result.rends} Rend` : "";
   return `<hr><div class="label">${live ? "Attack in progress" : "Last attack"} · R${A.range}${A.obstructed ? " · obstructed" : ""}${res}</div>
     <div style="font-size:13px;margin:4px 0">${esc(at?.name)} → ${esc(df?.name)}</div>
-    <div class="dice">${A.atk.map((f, i) => `<span class="die atk ${f} ${L.diceSel.has(i) ? "sel" : ""} ${A.rerolled.includes(i) ? "rr" : ""}" ${selectable ? `data-die="${i}" style="cursor:pointer"` : ""}>${FACE[f]}</span>`).join("")}</div>
-    <div class="dice" style="margin-top:4px">${A.def.map((f) => `<span class="die def ${f}">${FACE[f]}</span>`).join("") || (live ? "<span class='muted'>defence not rolled yet</span>" : "<span class='muted'>no defence dice</span>")}${A.brace ? " <span class='tag'>brace</span>" : ""}</div>`;
+    <div class="dice">${A.atk.map((f, i) => `<span class="die atk ${f} ${L.diceSel.has(i) ? "sel" : ""} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}" ${selectable ? `data-die="${i}" style="cursor:pointer"` : ""}>${iconSVG(DIE_ICON[f])}</span>`).join("")}</div>
+    <div class="dice" style="margin-top:4px">${A.def.map((f, i) => `<span class="die def ${f} ${rolled("d", i, f)}" title="${f}">${iconSVG(DIE_ICON[f])}</span>`).join("") || (live ? "<span class='muted'>defence not rolled yet</span>" : "<span class='muted'>no defence dice</span>")}${A.brace ? " <span class='tag'>brace</span>" : ""}</div>`;
 }
 
 function wirePrompt() {
@@ -504,12 +518,12 @@ function cardHTML() {
   ].filter(Boolean);
   const conds = Object.keys(u.cond).filter((c) => CRIT_TEXT[c]).map((c) => CRIT_TEXT[c]);
   if (u.cond.broken) conds.push(`Broken Arms ×${u.cond.broken}`);
-  return `<div class="row" style="display:flex;justify-content:space-between"><h3>${esc(u.name)}</h3><span class="label">${esc(nameOf(u.owner))}</span></div>
+  return `<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;--fc:${playerColor(S, u.owner)}"><span style="display:flex;align-items:center;gap:8px">${iconSVG(UNIT_ICON[u.type] || "sword", "emblem")}<h3>${esc(u.name)}</h3></span><span class="label">${esc(nameOf(u.owner))}</span></div>
     <div class="label" style="color:${playerColor(S, u.owner)}">${esc(FACTIONS[u.faction].name)}${u.upgrade ? ` · ${esc(UPGRADES[u.upgrade].name)}` : ""}${u.dead ? " · destroyed" : ""}</div>
     <div class="stats" style="margin:6px 0"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}/${u.maxWounds}</b></span><span>Ward <b>${u.ward}/${u.maxWard}</b></span><span>Strain <b>${u.strain}</b>/${u.faction === "greenskin" ? 2 : 1}</span></div>
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
     ${u.revealed ? `<div class="label" style="margin-top:6px">Revealed ${esc(u.revealed.replace(":", " "))}</div>` : ""}
-    ${tokens.length ? `<div class="tags" style="margin-top:6px">${tokens.map((x) => `<span class="tag">${esc(x)}</span>`).join("")}</div>` : ""}
+    ${tokens.length ? `<div class="tags" style="margin-top:6px">${tokens.map((x) => `<span class="tag"><span class="coin"></span>${esc(x)}</span>`).join("")}</div>` : ""}
     ${conds.length ? `<div style="font-size:13px;color:var(--crit);margin-top:6px">${conds.map(esc).join("<br>")}</div>` : ""}
     <div class="tags" style="margin-top:6px">${u.actions.map((a) => `<span class="tag">${esc(actionLabel(a))}</span>`).join("")}</div>
     ${u.abilities.length ? `<div style="font-size:13px;margin-top:6px" class="muted">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}`;
