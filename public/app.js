@@ -293,6 +293,12 @@ function renderMuster(app) {
         <label class="label" style="display:flex;gap:6px;align-items:center" title="When on, Watch only screens see every unit, ignoring fog of war"><input type="checkbox" id="openSpec" ${S.settings.openSpectators ? "checked" : ""}> Spectators see all</label>
       </div>` : `<div class="label">Budget ${S.settings.budget} · ${S.settings.maxRounds} rounds</div>`}
     </div>
+    ${host ? `<div class="btns" style="margin-top:10px;align-items:center">
+      <span class="label">Computer opponent</span>
+      <select id="aiFaction" aria-label="Computer opponent's army"><option value="">Random army</option>${Object.values(FACTIONS).map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("")}</select>
+      <button id="addAI" ${S.players.length >= 4 ? "disabled" : ""}>Add computer opponent</button>
+      ${S.players.filter((x) => x.ai).map((x) => `<span class="chip">${esc(x.name)} <button class="small ghost" data-rmai="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></span>`).join("")}
+    </div>` : ""}
     <div class="factions ${f ? "compact" : ""}" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
       <button class="fcard ${p.faction === x.id ? "on" : ""}" style="--fc:${x.color}" data-faction="${x.id}" ${locked ? "disabled" : ""}>
         ${artTag(`banners/${x.id}.jpg`, "banner-img")}${emblemSVG(x.id)}<h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
@@ -400,6 +406,8 @@ function wireMuster(app, f) {
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
   $("#rounds") && ($("#rounds").onchange = (e) => send("settings", { maxRounds: Number(e.target.value) }));
   $("#openSpec") && ($("#openSpec").onchange = (e) => send("settings", { openSpectators: e.target.checked }));
+  $("#addAI") && ($("#addAI").onclick = () => send("addAI", { faction: $("#aiFaction").value || null }));
+  on("[data-rmai]", "onclick", (b) => send("removeAI", { seat: b.dataset.rmai }));
 }
 
 function actionLabel(entry) {
@@ -444,7 +452,10 @@ function renderBattle(app) {
       const tt = o && TERRAIN[o.kind];
       canvas.title = u ? `${u.name} (${nameOf(u.owner)})` : tt ? `${tt.name}\n+ ${tt.up}\n- ${tt.down}` : "";
     };
-    window.onresize = () => drawBoard();
+    window.onresize = () => {
+      clearTimeout(L.resizeTimer);
+      L.resizeTimer = setTimeout(drawBoard, 150); // repaint the battlefield once resizing settles
+    };
     window.onkeydown = (ev) => {
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
@@ -553,8 +564,9 @@ function promptHTML() {
   let html = "";
   if (S.phase === "deploy") {
     html = `<div class="label">Deployment</div><h3>Place your warband</h3>
-      <p class="muted" style="margin:6px 0">Select one of your units, then click inside your shaded zone to move it. Rotate with Q and E or the buttons.</p>
-      ${mine ? `<div class="btns">
+      <p class="muted" style="margin:6px 0">Select one of your units (on the board or below), then click inside your shaded zone to move it, or nudge it with the arrow keys. Rotate with Q and E or the buttons.</p>
+      ${mine ? `<div class="ulist" style="margin:8px 0">${myUnits().map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)}</span><span class="muted">${u.base}</span></button>`).join("")}</div>
+      <div class="btns">
         <button data-rot="-45" ${L.selected ? "" : "disabled"}>Rotate left</button><button data-rot="45" ${L.selected ? "" : "disabled"}>Rotate right</button>
         ${mine.ready ? `<button id="unready">Keep adjusting</button>` : `<button class="cta" id="ready">Ready</button>`}
       </div>` : ""}`;

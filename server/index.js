@@ -8,6 +8,7 @@ import { extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import * as E from "../shared/engine.js";
+import { AI_NAMES, aiStep } from "../shared/ai.js";
 import { FACTIONS, validateArmy } from "../shared/factions.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
@@ -131,9 +132,11 @@ const wss = new WebSocketServer({
 
 function broadcast() {
   const online = new Set([...sockets.values()].map((s) => s.token));
+  // Views carry public seat ids, so map connection status by seat (computer seats are always here).
+  const here = new Set(game.players.filter((p) => p.ai || online.has(p.id)).map((p) => `p${p.seat}`));
   for (const [ws, info] of sockets) {
     const view = E.viewFor(game, info.spectator ? null : info.token);
-    for (const p of view.players) p.connected = online.has(p.id);
+    for (const p of view.players) p.connected = here.has(p.id);
     view.spectator = info.spectator || !E.player(game, info.token);
     view.armies = publicArmies(info.spectator ? null : info.token);
     ws.send(JSON.stringify({ t: "state", state: view }));
@@ -162,6 +165,8 @@ function handle(ws, info, m) {
     case "attack": E.declareAttack(game, pid, m); break;
     case "mod": E.modify(game, pid, m); break;
     case "leave": E.removePlayer(game, pid); break;
+    case "addAI": addAI(pid, m.faction); break;
+    case "removeAI": removeAI(pid, m.seat); break;
     case "saveArmy": return saveArmy(E.player(game, pid) ? pid : null, E.player(game, pid)?.name || "Unknown", m);
     case "deleteArmy": return deleteArmy(pid, m.id);
     case "reset": {
@@ -170,7 +175,8 @@ function handle(ws, info, m) {
       const old = game;
       game = E.createGame(old.settings);
       for (const p of old.players) {
-        E.addPlayer(game, p.id, p.name);
+        const np = E.addPlayer(game, p.id, p.name);
+        np.ai = !!p.ai;
         if (p.faction) E.setFaction(game, p.id, p.faction);
       }
       break;
@@ -181,16 +187,65 @@ function handle(ws, info, m) {
   E.run(game);
 }
 
+// ── Computer opponents: one decision per tick so their moves can be watched ──
+let aiTimer = null;
+function scheduleAI(delay = 400) {
+  clearTimeout(aiTimer);
+  aiTimer = setTimeout(aiTick, delay);
+}
+function aiTick() {
+  for (const p of game.players.filter((x) => x.ai)) {
+    let acted = false;
+    try {
+      acted = aiStep(game, p.id);
+    } catch (err) {
+      // Never let a bad decision stall the table: give up this choice instead.
+      console.error(`AI ${p.name}:`, err.message);
+      if (game.pending?.pid === p.id) {
+        try { E.pass(game, p.id); acted = true; } catch { /* nothing to pass */ }
+      }
+    }
+    if (acted) {
+      E.run(game);
+      broadcast();
+      return scheduleAI(game.pending?.type === "action" || game.pending?.type === "attack" ? 600 : 350);
+    }
+  }
+}
+
+function addAI(pid, faction) {
+  if (game.players[0]?.id !== pid) throw new Error("Only the host can add computer opponents.");
+  if (game.phase !== "muster") throw new Error("Add computer opponents before the battle starts.");
+  const id = `ai${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+  const fid = Object.hasOwn(AI_NAMES, faction) ? faction : Object.keys(AI_NAMES)[Math.floor(Math.random() * 6)];
+  const p = E.addPlayer(game, id, AI_NAMES[fid]);
+  p.ai = true;
+  E.setFaction(game, id, fid);
+}
+
+function removeAI(pid, seatId) {
+  if (game.players[0]?.id !== pid) throw new Error("Only the host can remove computer opponents.");
+  const p = game.players.find((x) => x.ai && `p${x.seat}` === seatId);
+  if (p) E.removePlayer(game, p.id);
+}
+
 wss.on("connection", (ws) => {
-  const info = { token: null, spectator: true };
+  const info = { token: null, spectator: true, bucket: 40, last: Date.now() };
   sockets.set(ws, info);
   ws.on("message", async (raw) => {
+    // Rate limit: 40-message burst, refilling at 20 per second.
+    const now = Date.now();
+    info.bucket = Math.min(40, info.bucket + ((now - info.last) / 1000) * 20);
+    info.last = now;
+    if (info.bucket < 1) return ws.send(JSON.stringify({ t: "error", msg: "Slow down a little." }));
+    info.bucket -= 1;
     try {
       await handle(ws, info, JSON.parse(raw));
     } catch (err) {
       ws.send(JSON.stringify({ t: "error", msg: err.message }));
     }
     broadcast();
+    scheduleAI();
   });
   ws.on("close", () => {
     sockets.delete(ws);
