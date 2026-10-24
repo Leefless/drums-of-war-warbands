@@ -177,6 +177,7 @@ main { flex: 1; min-height: 0; }
 .rchip .dot { position: absolute; top: -6px; min-width: 16px; height: 16px; border-radius: 8px; font: 600 10px/16px var(--sans); text-align: center; color: #F7EFDC; border: 1px solid var(--bg); }
 .rchip .dot.buff { left: -6px; background: var(--good); }
 .rchip .dot.debuff { right: -6px; background: var(--crit); }
+.stale { padding: 8px 16px; background: var(--crit); color: #F7EFDC; font-size: 15px; text-align: center; }
 button.danger { color: var(--crit); border-color: var(--crit); }
 button.danger.armed { background: var(--crit); color: #F7EFDC; }
 .umodal-card.rulebook { width: min(860px, 100%); background: var(--texture), var(--panel); color: var(--ink); border: 1px solid var(--line); border-top: 3px solid var(--accent); padding: 0; }

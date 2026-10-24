@@ -1,7 +1,7 @@
 // LAN server: one process = one table. Serves the browser client and keeps the
 // authoritative game state. Every connected browser gets its own filtered view
 // (other players' dials stay secret) after every change.
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { extname, join, normalize } from "node:path";
@@ -16,6 +16,31 @@ const PORT = Number(process.env.PORT) || 3000;
 const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".md": "text/markdown" };
 
 let game = E.createGame();
+
+// ── Stale code check ─────────────────────────────────────────────────────────
+// The browser reloads the newest files from disk, but the rules this process
+// runs were loaded at start-up. When server or shared code changes on disk,
+// every screen is told to restart the game server instead of failing oddly.
+const CODE_DIRS = ["server", "shared", "shared/rosters", "shared/presets"];
+async function codeStamp() {
+  let newest = 0;
+  for (const d of CODE_DIRS) {
+    for (const f of await readdir(join(ROOT, d)).catch(() => [])) {
+      if (f.endsWith(".js")) newest = Math.max(newest, (await stat(join(ROOT, d, f))).mtimeMs);
+    }
+  }
+  return newest;
+}
+const BOOT_STAMP = await codeStamp();
+let stale = false;
+setInterval(async () => {
+  if (stale) return;
+  if ((await codeStamp().catch(() => 0)) > BOOT_STAMP) {
+    stale = true;
+    broadcast();
+  }
+}, 10000).unref();
+const STALE_HINT = "The game server is running older code. Close the Start Game window and open it again to update.";
 
 // ── Saved armies (persist across battles and restarts, shared by the table) ──
 const DATA = join(ROOT, "data");
@@ -139,6 +164,7 @@ function broadcast() {
     for (const p of view.players) p.connected = here.has(p.id);
     view.spectator = info.spectator || !E.player(game, info.token);
     view.armies = publicArmies(info.spectator ? null : info.token);
+    view.serverStale = stale;
     ws.send(JSON.stringify({ t: "state", state: view }));
   }
 }
@@ -244,7 +270,7 @@ wss.on("connection", (ws) => {
     try {
       await handle(ws, info, JSON.parse(raw));
     } catch (err) {
-      ws.send(JSON.stringify({ t: "error", msg: err.message }));
+      ws.send(JSON.stringify({ t: "error", msg: stale ? `${err.message} ${STALE_HINT}` : err.message }));
     }
     broadcast();
     scheduleAI();

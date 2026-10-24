@@ -94,6 +94,7 @@ function header() {
     const status = S.phase === "over" ? `${p.vp} VP` : p.surrendered ? "surrendered" : p.eliminated ? "broken" : p.ready && S.phase !== "activation" && S.phase !== "engagement" ? "ready" : "";
     return `<span class="chip ${p.connected ? "" : "off"}" title="${p.surrendered ? "Surrendered" : ""}"><i class="sw" style="background:${f?.color ?? "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${status}</span></span>`;
   }).join("");
+  $("#stale").hidden = !S?.serverStale;
   // Surrender: only for a seated player whose warband is still fighting.
   const mine = me();
   const canQuit = !!mine && !mine.eliminated && ["deploy", "plan", "activation", "engagement"].includes(S?.phase);
