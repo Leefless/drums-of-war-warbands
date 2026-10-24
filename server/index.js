@@ -40,7 +40,7 @@ setInterval(async () => {
     broadcast();
   }
 }, 10000).unref();
-const STALE_HINT = "The game server is running older code. Close the Start Game window and open it again to update.";
+const STALE_HINT = "The game server is running older code. Double-click Start Game and press R to restart with the latest rules.";
 
 // ── Saved armies (persist across battles and restarts, shared by the table) ──
 const DATA = join(ROOT, "data");

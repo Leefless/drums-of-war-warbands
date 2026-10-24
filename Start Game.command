@@ -18,11 +18,21 @@ if [ ! -d node_modules ]; then
   npm install --silent || { read -k1 "?Install failed. Press any key to close."; exit 1; }
 fi
 
-# Already running? Just open it.
+# Already running? Open it, or restart it to load the latest rules.
 if curl -s -o /dev/null "http://localhost:$PORT/"; then
   echo "The game is already running."
-  open "http://localhost:$PORT/"
-  exit 0
+  read -k1 "reply?Press R to restart it with the latest rules (this ends the current battle), or any other key to just open it. "
+  echo ""
+  if [[ "$reply" != [rR] ]]; then
+    open "http://localhost:$PORT/"
+    exit 0
+  fi
+  echo "Restarting the game server..."
+  lsof -tiTCP:$PORT -sTCP:LISTEN | xargs kill 2>/dev/null
+  for i in {1..25}; do
+    curl -s -o /dev/null "http://localhost:$PORT/" || break
+    sleep 0.2
+  done
 fi
 
 node server/index.js &
