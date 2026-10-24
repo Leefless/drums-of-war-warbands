@@ -46,9 +46,7 @@ test("fog of war: the view strips unseen enemies and their names from the log", 
   assert.ok(!v.units.some((u) => u.id === o.id));
   assert.equal(v.hidden, 1);
   assert.ok(!v.log.some((l) => l.msg.includes(o.name)));
-  assert.ok(!E.viewFor(s, null).units.some((u) => u.id === o.id), "spectators are fogged by default");
-  s.settings.openSpectators = true;
-  assert.ok(E.viewFor(s, null).units.some((u) => u.id === o.id), "open spectating shows everything");
+  assert.ok(E.viewFor(s, null).units.some((u) => u.id === o.id), "watchers always see every unit");
 });
 
 test("forests and Stealthy conceal: spotted only from range 1", () => {

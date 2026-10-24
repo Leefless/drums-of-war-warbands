@@ -238,9 +238,9 @@ is on a hill.
 
 From deployment onward, each player only sees the enemy units their own units
 can spot; the others are not shown on that player's board or named in their
-log. A **Watch only** screen sees only what every player can see, unless the
-host ticks **Spectators see all** in the muster settings (for a table TV that
-no player can glance at).
+log. Watchers (**Watch only**, or **Watch instead of playing**) always see every
+unit, so a watching screen works as a table TV. Seated players should not keep
+a watching tab open.
 
 - A unit spots enemies within **3 range bands** (4 from a hill) in line of
   sight.

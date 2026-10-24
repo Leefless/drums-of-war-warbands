@@ -35,7 +35,7 @@ export function createGame({ budget = 100, maxRounds = 12, seed = Date.now() } =
     board: boardSize(budget),
     phase: "muster",
     round: 0,
-    settings: { budget, maxRounds, openSpectators: false },
+    settings: { budget, maxRounds },
     players: [],
     units: [],
     obstacles: [],
@@ -109,7 +109,7 @@ export function removePlayer(state, pid) {
 }
 
 export function setSettings(state, pid, msg) {
-  const { budget, maxRounds, openSpectators } = msg && typeof msg === "object" ? msg : {};
+  const { budget, maxRounds } = msg && typeof msg === "object" ? msg : {};
   if (state.phase !== "muster") fail("Settings are locked once deployment begins.");
   if (state.players.find((p) => !p.ai)?.id !== pid) fail("Only the host (the first player seated) can change settings.");
   if (budget != null) {
@@ -117,7 +117,6 @@ export function setSettings(state, pid, msg) {
     state.board = boardSize(state.settings.budget);
   }
   if (maxRounds != null) state.settings.maxRounds = Math.max(3, Math.min(20, Number(maxRounds) || 12));
-  if (openSpectators != null) state.settings.openSpectators = !!openSpectators;
   for (const p of state.players) p.ready = false;
 }
 
@@ -1279,11 +1278,7 @@ export function viewFor(state, pid) {
   v.hidden = 0;
   const battle = state.phase !== "muster" && state.phase !== "over";
   let seen = null;
-  if (battle && seated) seen = visibleTo(state, pid);
-  else if (battle && !state.settings.openSpectators) {
-    const sets = activePlayers(state).map((p) => visibleTo(state, p.id));
-    seen = new Set(state.units.map((u) => u.id).filter((id) => sets.every((set) => set.has(id))));
-  }
+  if (battle && seated) seen = visibleTo(state, pid); // watchers (pid null) always see every unit
   if (seen) {
     const hiddenUnits = v.units.filter((u) => !u.dead && !seen.has(u.id) && u.owner !== pid);
     const hide = new Set(hiddenUnits.map((u) => u.id));

@@ -434,7 +434,6 @@ function renderMuster(app) {
         <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
-        <label class="label" style="display:flex;gap:6px;align-items:center" title="Watchers (Watch only, or Watch this battle instead) see every unit, ignoring fog of war. This does not take you out of your seat."><input type="checkbox" id="openSpec" ${S.settings.openSpectators ? "checked" : ""}> Watchers see all units</label>
       </div>` : `<div class="label">Budget ${S.settings.budget} · ${S.settings.maxRounds} rounds</div>`}
     </div>
     ${host ? `<div class="btns" style="margin-top:10px;align-items:center">
@@ -559,7 +558,6 @@ function wireMuster(app, f) {
   $("#edit") && ($("#edit").onclick = () => send("unready"));
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
   $("#rounds") && ($("#rounds").onchange = (e) => send("settings", { maxRounds: Number(e.target.value) }));
-  $("#openSpec") && ($("#openSpec").onchange = (e) => send("settings", { openSpectators: e.target.checked }));
   $("#sitOut") && ($("#sitOut").onclick = () => {
     L.spectate = true;
     store.set("dow.spectate", "1");

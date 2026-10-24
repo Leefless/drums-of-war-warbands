@@ -248,7 +248,6 @@ function handle(ws, info, m) {
       if (!host && !noHumans && !(game.phase === "over" && E.player(game, pid))) throw new Error("Only the host can restart mid-battle.");
       const old = game;
       game = E.createGame(old.settings);
-      game.settings.openSpectators = old.settings.openSpectators;
       game.hold = noHumans; // don't let a computer-only table start straight back up
       for (const p of old.players) {
         const np = E.addPlayer(game, p.id, p.name);
