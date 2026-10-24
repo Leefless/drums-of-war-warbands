@@ -77,6 +77,7 @@ export const poly = (u) => corners(u, sizeOf(u));
 export const strainCap = (u) => (rule(u, "mob") ? 2 : 1);
 export const strained = (u) => u.strain >= strainCap(u);
 const deathless = (u) => rule(u, "deathless");
+const ignoresObstacles = (u) => has(u, "ethereal") || has(u, "flying");
 
 /** Range band between two units' bases (1 when touching). */
 export function rangeBetween(a, b) {
@@ -166,6 +167,8 @@ function buildUnit(state, p, entry) {
     faction: p.faction,
     type: d.id,
     name: d.name,
+    icon: d.icon,
+    champion: !!d.champion,
     upgrade: g?.id || null,
     cost: d.cost + (g?.cost || 0),
     base: d.base,
@@ -288,6 +291,7 @@ function startRound(state) {
   for (const u of state.units) {
     u.revealed = null;
     u.trail = null;
+    u.lastSpeed = 0;
   }
   log(state, `Round ${state.round}: set your dials.`);
 }
@@ -379,9 +383,10 @@ function executeManeuver(state, u, code) {
       damage(state, b, "strike", u.owner);
     }
   }
+  u.lastSpeed = man.speed;
   const ignorePath = has(u, "ethereal") || man.type === "RF";
   const touched = obstaclesOnPath(state, u, ignorePath ? [mv.pose] : mv.path);
-  if (!has(u, "ethereal")) for (const o of touched) obstacleEffect(state, u, o);
+  if (!ignoresObstacles(u)) for (const o of touched) obstacleEffect(state, u, o);
   if (man.color === "red") gainStrain(state, u);
   if (man.color === "blue" && u.strain > 0) u.strain -= 1;
   if (rule(u, "momentum") && man.speed >= 4) {
@@ -428,7 +433,9 @@ function damage(state, u, kind, byPid) {
   if (kind === "rend" && u.wounds > 0) {
     const c = CRITS[Math.floor(rand(state) * CRITS.length)];
     log(state, `${u.name} suffers a Rend: ${CRIT_TEXT[c]}`);
-    if (c === "shaken") gainStrain(state, u);
+    if (c === "shaken") {
+      if (!has(u, "fearless")) gainStrain(state, u);
+    }
     else if (c === "broken") u.cond.broken = (u.cond.broken || 0) + 1;
     else u.cond[c] = true;
   }
@@ -601,7 +608,7 @@ function applyAction(state, u, a, params, byName) {
       const from = { x: u.x, y: u.y };
       Object.assign(u, pose);
       u.trail = [...(u.trail || [from]), { x: u.x, y: u.y }];
-      if (!has(u, "ethereal")) for (const o of obstaclesOnPath(state, u, [pose])) obstacleEffect(state, u, o);
+      if (!ignoresObstacles(u)) for (const o of obstaclesOnPath(state, u, [pose])) obstacleEffect(state, u, o);
       break;
     }
     default:
@@ -684,6 +691,7 @@ export function attackOptions(state, u) {
     for (const t of enemiesOf(state, u)) {
       const r = rangeBetween(u, t);
       if (r < w.range[0] || r > w.range[1]) continue;
+      if (has(t, "stealthy") && r >= 3) continue;
       if (!inArc(u, w.arc, t, sizeOf(t))) continue;
       out.push({ target: t.id, weapon: wi, range: r });
     }
@@ -691,11 +699,13 @@ export function attackOptions(state, u) {
   return out;
 }
 
-function attackDice(state, u, t, w, r) {
+export function attackDice(state, u, t, w, r) {
   let n = w.dice - (u.cond.broken || 0);
   if (r === 1 && !w.noRangeBonus) n += 1;
   if (has(u, "bane") && tagged(t)) n += 1;
   if (has(u, "brutal") && r === 1) n += 1;
+  if (has(u, "charge") && r === 1 && u.lastSpeed >= 3) n += 1;
+  if (has(u, "berserk") && u.wounds < u.maxWounds) n += 1;
   if (has(u, "swarm")) {
     const buddy = friendsOf(state, u).some((f) => has(f, "swarm") && rangeBetween(f, t) <= 2 && inArc(f, "front", t, sizeOf(t)));
     if (buddy) n += 1;
@@ -703,12 +713,13 @@ function attackDice(state, u, t, w, r) {
   return Math.max(1, n);
 }
 
-function defenseDice(state, u, t, w, r) {
+export function defenseDice(state, u, t, w, r) {
   let n = t.def;
-  if (r >= 3 && !w.noRangeBonus) n += 1;
+  if (r >= 3 && !w.noRangeBonus && !has(u, "sniper")) n += 1;
   if (obstructed(state, u, t)) n += 1;
   if (has(t, "elusive") && r >= 2) n += 1;
   if (has(t, "shieldwall") && friendsOf(state, t).some((f) => has(f, "shieldwall") && rangeBetween(f, t) <= 1)) n += 1;
+  if (friendsOf(state, t).some((f) => has(f, "guardian") && rangeBetween(f, t) <= 1)) n += 1;
   if (has(u, "pierce")) n -= 1;
   return Math.max(0, n);
 }
@@ -849,14 +860,42 @@ export function tally(A, stoneRune) {
   return { strikes, rends };
 }
 
+/** Damage an attack deals after cancellation, Brace and Armored. Exported for tests. */
+export function finalDamage(A, t) {
+  let { strikes, rends } = tally(A, has(t, "stoneRune"));
+  const armored = has(t, "armored") && strikes + rends >= 2;
+  if (armored) {
+    if (strikes > 0) strikes -= 1;
+    else rends -= 1;
+  }
+  return { strikes, rends, armored };
+}
+
 function resolveAttack(state) {
   const A = state.attack;
   const u = unit(state, A.attacker);
   const t = unit(state, A.target);
-  const { strikes, rends } = tally(A, has(t, "stoneRune"));
+  const { strikes, rends, armored } = finalDamage(A, t);
+  if (armored) log(state, `${t.name}'s armour turns one blow.`);
   log(state, strikes + rends ? `${t.name} takes ${strikes} Strike${strikes === 1 ? "" : "s"} and ${rends} Rend${rends === 1 ? "" : "s"}.` : `${t.name} turns the blow aside.`);
   for (let i = 0; i < strikes; i++) damage(state, t, "strike", u.owner);
   for (let i = 0; i < rends; i++) damage(state, t, "rend", u.owner);
+  if (strikes + rends > 0) {
+    if (has(u, "vampiric") && !u.dead && u.wounds < u.maxWounds) {
+      u.wounds += 1;
+      log(state, `${u.name} drinks deep (+1 wound).`);
+    }
+    if (has(u, "poison") && !t.dead && !t.dying) {
+      t.cond.bleeding = true;
+      log(state, `${t.name} is poisoned (Bleeding).`);
+    }
+    if (has(u, "blast")) {
+      for (const e of enemiesOf(state, u)) if (e.id !== t.id && rangeBetween(e, t) <= 1) {
+        log(state, `The blast catches ${e.name}.`);
+        damage(state, e, "strike", u.owner);
+      }
+    }
+  }
   state.lastAttack = { ...A, result: { strikes, rends } };
   state.attack = null;
   state.pending = null;
@@ -878,11 +917,16 @@ function startEngagement(state) {
   state.phase = "engagement";
   for (const f of alive(state).filter((x) => has(x, "fear"))) {
     for (const e of enemiesOf(state, f)) {
-      if (!deathless(e) && rangeBetween(f, e) <= 1) {
+      if (!deathless(e) && !has(e, "fearless") && rangeBetween(f, e) <= 1) {
         log(state, `${e.name} quails before ${f.name} (+1 strain).`);
         gainStrain(state, e);
       }
     }
+  }
+  for (const c of alive(state).filter((x) => has(x, "warcry"))) {
+    const rallied = [c, ...friendsOf(state, c).filter((f) => rangeBetween(c, f) <= 2)];
+    for (const f of rallied) f.tokens.steel = Math.max(f.tokens.steel, 1);
+    log(state, `${c.name} sounds a warcry (${rallied.length} unit${rallied.length === 1 ? "" : "s"} steeled).`);
   }
   state.queue = initiativeQueue(state, true);
   state.group = null;
@@ -907,6 +951,13 @@ function endPhase(state) {
       }
     }
     if (has(u, "wardRegen") && u.ward < u.maxWard) u.ward += 1;
+    if (has(u, "healer")) {
+      const hurt = friendsOf(state, u).filter((f) => f.wounds < f.maxWounds && rangeBetween(u, f) <= 1).sort((a, b) => a.wounds / a.maxWounds - b.wounds / b.maxWounds)[0];
+      if (hurt) {
+        hurt.wounds += 1;
+        log(state, `${u.name} tends ${hurt.name} (+1 wound).`);
+      }
+    }
     if (has(u, "raise")) {
       for (const f of friendsOf(state, u)) {
         if (u.souls > 0 && has(f, "thrall") && f.wounds < f.maxWounds && rangeBetween(u, f) <= 2) {

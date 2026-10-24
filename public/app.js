@@ -1,10 +1,11 @@
 // Browser client. Holds no game logic beyond previews: the server is
 // authoritative and sends a fresh filtered state after every change.
-import { ABILITIES, ACTIONS, FACTIONS, UPGRADES, upgradesFor, validateArmy } from "/shared/factions.js";
+import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, upgradesFor, validateArmy } from "/shared/factions.js";
+import { costBreakdown } from "/shared/cost.js";
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
 import { playerColor, sizeCanvas, toBoard, unitAt, updateBoard } from "/board.js";
-import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG } from "/art.js";
+import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -58,9 +59,10 @@ function connect() {
 function send(t, payload = {}) {
   if (ws?.readyState === 1) ws.send(JSON.stringify({ t, ...payload }));
 }
-function toast(msg) {
+function toast(msg, kind = "error") {
   const el = $("#toast");
   el.textContent = msg;
+  el.className = `toast ${kind}`;
   el.hidden = false;
   clearTimeout(toast.t);
   toast.t = setTimeout(() => (el.hidden = true), 3500);
@@ -129,10 +131,97 @@ function renderJoin(app) {
   };
 }
 
-// ── Muster ───────────────────────────────────────────────────────────────────
+// ── Muster: the army builder ─────────────────────────────────────────────────
+const unitIcon = (u) => u.icon || UNIT_ICON[u.id] || "sword";
+const draftKey = (fid) => `dow.draft.${fid}`;
+const unitIn = (fid, id) => FACTIONS[fid]?.units.find((u) => u.id === id);
+
+function loadDraft(p) {
+  if (p.army.length) return p.army.map((e) => ({ ...e }));
+  try {
+    const saved = JSON.parse(store.get(draftKey(p.faction)) || "[]");
+    return Array.isArray(saved) ? saved.filter((e) => unitIn(p.faction, e.unit)) : [];
+  } catch {
+    return [];
+  }
+}
+function keepDraft() {
+  if (L.draftFaction) store.set(draftKey(L.draftFaction), JSON.stringify(L.draft));
+}
 function draftCost() {
   const p = me();
   return p?.faction ? validateArmy(p.faction, L.draft, S.settings.budget) : { ok: false, cost: 0, errors: [] };
+}
+
+// Broad categories for the roster filter (each army has around 30 distinct roles).
+const CATEGORIES = [
+  ["Artillery and machines", /artiller|machine|engine|cannon|wagon|ballista|catapult|lobba|flinga|mortar|organ|bolt thrower|siege|buggy|cart|vehicle/],
+  ["Flyers", /fly|flyer|eagle|gyro|winged|bat|pegasus|griffon|sprite|wisp|imp/],
+  ["Cavalry", /cavalr|rider|lancer|chariot|horse|knight|charger/],
+  ["Support and casters", /caster|mage|priest|support|heal|shaman|engineer|seer|warlock|acolyte|banner|drum|herald|oracle|mystic|witch|cult/],
+  ["Ranged", /ranged|archer|marksm|crossbow|sling|gun|bow|thrower|javelin|sniper/],
+  ["Monsters", /monster|brute|giant|troll|ogre|treant|tree|elemental|construct|colossus|beast|demon|golem|horror|hulk|spider|bear|stag|wolf|warg|hound|fiend|abomination/],
+  ["Skirmishers", /skirmish|scout|hunter|assassin|stalker|raider/],
+];
+function categoryOf(u) {
+  const role = u.role.toLowerCase();
+  const hit = CATEGORIES.find(([, re]) => re.test(role));
+  if (hit) return hit[0];
+  if (u.abilities.includes("flying")) return "Flyers";
+  if (Math.max(...u.weapons.map((w) => w.range[1])) >= 3) return "Ranged";
+  return "Infantry";
+}
+
+const rangeText = (w) => `R${w.range[0]}${w.range[1] > w.range[0] ? `-${w.range[1]}` : ""}`;
+function statLine(u) {
+  const atk = u.weapons.map((w) => `${w.dice} ${w.arc === "full" ? "all-round" : w.arc} ${rangeText(w)}`).join(" / ");
+  return `Init ${u.init} · Atk ${atk} · Def ${u.def} · Wounds ${u.wounds}${u.ward ? ` · Ward ${u.ward}` : ""}`;
+}
+
+function rosterRows(f) {
+  const q = (L.search || "").trim().toLowerCase();
+  let rows = f.units.filter((u) => (L.tab === "champions" ? u.champion : !u.champion));
+  if (L.tab !== "champions" && L.role !== "all") rows = rows.filter((u) => categoryOf(u) === L.role);
+  if (q) rows = rows.filter((u) => [u.name, u.role, ...u.abilities, ...u.actions, ...u.weapons.map((w) => w.name)].join(" ").toLowerCase().includes(q));
+  const by = { cost: (a, b) => a.cost - b.cost, costDesc: (a, b) => b.cost - a.cost, name: (a, b) => a.name.localeCompare(b.name), init: (a, b) => b.init - a.init || a.cost - b.cost }[L.sort || "cost"];
+  return rows.sort(by);
+}
+
+function detailsHTML(u) {
+  const b = costBreakdown(u, u.dial);
+  const part = (k, label) => `<span>${label} <b>${b[k].toFixed(1)}</b></span>`;
+  return `<div class="urow-details">
+    <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
+    <div class="tags">${u.actions.map((a) => `<span class="tag">${esc(actionLabel(a))}</span>`).join("") || "<span class='tag'>no actions</span>"}</div>
+    ${u.abilities.length ? `<div class="muted" style="font-size:14px">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}
+    <div style="font-size:14px;color:var(--ink-2)"><i>${esc(u.flavor)}</i></div>
+    ${dialHTML(u.dial, null, true)}
+    <div class="stats costparts" title="Cost is computed from the profile">${part("power", "Power")}${part("movement", "Move")}${part("initiative", "Init")}${part("actions", "Actions")}${part("abilities", "Abilities")}<span>= <b>${b.total}</b> pts</span></div>
+  </div>`;
+}
+
+function rowHTML(f, u, locked, counts, champ) {
+  const n = counts[u.id] || 0;
+  const full = !u.champion && n >= MAX_COPIES;
+  const label = u.champion ? (champ?.unit === u.id ? "Chosen" : champ ? "Swap in" : "Take") : n ? `Add (${n})` : "Add";
+  return `<div class="urow ${L.open === u.id ? "open" : ""}" style="--fc:${f.color}">
+    <button class="urow-main" data-open="${u.id}" aria-expanded="${L.open === u.id}">
+      <span class="portrait small">${iconSVG(unitIcon(u), "emblem")}${artTag(`units/${u.id}.png`, "")}</span>
+      <span class="urow-text"><b>${esc(u.name)}</b> <span class="label">${esc(u.role)} · ${u.base}</span><br><span class="stats">${esc(statLine(u))}</span></span>
+      <span class="urow-cost num">${u.cost}</span>
+    </button>
+    <button class="small ${u.champion && champ?.unit === u.id ? "on" : ""}" data-add="${u.id}" ${locked || full || (u.champion && champ?.unit === u.id) ? "disabled" : ""}>${label}</button>
+    ${L.open === u.id ? detailsHTML(u) : ""}
+  </div>`;
+}
+
+function entryHTML(f, e, i, locked) {
+  const u = unitIn(f.id, e.unit);
+  const ups = upgradesFor(f.id, u);
+  return `<div class="lrow entry"><span class="portrait tiny">${iconSVG(unitIcon(u), "emblem")}${artTag(`units/${u.id}.png`, "")}</span>
+    <span style="flex:1">${esc(u.name)} <span class="muted num">${u.cost}${e.upgrade ? ` +${UPGRADES[e.upgrade].cost}` : ""}</span></span>
+    <select data-up="${i}" ${locked ? "disabled" : ""} aria-label="Upgrade"><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
+    <button class="small ghost" data-rm="${i}" ${locked ? "disabled" : ""} aria-label="Remove">✕</button></div>`;
 }
 
 function renderMuster(app) {
@@ -144,25 +233,36 @@ function renderMuster(app) {
   }
   if (L.draftFaction !== p.faction) {
     L.draftFaction = p.faction;
-    L.draft = p.army.length ? p.army.map((e) => ({ ...e })) : [];
+    L.draft = p.faction ? loadDraft(p) : [];
+    Object.assign(L, { open: null, tab: "units", role: "all", search: "", armyName: "", loadedId: null });
   }
   const host = S.players[0]?.id === token;
   const f = p.faction ? FACTIONS[p.faction] : null;
   const v = draftCost();
   const pct = Math.min(100, (v.cost / S.settings.budget) * 100);
+  const locked = p.ready;
+  const entries = L.draft.map((e, i) => ({ e, i, u: f && unitIn(f.id, e.unit) })).filter((x) => x.u);
+  const champ = entries.find((x) => x.u.champion)?.e;
+  const counts = {};
+  for (const { e } of entries) counts[e.unit] = (counts[e.unit] || 0) + 1;
+  const regs = entries.filter((x) => !x.u.champion);
+  const saved = (S.armies || []).filter((a) => f && a.faction === f.id);
+  const catCount = {};
+  if (f) for (const u of f.units.filter((x) => !x.champion)) catCount[categoryOf(u)] = (catCount[categoryOf(u)] || 0) + 1;
+  const roles = ["Infantry", ...CATEGORIES.map(([c]) => c)].filter((c) => catCount[c]);
 
   app.innerHTML = `<div class="wrap">
     <div class="row" style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap">
       <div><div class="label">Step 1</div><h2>Choose your army</h2></div>
       ${host ? `<div class="btns" style="align-items:center">
         <span class="label">Budget</span>
-        <select id="budget">${[60, 100, 150, 200].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
+        <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
       </div>` : `<div class="label">Budget ${S.settings.budget} · ${S.settings.maxRounds} rounds</div>`}
     </div>
-    <div class="factions" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
-      <button class="fcard ${p.faction === x.id ? "on" : ""}" style="--fc:${x.color}" data-faction="${x.id}" ${p.ready ? "disabled" : ""}>
+    <div class="factions ${f ? "compact" : ""}" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
+      <button class="fcard ${p.faction === x.id ? "on" : ""}" style="--fc:${x.color}" data-faction="${x.id}" ${locked ? "disabled" : ""}>
         ${artTag(`banners/${x.id}.jpg`, "banner-img")}${emblemSVG(x.id)}<h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
         <p>${esc(x.tagline)}</p>
       </button>`).join("")}</div>
@@ -171,32 +271,96 @@ function renderMuster(app) {
         <div><div class="label">Step 2 · Muster</div><h2>${esc(f.name)}</h2></div>
         <p style="margin:0"><b>Action economy.</b> ${esc(f.economy)}</p>
         <p style="margin:0" class="muted"><b>Dial.</b> ${esc(f.dialNote)}</p>
-        ${f.units.map((u) => unitCardHTML(f.id, u, p.ready)).join("")}
+        <div class="rtabs" role="tablist">
+          <button role="tab" data-tab="champions" class="${L.tab === "champions" ? "on" : ""}">Champions <span class="muted">${f.units.filter((u) => u.champion).length}</span></button>
+          <button role="tab" data-tab="units" class="${L.tab !== "champions" ? "on" : ""}">Units <span class="muted">${f.units.filter((u) => !u.champion).length}</span></button>
+        </div>
+        <div class="rfilters">
+          <input id="search" type="search" placeholder="Search names, roles, abilities" value="${esc(L.search)}" aria-label="Search the roster">
+          <select id="sort" aria-label="Sort">${[["cost", "Cheapest first"], ["costDesc", "Priciest first"], ["init", "Initiative"], ["name", "Name"]].map(([k, t]) => `<option value="${k}" ${(L.sort || "cost") === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+        </div>
+        ${L.tab !== "champions" ? `<div class="chips">${["all", ...roles].map((r) => `<button class="small ${L.role === r ? "on" : ""}" data-role="${esc(r)}">${r === "all" ? "All" : `${esc(r)} <span class="muted">${catCount[r]}</span>`}</button>`).join("")}</div>` : `<p class="muted" style="margin:0">One champion per army, optional. A champion leads: Inspire, Warcry, Master or Command.</p>`}
+        <div class="rlist">${rosterRows(f).map((u) => rowHTML(f, u, locked, counts, champ)).join("") || `<p class="muted">Nothing matches.</p>`}</div>
       </div>
       <aside class="list">
         <div class="lrow"><span class="label">Your warband</span><span class="num">${v.cost} / ${S.settings.budget}</span></div>
         <div class="budget ${v.cost > S.settings.budget ? "over" : ""}"><i style="width:${pct}%"></i></div>
-        ${L.draft.length ? L.draft.map((e, i) => {
-          const u = f.units.find((x) => x.id === e.unit);
-          const ups = upgradesFor(f.id, u);
-          return `<div class="lrow" style="flex-wrap:wrap"><span style="flex:1 1 100%">${esc(u.name)} <span class="muted num">${u.cost}</span></span>
-            <span class="btns" style="flex:1 1 100%"><select data-up="${i}" ${p.ready ? "disabled" : ""}><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
-            <button class="small ghost" data-rm="${i}" ${p.ready ? "disabled" : ""}>Remove</button></span></div>`;
-        }).join("") : `<p class="muted" style="margin:0">Add units from the roster.</p>`}
+        <div class="label">Champion (optional)</div>
+        ${champ ? entryHTML(f, champ, L.draft.indexOf(champ), locked) : `<div class="slot muted">No champion. Open the Champions tab to take one.</div>`}
+        <div class="label">Units <span class="num">${regs.length} / ${MAX_UNITS}</span></div>
+        ${regs.length ? regs.map((x) => entryHTML(f, x.e, x.i, locked)).join("") : `<div class="slot muted">Add units from the roster.</div>`}
         ${v.errors.length && L.draft.length ? `<p style="margin:0;color:var(--crit)">${esc(v.errors.join(" "))}</p>` : ""}
-        ${p.ready
+        ${locked
           ? `<button id="edit">Edit army</button><p class="muted" style="margin:0">Ready. The battle starts when every seated player is ready (at least 2).</p>`
           : `<button class="cta" id="submit" ${v.ok ? "" : "disabled"}>Ready for battle</button>`}
+        <hr><div class="label">Saved armies</div>
+        <div class="btns"><input id="armyName" placeholder="Army name" maxlength="40" value="${esc(L.armyName)}" style="flex:1;min-width:0">
+          <button id="saveArmy" ${L.draft.length ? "" : "disabled"}>${L.loadedId && saved.some((a) => a.id === L.loadedId && a.name === L.armyName) ? "Update" : "Save"}</button>
+          <button id="clearArmy" class="ghost" ${L.draft.length && !locked ? "" : "disabled"}>Clear</button></div>
+        ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} pts · ${esc(a.author)}</span></span>
+          <button class="small" data-load="${a.id}" ${locked ? "disabled" : ""}>Load</button>
+          <button class="small ghost" data-del="${a.id}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button></div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
         <hr><div class="label">Upgrades</div>
-        ${upgradesFor(f.id, { abilities: [], actions: [] }).map((g) => `<div style="font-size:13px"><b>${esc(g.name)}</b> <span class="muted">+${g.cost}${g.relic ? ", relic" : ""}</span>: ${esc(g.text)}</div>`).join("")}
+        ${upgradesFor(f.id, { abilities: [], actions: [] }).map((g) => `<div style="font-size:14px"><b>${esc(g.name)}</b> <span class="muted">+${g.cost}${g.relic ? ", relic" : ""}</span>: ${esc(g.text)}</div>`).join("")}
       </aside>
     </div>` : `<p class="muted" style="margin-top:16px">Pick a faction to see its roster. Each army moves and acts differently.</p>`}
   </div>`;
+  wireMuster(app, f);
+}
 
-  app.querySelectorAll("[data-faction]").forEach((b) => (b.onclick = () => { L.draft = []; send("faction", { faction: b.dataset.faction }); }));
-  app.querySelectorAll("[data-add]").forEach((b) => (b.onclick = () => { L.draft.push({ unit: b.dataset.add, upgrade: null }); render(); }));
-  app.querySelectorAll("[data-rm]").forEach((b) => (b.onclick = () => { L.draft.splice(Number(b.dataset.rm), 1); render(); }));
-  app.querySelectorAll("[data-up]").forEach((s) => (s.onchange = () => { L.draft[Number(s.dataset.up)].upgrade = s.value || null; render(); }));
+function wireMuster(app, f) {
+  const on = (sel, ev, fn) => app.querySelectorAll(sel).forEach((el) => (el[ev] = () => fn(el)));
+  const changed = () => {
+    keepDraft();
+    render();
+  };
+  on("[data-faction]", "onclick", (b) => send("faction", { faction: b.dataset.faction }));
+  on("[data-tab]", "onclick", (b) => { L.tab = b.dataset.tab; L.open = null; render(); });
+  on("[data-role]", "onclick", (b) => { L.role = b.dataset.role; render(); });
+  on("[data-open]", "onclick", (b) => { L.open = L.open === b.dataset.open ? null : b.dataset.open; render(); });
+  on("[data-add]", "onclick", (b) => {
+    const u = unitIn(f.id, b.dataset.add);
+    if (u.champion) L.draft = L.draft.filter((e) => !unitIn(f.id, e.unit).champion);
+    L.draft.push({ unit: u.id, upgrade: null });
+    changed();
+  });
+  on("[data-rm]", "onclick", (b) => { L.draft.splice(Number(b.dataset.rm), 1); changed(); });
+  on("[data-up]", "onchange", (s) => { L.draft[Number(s.dataset.up)].upgrade = s.value || null; changed(); });
+  on("[data-load]", "onclick", (b) => {
+    const a = S.armies.find((x) => x.id === b.dataset.load);
+    if (!a) return;
+    Object.assign(L, { draft: a.list.map((e) => ({ ...e })), armyName: a.name, loadedId: a.id });
+    changed();
+  });
+  on("[data-del]", "onclick", (b) => {
+    if (L.confirmDel === b.dataset.del) {
+      send("deleteArmy", { id: b.dataset.del });
+      L.confirmDel = null;
+    } else {
+      L.confirmDel = b.dataset.del;
+      render();
+    }
+  });
+  const search = $("#search");
+  if (search) {
+    search.oninput = () => {
+      L.search = search.value;
+      render();
+      const again = $("#search");
+      again.focus();
+      again.setSelectionRange(again.value.length, again.value.length);
+    };
+  }
+  $("#sort") && ($("#sort").onchange = (e) => { L.sort = e.target.value; render(); });
+  $("#armyName") && ($("#armyName").oninput = (e) => { L.armyName = e.target.value; });
+  $("#saveArmy") && ($("#saveArmy").onclick = () => {
+    const name = (L.armyName || "").trim() || `${f.name} ${new Date().toLocaleDateString()}`;
+    const same = (S.armies || []).find((a) => a.id === L.loadedId && a.name === name);
+    send("saveArmy", { id: same?.id, name, faction: f.id, list: L.draft });
+    L.armyName = name;
+    toast(`Saved "${name}".`, "ok");
+  });
+  $("#clearArmy") && ($("#clearArmy").onclick = () => { Object.assign(L, { draft: [], loadedId: null, armyName: "" }); changed(); });
   $("#submit") && ($("#submit").onclick = () => send("army", { list: L.draft }));
   $("#edit") && ($("#edit").onclick = () => send("unready"));
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
@@ -210,20 +374,7 @@ function actionLabel(entry) {
 }
 
 function weaponText(w) {
-  return `${esc(w.name)} <b>${w.dice}</b> · ${w.arc} · R${w.range[0]}${w.range[1] > w.range[0] ? `-${w.range[1]}` : ""}`;
-}
-
-function unitCardHTML(fid, u, locked) {
-  return `<div class="ucard">
-    <div class="row" style="justify-content:space-between;--fc:${FACTIONS[fid].color}"><div class="row"><span class="portrait">${iconSVG(UNIT_ICON[u.id] || "sword", "emblem")}${artTag(`units/${u.id}.png`, "")}</span><div><h3>${esc(u.name)}${u.unique ? " <span class='tag'>unique</span>" : ""}</h3><div class="label">${esc(u.role)} · ${u.base} base</div></div></div>
-    <div class="row"><span class="num" style="font-size:20px;font-weight:600">${u.cost}</span><button class="small" data-add="${u.id}" ${locked ? "disabled" : ""}>Add</button></div></div>
-    <div class="stats"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}</b></span><span>Ward <b>${u.ward}</b></span></div>
-    <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
-    <div class="tags">${u.actions.map((a) => `<span class="tag">${esc(actionLabel(a))}</span>`).join("") || "<span class='tag'>no actions</span>"}</div>
-    ${u.abilities.length ? `<div style="font-size:13px" class="muted">${u.abilities.map((a) => esc(ABILITIES[a])).join(" ")}</div>` : ""}
-    <div style="font-size:13px;color:var(--ink-2)"><i>${esc(u.flavor)}</i></div>
-    ${dialHTML(u.dial, null, true)}
-  </div>`;
+  return `${esc(w.name)} <b>${w.dice}</b> · ${w.arc === "full" ? "all-round" : w.arc} · ${rangeText(w)}`;
 }
 
 function dialHTML(dial, current, mini = false, strainedNow = false) {
@@ -519,7 +670,7 @@ function cardHTML() {
   ].filter(Boolean);
   const conds = Object.keys(u.cond).filter((c) => CRIT_TEXT[c]).map((c) => CRIT_TEXT[c]);
   if (u.cond.broken) conds.push(`Broken Arms ×${u.cond.broken}`);
-  return `<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;--fc:${playerColor(S, u.owner)}"><span style="display:flex;align-items:center;gap:8px"><span class="portrait small">${iconSVG(UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span><h3>${esc(u.name)}</h3></span><span class="label">${esc(nameOf(u.owner))}</span></div>
+  return `<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;--fc:${playerColor(S, u.owner)}"><span style="display:flex;align-items:center;gap:8px"><span class="portrait small">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span><h3>${esc(u.name)}</h3></span><span class="label">${esc(nameOf(u.owner))}</span></div>
     <div class="label" style="color:${playerColor(S, u.owner)}">${esc(FACTIONS[u.faction].name)}${u.upgrade ? ` · ${esc(UPGRADES[u.upgrade].name)}` : ""}${u.dead ? " · destroyed" : ""}</div>
     <div class="stats" style="margin:6px 0"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}/${u.maxWounds}</b></span><span>Ward <b>${u.ward}/${u.maxWard}</b></span><span>Strain <b>${u.strain}</b>/${u.faction === "greenskin" ? 2 : 1}</span></div>
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
@@ -540,5 +691,6 @@ $("#theme").onclick = () => {
   render();
 };
 
+await loadArtIndex();
 render();
 connect();

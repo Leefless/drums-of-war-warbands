@@ -40,11 +40,16 @@ and sprites through the OpenAI Images API instead, if a key is set in `.env`.
 | Path | Role |
 | --- | --- |
 | `shared/geometry.js` | Board, maneuver templates, bases, range, arcs, overlap. |
-| `shared/factions.js` | The six armies: units, dials, actions, upgrades, list validation. |
+| `shared/factions.js` | The six armies: rules, upgrades, list validation; assembles the rosters. |
+| `shared/rosters/` | One file per army: champions and units (25+ units, 10+ champions each). |
+| `shared/cost.js` | Computes every unit's points cost from its profile. |
+| `shared/dials.js` | Maneuver dial library, per army. |
+| `shared/roster-check.js` | Roster rules; `node scripts/check-roster.mjs <army>` while authoring. |
 | `shared/engine.js` | Authoritative rules engine and phase state machine. |
 | `server/index.js` | HTTP + WebSocket server; one process is one table. |
 | `public/` | Browser client (vanilla JS, canvas board). |
-| `test/` | `npm test`: rules tests plus a fuzz of 144 full random games. |
+| `test/` | `npm test`: rules, rosters, costs, abilities, and random battles using all 247 units. |
+| `data/armies.json` | Saved armies (created on first save, not in git). |
 
 The server is authoritative: browsers send intents, the engine validates them,
 and every seat receives its own filtered view (other players' dials stay

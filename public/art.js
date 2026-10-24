@@ -63,9 +63,21 @@ export function path2d(d) {
 // Generated images live in public/art/. Each is loaded once; until it loads (or
 // if the file does not exist) callers get null and fall back to vector art.
 const images = new Map();
+let index = null; // Set of existing art paths, once loaded
+
+/** Fetch the list of art files that exist (call once before rendering). */
+export async function loadArtIndex() {
+  try {
+    index = new Set(await (await fetch("/art-index.json")).json());
+  } catch {
+    index = null;
+  }
+}
+const missing = (path) => index && !index.has(path);
 
 /** The loaded image for an art path such as "units/thane.png", or null. */
 export function artImage(path) {
+  if (missing(path)) return null;
   let rec = images.get(path);
   if (!rec) {
     rec = { img: new Image(), ok: false };
@@ -79,4 +91,4 @@ export function artImage(path) {
 }
 
 /** Inline <img> for the DOM that removes itself if the file is missing. */
-export const artTag = (path, cls) => `<img class="${cls}" src="/art/${path}" alt="" loading="lazy" onerror="this.remove()">`;
+export const artTag = (path, cls) => missing(path) ? "" : `<img class="${cls}" src="/art/${path}" alt="" loading="lazy" onerror="this.remove()">`;

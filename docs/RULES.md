@@ -24,12 +24,34 @@ For the world and its armies, see [LORE.md](LORE.md).
 
 1. The host (first seat) sets the **budget** (default 100 points) and the
    **round limit** (default 12).
-2. Each player picks an army and buys units up to the budget. Up to 10 units.
-   Units marked **unique** can be taken once.
-3. Each unit may take **one upgrade**. An army may carry **one relic** (the
-   faction-specific upgrades).
-4. Press **Ready for battle**. Deployment starts when every seated player is
+2. Each player picks an army and builds a warband in the army builder. Every
+   army offers at least 25 units and at least 10 champions.
+3. Army rules:
+   - **Champion (optional):** at most one per army. Every champion has
+     leadership (Inspire, Warcry, Master, or the Command action).
+   - Up to **12 units** besides the champion, and at most **3 copies** of
+     any one unit.
+   - Each unit may take **one upgrade**. An army may carry **one relic** (the
+     faction-specific upgrades).
+4. **Saved armies:** name a list and press Save. Saved armies live on the host
+   computer (`data/armies.json`), survive restarts, and can be loaded by anyone
+   at the table. A saved list may be over the current budget; it just cannot
+   be readied until it fits.
+5. Press **Ready for battle**. Deployment starts when every seated player is
    ready.
+
+### Points costs
+
+No cost is set by hand: each unit's price is computed from its profile
+(`shared/cost.js`), and the builder shows the breakdown.
+
+| Part | What drives it |
+| --- | --- |
+| Power | Offense multiplied by durability, then softened (power to the 0.6). Offense counts attack dice, reach and arc (all-round arcs are worth the most); durability counts wounds, ward and defence dice. |
+| Move | Top speed, number of maneuvers, blue moves (good), red moves (bad), Rift jumps. |
+| Init | Higher initiative moves later and shoots first. |
+| Actions | Each action on the bar, with red actions and links at reduced value. |
+| Abilities | A fixed value per ability (Thrall subtracts). |
 
 ## 3. Unit profile
 
@@ -164,8 +186,10 @@ An attack whose line between unit centres crosses any obstacle is
 
 ## 10. The six armies
 
-Each army bends the rules above in its own way. The roster, costs and dials
-are on the muster screen.
+Each army bends the rules above in its own way. The full rosters, computed
+costs and dials are in the army builder. Some mechanics belong to one army
+only: Brace (Iron Holds), Channel (Calamity Host), and Master, Thrall and
+Raise (Umbral Covenant).
 
 | Army | Dial | Action economy |
 | --- | --- | --- |
@@ -196,6 +220,19 @@ are on the muster screen.
 | Elusive | +1 defence die at range 2 and 3. |
 | Bane | +1 attack die against undead and Calamity units. |
 | Brutal | +1 attack die at range 1. |
+| Charge | +1 attack die at range 1 after a maneuver of speed 3 or more this round. |
+| Sniper | Targets do not gain the range 3 defence bonus. |
+| Armored | An attack that would deal 2 or more damage deals 1 less. |
+| Flying | Ignores obstacles when moving. |
+| Healer | End phase: heal 1 wound on the most wounded friendly unit at range 1. |
+| Berserk | +1 attack die while wounded. |
+| Stealthy | Cannot be attacked from range 3 or more. |
+| Guardian | Other friendly units at range 1 roll 1 extra defence die. |
+| Vampiric | Heals 1 wound whenever its attack deals damage. |
+| Poison | An attack that deals damage also inflicts Bleeding. |
+| Blast | An attack that deals damage also deals 1 damage to every other enemy at range 1 of the target. |
+| Fearless | Immune to Fear and to the Shaken critical. |
+| Warcry | Start of Engagement: friendly units at range 1 to 2 (and itself) gain a Steel token. |
 
 ## 12. Victory
 

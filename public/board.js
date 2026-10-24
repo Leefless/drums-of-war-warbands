@@ -701,7 +701,7 @@ function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   const isSel = opts.selected === u.id;
   const isActive = opts.active === u.id;
   const isHi = opts.highlight?.has(u.id);
-  const icon = ICONS[UNIT_ICON[u.type] || "sword"];
+  const icon = ICONS[u.icon || UNIT_ICON[u.type] || "sword"];
   ctx.save();
   ctx.globalAlpha = alpha;
   ctx.translate(pose.x, pose.y);
