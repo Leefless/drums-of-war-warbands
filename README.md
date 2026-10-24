@@ -12,6 +12,12 @@ maneuver dials, templates, initiative order, and dice with token modifiers.
 
 One computer hosts. Node 20 or newer.
 
+**Easiest:** double-click **`Start Game.command`** in this folder. It installs
+on first run, starts the server, opens the game in your browser, and prints the
+Wi-Fi address for the other players. Close that window to stop the game.
+
+Or from a terminal:
+
 ```bash
 npm install
 npm start
