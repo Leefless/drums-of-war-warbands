@@ -547,14 +547,14 @@ function renderMuster(app) {
       <aside class="list">
         <div class="lrow"><span class="label">Your warband</span><span class="num">${v.cost} / ${S.settings.budget}</span></div>
         <div class="budget ${v.cost > S.settings.budget ? "over" : ""}"><i style="width:${pct}%"></i></div>
-        <div class="label">Champion (optional)</div>
-        ${champ ? entryHTML(f, champ, L.draft.indexOf(champ), locked) : `<div class="slot muted">No champion. Open the Champions tab to take one.</div>`}
-        <div class="label">Units <span class="num">${regs.length} / ${armyLimits(S.settings.budget).units}</span>${S.settings.budget > 100 ? ` <span class="muted">· up to ${armyLimits(S.settings.budget).copies} of each · ${S.board} battlefield</span>` : ""}</div>
-        ${regs.length ? regs.map((x) => entryHTML(f, x.e, x.i, locked)).join("") : `<div class="slot muted">Add units from the roster.</div>`}
         ${v.errors.length && L.draft.length ? `<p style="margin:0;color:var(--crit)">${esc(v.errors.join(" "))}</p>` : ""}
         ${locked
           ? `<button id="edit">Edit army</button><p class="muted" style="margin:0">Ready. The battle starts when every seated player is ready (at least 2).</p>`
           : `<button class="cta" id="submit" ${v.ok ? "" : "disabled"}>Ready for battle</button>`}
+        <div class="label">Champion (optional)</div>
+        ${champ ? entryHTML(f, champ, L.draft.indexOf(champ), locked) : `<div class="slot muted">No champion. Open the Champions tab to take one.</div>`}
+        <div class="label">Units <span class="num">${regs.length} / ${armyLimits(S.settings.budget).units}</span>${S.settings.budget > 100 ? ` <span class="muted">· up to ${armyLimits(S.settings.budget).copies} of each · ${S.board} battlefield</span>` : ""}</div>
+        ${regs.length ? regs.map((x) => entryHTML(f, x.e, x.i, locked)).join("") : `<div class="slot muted">Add units from the roster.</div>`}
         <hr><div class="label">Saved armies</div>
         <div class="btns"><input id="armyName" placeholder="Army name" maxlength="40" value="${esc(L.armyName)}" style="flex:1;min-width:0">
           <button id="saveArmy" ${L.draft.length ? "" : "disabled"}>${L.loadedId && saved.some((a) => a.id === L.loadedId && a.name === L.armyName) ? "Update" : "Save"}</button>
