@@ -1,0 +1,15 @@
+{
+  "name": "drums-of-war-warbands",
+  "version": "0.1.0",
+  "description": "Drums of War: Warbands. A high fantasy, X-Wing style maneuver wargame played over LAN.",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
