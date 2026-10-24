@@ -22,6 +22,7 @@ For the world and its armies, see [LORE.md](LORE.md).
   order), in a zone 180 deep. Units start in neat ranks; move them by clicking
   inside the zone (or with the arrow keys) and rotate with Q and E. Bases may
   not overlap when you press Ready.
+- **Map view.** Scroll (or pinch) to zoom toward the pointer, drag to pan once zoomed, and use the + / − / Fit buttons in the corner. A click without dragging still selects as normal.
 
 ## 2. Muster
 

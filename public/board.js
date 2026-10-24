@@ -85,9 +85,56 @@ export function sizeCanvas(canvas) {
   return side;
 }
 
-export function toBoard(canvas, ev) {
+// ── Camera: zoom and pan ─────────────────────────────────────────────────────
+// view.z is the zoom (1 = the whole battlefield), view.cx / cy the board point at the centre.
+const MAX_ZOOM = 4;
+const view = { z: 1, cx: BOARD / 2, cy: BOARD / 2 };
+function clampView() {
+  view.z = Math.max(1, Math.min(MAX_ZOOM, view.z));
+  const half = SIZE / (2 * view.z);
+  view.cx = Math.max(half, Math.min(SIZE - half, view.cx));
+  view.cy = Math.max(half, Math.min(SIZE - half, view.cy));
+}
+/** Canvas-pixel transform for board coordinates under the current camera. */
+function camera(canvas) {
+  clampView();
+  const s = (canvas.width / SIZE) * view.z;
+  return { s, ox: canvas.width / 2 - view.cx * s, oy: canvas.height / 2 - view.cy * s };
+}
+const canvasPx = (canvas, ev) => {
   const r = canvas.getBoundingClientRect();
-  return { x: ((ev.clientX - r.left) / r.width) * SIZE, y: ((ev.clientY - r.top) / r.height) * SIZE };
+  return { x: ((ev.clientX - r.left) / r.width) * canvas.width, y: ((ev.clientY - r.top) / r.height) * canvas.height };
+};
+export const zoomLevel = () => view.z;
+/** Zoom by a factor, keeping the board point under the pointer (or the centre) where it is. */
+export function zoomAt(canvas, ev, factor) {
+  const p = ev ? canvasPx(canvas, ev) : { x: canvas.width / 2, y: canvas.height / 2 };
+  const before = camera(canvas);
+  const bx = (p.x - before.ox) / before.s;
+  const by = (p.y - before.oy) / before.s;
+  view.z *= factor;
+  clampView();
+  const s = (canvas.width / SIZE) * view.z;
+  view.cx = bx - (p.x - canvas.width / 2) / s;
+  view.cy = by - (p.y - canvas.height / 2) / s;
+  clampView();
+}
+/** Pan by a pointer movement in CSS pixels. */
+export function panBy(canvas, dx, dy) {
+  const r = canvas.getBoundingClientRect();
+  const s = (canvas.width / SIZE) * view.z;
+  view.cx -= (dx * (canvas.width / r.width)) / s;
+  view.cy -= (dy * (canvas.height / r.height)) / s;
+  clampView();
+}
+export function resetView() {
+  Object.assign(view, { z: 1, cx: SIZE / 2, cy: SIZE / 2 });
+}
+
+export function toBoard(canvas, ev) {
+  const p = canvasPx(canvas, ev);
+  const c = camera(canvas);
+  return { x: (p.x - c.ox) / c.s, y: (p.y - c.oy) / c.s };
 }
 
 export function unitAt(state, pt) {
@@ -616,6 +663,7 @@ function displayPose(u, now) {
 // ── Public API ───────────────────────────────────────────────────────────────
 /** Forget the last battle's units and animations (unit ids repeat across battles). */
 export function resetBoard() {
+  resetView();
   prevUnits = null;
   prevAttackKey = null;
   for (const k of ["moves", "effects", "floaters", "deaths"]) anim[k] = [];
@@ -626,7 +674,10 @@ export function resetBoard() {
  * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, zones: bool }
  */
 export function updateBoard(canvas, state, opts = {}) {
-  SIZE = state.board || BOARD;
+  if ((state.board || BOARD) !== SIZE) {
+    SIZE = state.board || BOARD;
+    resetView(); // a different battlefield starts fully in view
+  }
   if (state !== current.state) diffState(state);
   current = { canvas, state, opts };
 }
@@ -645,9 +696,12 @@ requestAnimationFrame(frame);
 function render(canvas, state, opts, now) {
   const ctx = canvas.getContext("2d");
   const k = canvas.width / SIZE;
+  const cam = camera(canvas);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(view.z, 0, 0, view.z, cam.ox, cam.oy);
   ctx.drawImage(ensureTerrain(state, canvas.width).canvas, 0, 0);
-  ctx.setTransform(k, 0, 0, k, 0, 0);
+  ctx.setTransform(cam.s, 0, 0, cam.s, cam.ox, cam.oy);
 
   drawRiftGlow(ctx, k, now);
   for (const o of state.obstacles) drawFootprint(ctx, o);
@@ -773,7 +827,8 @@ function drawFog(ctx, canvas, state) {
     g.fill();
   }
   ctx.save();
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const cam = camera(canvas);
+  ctx.setTransform(view.z, 0, 0, view.z, cam.ox, cam.oy);
   ctx.drawImage(fogLayer, 0, 0);
   ctx.restore();
 }

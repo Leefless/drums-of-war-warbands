@@ -167,6 +167,10 @@ main { flex: 1; min-height: 0; }
 .battle { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100%; }
 .boardcol { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .boardcol .boardwrap { flex: 1; }
+.boardwrap { position: relative; }
+.zoomctl { position: absolute; top: 18px; right: 18px; display: flex; gap: 4px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 4px; box-shadow: 0 2px 8px var(--shade); }
+.zoomctl button { min-width: 30px; padding: 2px 8px; }
+.zoomctl .label { min-width: 40px; text-align: center; }
 .unitbar { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--texture), var(--panel); }
 .unitbar:empty { display: none; }
 .unitbar.many { gap: 3px; padding: 6px 10px; }

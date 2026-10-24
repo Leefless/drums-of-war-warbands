@@ -5,7 +5,7 @@ import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, planMove, stanceBonus, strained, zoneFor } from "/shared/engine.js";
-import { healthColor, playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
+import { healthColor, panBy, playerColor, resetBoard, resetView, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
@@ -614,7 +614,8 @@ function dialHTML(dial, current, mini = false, strainedNow = false) {
 function renderBattle(app) {
   if (L.mode !== "battle") {
     L.mode = "battle";
-    app.innerHTML = `<div class="battle"><div class="boardcol"><div class="boardwrap"><canvas id="board"></canvas></div><div class="unitbar" id="roster"></div></div>
+    app.innerHTML = `<div class="battle"><div class="boardcol"><div class="boardwrap"><canvas id="board"></canvas>
+      <div class="zoomctl" aria-label="Map zoom"><button class="small" id="zoomIn" title="Zoom in (or scroll)">+</button><button class="small" id="zoomOut" title="Zoom out (or scroll)">−</button><button class="small" id="zoomFit" title="Show the whole battlefield">Fit</button><span id="zoomPct" class="label"></span></div></div><div class="unitbar" id="roster"></div></div>
       <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div><div id="umodal"></div>`;
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
@@ -623,15 +624,44 @@ function renderBattle(app) {
       if (L.order?.mode === "charge" && L.chargeAt && Math.hypot(pt.x - L.chargeAt.x, pt.y - L.chargeAt.y) < 34) {
         L.dragging = true;
         canvas.setPointerCapture(ev.pointerId);
+        return;
       }
+      // Anywhere else: a drag pans the map (once zoomed); a click without movement still selects.
+      L.pan = { x: ev.clientX, y: ev.clientY, moved: false };
+      canvas.setPointerCapture(ev.pointerId);
     };
     canvas.onpointerup = () => {
+      if (L.pan) {
+        if (L.pan.moved) L.dragged = true; // the click that ends a pan is not a selection
+        L.pan = null;
+        canvas.style.cursor = "";
+      }
       if (!L.dragging) return;
       L.dragging = false;
       L.dragged = true; // the click that follows a drag is not a selection
       issueOrder("charge", true);
     };
+    // Scroll (or pinch) to zoom toward the pointer.
+    canvas.addEventListener("wheel", (ev) => {
+      ev.preventDefault();
+      zoomAt(canvas, ev, Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)));
+      drawBoard();
+    }, { passive: false });
+    $("#zoomIn").onclick = () => { zoomAt(canvas, null, 1.4); drawBoard(); };
+    $("#zoomOut").onclick = () => { zoomAt(canvas, null, 1 / 1.4); drawBoard(); };
+    $("#zoomFit").onclick = () => { resetView(); drawBoard(); };
     canvas.onpointermove = (ev) => {
+      if (L.pan && !L.dragging) {
+        const dx = ev.clientX - L.pan.x;
+        const dy = ev.clientY - L.pan.y;
+        if (!L.pan.moved && Math.hypot(dx, dy) > 5) L.pan.moved = true;
+        if (L.pan.moved) {
+          panBy(canvas, dx, dy);
+          Object.assign(L.pan, { x: ev.clientX, y: ev.clientY });
+          canvas.style.cursor = "grabbing";
+          return drawBoard();
+        }
+      }
       const pt = toBoard(canvas, ev);
       if (L.dragging) {
         L.chargeAt = { x: Math.max(20, Math.min(S.board - 20, pt.x)), y: Math.max(20, Math.min(S.board - 20, pt.y)) };
@@ -686,6 +716,8 @@ function drawBoard() {
   const canvas = $("#board");
   if (!canvas || !S) return;
   sizeCanvas(canvas);
+  const pct = $("#zoomPct");
+  if (pct) pct.textContent = `${Math.round(zoomLevel() * 100)}%`;
   const sel = unitById(L.selected);
   let ghost = null;
   if (S.phase === "plan" && sel && sel.owner === S.you) {
