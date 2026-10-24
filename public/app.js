@@ -818,7 +818,7 @@ function renderRoster() {
   const u = unitById(L.cardFor);
   if (!u) { L.cardFor = null; host.innerHTML = ""; return; }
   const scroll = $(".umodal-card", host)?.scrollTop || 0;
-  host.innerHTML = `<div class="umodal" data-close><div class="umodal-card" role="dialog" aria-label="${esc(u.name)}">${unitModalHTML(u)}</div></div>`;
+  host.innerHTML = `<div class="umodal" data-close><div class="umodal-card" style="${cardVars(u)}" role="dialog" aria-label="${esc(u.name)}">${unitModalHTML(u)}</div></div>`;
   $(".umodal-card", host).scrollTop = scroll;
   host.querySelectorAll("[data-close]").forEach((x) => (x.onclick = (ev) => {
     if (ev.target !== x) return;
@@ -827,41 +827,75 @@ function renderRoster() {
   }));
 }
 
+/** Darken (amt < 0) or lighten (amt > 0) a #RRGGBB colour, for faction-tinted card chrome. */
+function tint(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => Math.round(amt > 0 ? c + (255 - c) * amt : c * (1 + amt)));
+  return `rgb(${ch.join(",")})`;
+}
+
+/** CSS colour variables for a unit's card, all derived from its army colour. */
+function cardVars(u) {
+  const col = FACTIONS[u.faction].color;
+  return `--fc:${col};--fc-deep:${tint(col, -0.78)};--fc-mid:${tint(col, -0.55)};--fc-ink:${tint(col, -0.6)};--fc-hi:${tint(col, 0.35)}`;
+}
+
+const ACTION_ICON = { steel: "sword", guard: "shield", brace: "shield", mark: "eye", surge: "lance", sidestep: "dagger", command: "crown", mend: "staff", rally: "sun", channel: "burst" };
+
+// Full unit card in the Drums of War card style: banner, parchment body, numbered rows with an effect
+// column and a drawback column. Every colour comes from the unit's army.
 function unitModalHTML(u) {
   let def = null;
   try { def = unitDef(u.faction, u.type); } catch { /* unknown roster entry: show live stats only */ }
+  const f = FACTIONS[u.faction];
   const { buffs, debuffs } = unitStatus(u);
-  const fx = (list, cls) => list.map(([n, txt]) => `<li class="${cls}"><b>${esc(n)}</b> <span>${esc(txt)}</span></li>`).join("");
-  return `<div class="row" style="--fc:${playerColor(S, u.owner)}">
-      <span class="portrait">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span>
-      <div style="flex:1"><h3>${esc(u.name)}</h3>
-        <div class="label" style="color:var(--fc)">${esc(FACTIONS[u.faction].name)}${def?.role ? ` · ${esc(def.role)}` : ""}${u.champion ? " · champion" : ""}</div></div>
-      <button class="ghost" data-close aria-label="Close">Close</button>
+  const effects = (list, cls, none) => list.length
+    ? list.map(([n, txt]) => `<li class="${cls}"><b>${esc(n)}</b> ${esc(txt)}</li>`).join("")
+    : `<li class="none">${none}</li>`;
+  const medal = (icon) => `<span class="medal">${iconSVG(icon, "icon")}</span>`;
+  const row = (n, icon, title, use, effect, side) => `<div class="crow">
+      ${medal(icon)}
+      <div class="cmain"><div class="ctitle"><span class="diamond"><span>${n}</span></span><h4>${esc(title)}</h4></div>
+        <p><b>Use:</b> ${use}</p><p><b>Effect:</b> ${effect}</p></div>
+      <div class="cside">${side}</div>
+    </div>`;
+  let n = 0;
+  const rows = [
+    ...u.actions.map((entry) => {
+      const x = parseAction(entry);
+      const red = x.red || x.link?.red;
+      const effect = esc(ACTIONS[x.a].text) + (x.link ? `<br><b>Then:</b> ${x.link.red ? "red " : ""}${esc(ACTIONS[x.link.a].name)}. ${esc(ACTIONS[x.link.a].text)}` : "");
+      const side = `<p><b>Drawback:</b> ${red ? "Gains 1 strain. Not allowed while strained." : "None. A white action."}</p>${x.link ? `<p><b>Linked:</b> taken straight after ${esc(ACTIONS[x.a].name)} in the same activation.</p>` : ""}`;
+      return row(++n, ACTION_ICON[x.a] || "burst", actionLabel(entry), `${x.red ? "Red action" : "Action"}, once per activation`, effect, side);
+    }),
+    ...u.abilities.map((ab) => {
+      const [name, ...rest] = (ABILITIES[ab] || ab).split(": ");
+      return row(++n, "burst", name, "Always on", esc(rest.join(": ")), `<p><b>Type:</b> Ability</p>`);
+    }),
+    ...(u.upgrade ? [row(++n, "crown", UPGRADES[u.upgrade].name, "Upgrade, bought at muster", esc(UPGRADES[u.upgrade].text), `<p><b>Type:</b> Upgrade</p>`)] : []),
+  ];
+  return `<header class="cbanner">
+      <span class="medal big">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "icon")}${artTag(`units/${u.type}.png`, "")}</span>
+      <div class="cname"><h3>${esc(u.name)}</h3><div class="csub">${esc(def?.role || (u.champion ? "Champion" : "Unit"))} · ${esc(f.name)}</div></div>
+      <div class="cbrand">Drums<small>of</small>War</div>
+      <button class="cclose" data-close aria-label="Close">×</button>
+    </header>
+    <div class="cbody">
+      ${def?.flavor ? `<p class="cintro">${esc(def.flavor)}</p>` : ""}
+      <div class="cband">
+        <div class="cband-title">Current status${u.dead ? " · destroyed" : ""}${u.revealed ? ` · revealed ${esc(u.revealed.replace(":", " "))}` : ""}</div>
+        ${meter("Wounds", u.wounds, u.maxWounds, "w")}
+        ${u.maxWard ? meter("Ward", u.ward, u.maxWard, "ward") : ""}
+        ${meter("Strain", u.strain, u.faction === "greenskin" ? 2 : 1, "strain")}
+      </div>
+      <div class="cfx"><div><h5>Buffs</h5><ul>${effects(buffs, "buff", "None right now.")}</ul></div>
+        <div><h5>Debuffs</h5><ul>${effects(debuffs, "debuff", "None right now.")}</ul></div></div>
+      <div class="cstats"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Base <b>${esc(u.base)}</b></span><span>Cost <b>${u.cost}</b></span></div>
+      <div class="cweapons">${u.weapons.map((w) => `<div><b>${esc(w.name)}</b><span>${w.dice} dice · ${w.arc === "full" ? "all-round" : esc(w.arc)} arc · ${rangeText(w)}</span></div>`).join("")}</div>
+      ${rows.join("")}
+      ${Array.isArray(u.dial) ? `<div class="cband"><div class="cband-title">Maneuver dial</div>${dialHTML(u.dial, null, true)}</div>` : ""}
     </div>
-    <section><div class="label">Current status${u.dead ? " · destroyed" : ""}</div>
-      ${meter("Wounds", u.wounds, u.maxWounds, "w")}
-      ${u.maxWard ? meter("Ward", u.ward, u.maxWard, "ward") : ""}
-      ${u.revealed ? `<div class="muted" style="font-size:14px">Revealed maneuver: ${esc(u.revealed.replace(":", " "))}</div>` : ""}
-      ${buffs.length || debuffs.length ? `<ul class="fx">${fx(buffs, "buff")}${fx(debuffs, "debuff")}</ul>` : `<p class="muted" style="margin:4px 0;font-size:14px">No buffs or debuffs right now.</p>`}
-    </section>
-    <section><div class="label">What it is</div>
-      ${def?.flavor ? `<p class="flavor">${esc(def.flavor)}</p>` : ""}
-      <div class="stats"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Base <b>${esc(u.base)}</b></span><span>Cost <b>${u.cost}</b></span></div>
-      <div class="label" style="margin-top:8px">Weapons</div>
-      <div class="stats" style="flex-direction:column;gap:2px">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
-    </section>
-    <section><div class="label">What it can do</div>
-      <ul class="fx">${u.actions.map((a) => {
-        const x = parseAction(a);
-        return `<li><b>${esc(actionLabel(a))}</b> <span>${esc(ACTIONS[x.a].text)}${x.link ? ` Then: ${esc(ACTIONS[x.link.a].text)}` : ""}</span></li>`;
-      }).join("")}
-      ${u.abilities.map((a) => {
-        const [name, ...rest] = (ABILITIES[a] || a).split(": ");
-        return `<li><b>${esc(name)}</b> <span>${esc(rest.join(": "))}</span></li>`;
-      }).join("")}
-      ${u.upgrade ? `<li><b>${esc(UPGRADES[u.upgrade].name)}</b> <span>${esc(UPGRADES[u.upgrade].text)}</span></li>` : ""}</ul>
-      ${Array.isArray(u.dial) ? `<div class="label" style="margin-top:8px">Maneuver dial</div>${dialHTML(u.dial, null, true)}` : ""}
-    </section>`;
+    <footer class="cfoot">${esc(f.tagline)}</footer>`;
 }
 
 // ── Theme ────────────────────────────────────────────────────────────────────
