@@ -47,6 +47,27 @@ const sockets = new Map(); // ws -> { token, spectator }
 
 const http = createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
+  if (url.pathname === "/api/art-upload" && req.method === "POST") {
+    // Art handoff from a browser on THIS computer only (the ChatGPT art pipeline).
+    // Files land in Art/ and are installed by scripts/install-art.mjs.
+    const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress);
+    if (!local) return res.writeHead(403).end("local only");
+    let body = "";
+    for await (const chunk of req) {
+      body += chunk;
+      if (body.length > 8e6) return res.writeHead(413).end("too large");
+    }
+    try {
+      const { name, data } = JSON.parse(body);
+      if (!/^dow-art__[a-z]+(__[A-Za-z0-9-]+)*\.(png|jpg)$/.test(name)) throw new Error("bad name");
+      await mkdir(join(ROOT, "Art"), { recursive: true });
+      await writeFile(join(ROOT, "Art", name), Buffer.from(String(data).replace(/^data:[^,]+,/, ""), "base64"));
+      res.writeHead(200, { "content-type": "text/plain" });
+      return res.end("ok");
+    } catch (err) {
+      return res.writeHead(400).end(err.message);
+    }
+  }
   if (url.pathname === "/art-index.json") {
     // Which painted art files exist, so clients never request missing ones.
     const files = await readdir(join(ROOT, "public/art"), { recursive: true }).catch(() => []);

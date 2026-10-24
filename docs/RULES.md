@@ -15,8 +15,9 @@ For the world and its armies, see [LORE.md](LORE.md).
   is range 2, and so on. Touching bases are range 1.
 - Each unit sits on a square **base**: small (40), medium (60), or large (80).
   The thick edge is its front.
-- Six obstacles are placed at random in the middle of the table: two each of
-  Ruins, Thickets, and Rifts (see section 8).
+- Ten terrain pieces are placed at random in the middle of the table: hills,
+  forests, ruins, lava, marsh, a rift and rocks (see section 8). The ground is
+  one of several painted battlefields, chosen per battle.
 - Each player deploys from one table edge (south, north, west, east, in seat
   order).
 
@@ -148,29 +149,62 @@ it may immediately take the second as part of the same action.
 | Rally | Remove 1 strain. |
 | Channel | Gain a Calamity charge (max 2). Spend one while attacking to change any die to a Rend. |
 
-## 8. Obstacles
+## 8. Terrain and line of sight
 
-| Obstacle | Effect on a unit that touches it | Also |
+Each battle lays out ten terrain pieces in the middle of the table: two hills,
+two forests, ruins, lava, marsh, a rift and two blocks of rocks. Every piece is
+a circle. A unit is **in** a piece when the centre of its base is inside it,
+and **touches** it when any part of its base overlaps it. Hover a piece on the
+board to see its effects.
+
+| Terrain | Upside | Downside |
 | --- | --- | --- |
-| Ruins | Roll an attack die: Strike = 1 damage, Rend = 1 critical. Skips its actions. | Blocks line of fire. |
-| Thicket | Gain 1 strain. (Sylvan units ignore Thickets.) | Blocks line of fire. |
-| Rift | Roll an attack die: Omen = 1 strain, Strike or Rend = damage. (Calamity units gain a charge instead.) | Blocks line of fire. |
+| **Hill** | High ground: +1 maximum weapon range, sees 1 band farther and over forests and ruins, and +1 defence die against attackers not on a hill. | Climbing onto it gives 1 strain. A unit on a hill can never be concealed. |
+| **Forest** | Cover: +1 defence die inside. Blocks line of sight. Units inside are concealed. | Touching it gives 1 strain (Sylvan units ignore this). Attacks made from inside roll 1 fewer die (Sylvan excepted). |
+| **Ruins** | Cover: +1 defence die inside. Blocks line of sight. | Crossing it rolls an attack die (Strike = 1 damage, Rend = 1 critical) and the unit loses its actions. |
+| **Lava** | Heat haze: attacks that cross it give the defender +1 die. | Burns for 1 damage, and a unit that enters it stops 40 into it. Calamity units are not burned and gain a Calamity charge instead. |
+| **Marsh** | Mist: attacks that cross it give the defender +1 die. | A unit that enters it stops 40 into it, and units standing in it roll 1 fewer defence die. |
+| **Rift** | Calamity units gain a Calamity charge when they touch it. | Others roll an attack die: Omen = 1 strain, Strike or Rend = damage. |
+| **Rocks** | Block line of sight completely: hide behind them. | Impassable: a moving unit stops before touching them and loses its actions, like a bump. |
 
-An attack whose line between unit centres crosses any obstacle is
-**obstructed**: the defender rolls 1 extra die.
+Flying and Ethereal units ignore terrain while moving (no strain, slowing,
+damage or climbing), but still cannot end a move on rocks.
 
-## 9. Combat
+**Line of sight** runs centre to centre. Rocks always block it. Forests and
+ruins block it unless one of the two units stands in that piece, or either unit
+is on a hill.
+
+## 9. Fog of war
+
+From deployment onward, each player only sees the enemy units their own units
+can spot; the others are not shown on that player's board or named in their
+log. (The **Watch only** view sees everything.)
+
+- A unit spots enemies within **3 range bands** (4 from a hill) in line of
+  sight.
+- **Concealed** enemies (Stealthy units, and units in a forest that are not on a
+  hill) can only be spotted from **range 1**.
+- A unit that **attacks** is revealed to everyone for the rest of the round.
+- You can only attack an enemy your side has spotted, and only with line of
+  sight from the attacking unit.
+- **Ambush:** attacking an enemy whose side cannot currently see the attacker
+  adds 1 attack die.
+
+## 10. Combat
 
 **Attack dice (8 sided):** 3 Strike, 1 Rend, 2 Omen, 2 blank.
 **Defence dice (8 sided):** 3 Parry, 2 Omen, 3 blank.
 
 1. **Declare** a target and weapon.
-2. **Roll attack dice:** weapon dice, +1 at range 1 (not for artillery), plus
-   abilities (Bane, Brutal, Swarm), minus Broken Arms.
+2. **Roll attack dice:** weapon dice, +1 at range 1 (not for artillery), +1 for
+   an ambush, plus abilities (Bane, Brutal, Swarm, Charge, Berserk), minus Broken
+   Arms, minus 1 if attacking from inside a forest.
 3. **Attacker modifies:** Steel, Mark, Frenzy, Inspire, Channel. Each die may be
    rerolled only once.
-4. **Roll defence dice:** Defence, +1 at range 3 or more (not vs artillery), +1
-   obstructed, plus Elusive or Shieldwall, minus 1 for Pierce.
+4. **Roll defence dice:** Defence, +1 at range 3 or more (not vs artillery),
+   +1 for haze (lava or marsh between), +1 in cover, +1 on high ground against
+   an attacker below, -1 standing in marsh, plus Elusive, Shieldwall or
+   Guardian, minus 1 for Pierce.
 5. **Defender modifies:** Steel, Guard, Brace.
 6. **Cancel:** each Parry cancels a Strike, then Rends. Brace cancels one more
    Strike.
@@ -184,7 +218,7 @@ An attack whose line between unit centres crosses any obstacle is
 | Staggered | No actions during its next activation. |
 | Broken Arms | Rolls 1 fewer attack die for the rest of the battle. |
 
-## 10. The six armies
+## 11. The six armies
 
 Each army bends the rules above in its own way. The full rosters, computed
 costs and dials are in the army builder. Some mechanics belong to one army
@@ -200,7 +234,7 @@ Raise (Umbral Covenant).
 | **Calamity Host** | Low and white, plus red Rift jumps. | **Overreach:** a second action, then roll Taint (Strike = 1 damage, Rend = critical). **Channel** charges. |
 | **Dawnward Concord** | Balanced 1 to 4. | **Rally** while Strained. Commanders and Command. Bane vs undead and Calamity. |
 
-## 11. Abilities
+## 12. Abilities
 
 | Ability | Effect |
 | --- | --- |
@@ -234,7 +268,7 @@ Raise (Umbral Covenant).
 | Fearless | Immune to Fear and to the Shaken critical. |
 | Warcry | Start of Engagement: friendly units at range 1 to 2 (and itself) gain a Steel token. |
 
-## 12. Victory
+## 13. Victory
 
 - The battle ends when only one warband remains, or after the round limit.
 - **Victory points** = the points cost (with upgrades) of every enemy unit you

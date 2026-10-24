@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Art receiver</title>
+<style>body{font:15px/1.5 Georgia,serif;background:#14110C;color:#EADFC8;padding:24px}</style></head>
+<body>
+<h1>Art receiver</h1>
+<p>Keep this tab open while art is transferred from the generator tab. Files go to the Art folder on the host.</p>
+<p id="count">0 received</p>
+<script>
+// Accepts { name, data } messages from the art pipeline tab and saves them via the local server.
+let n = 0;
+window.addEventListener("message", async (ev) => {
+  const { name, data, id } = ev.data || {};
+  if (!name || !data) return;
+  const res = await fetch("/api/art-upload", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name, data }) });
+  const ok = res.ok;
+  if (ok) document.getElementById("count").textContent = `${++n} received`;
+  ev.source?.postMessage({ ack: id, ok, status: res.status }, "*");
+});
+</script>
+</body>
+</html>

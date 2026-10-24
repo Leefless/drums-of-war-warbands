@@ -4,7 +4,8 @@ import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, upgrades
 import { costBreakdown } from "/shared/cost.js";
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
-import { playerColor, sizeCanvas, toBoard, unitAt, updateBoard } from "/board.js";
+import { playerColor, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
+import { TERRAIN } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -403,8 +404,11 @@ function renderBattle(app) {
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
     canvas.onmousemove = (ev) => {
-      const u = unitAt(S, toBoard(canvas, ev));
-      canvas.title = u ? `${u.name} (${nameOf(u.owner)})` : "";
+      const pt = toBoard(canvas, ev);
+      const u = unitAt(S, pt);
+      const o = u ? null : terrainAt(S, pt);
+      const tt = o && TERRAIN[o.kind];
+      canvas.title = u ? `${u.name} (${nameOf(u.owner)})` : tt ? `${tt.name}\n+ ${tt.up}\n- ${tt.down}` : "";
     };
     window.onresize = () => drawBoard();
     window.onkeydown = (ev) => {
@@ -445,6 +449,7 @@ function drawBoard() {
     ghost,
     highlight,
     zones: S.phase === "deploy",
+    fog: !S.spectator && !!me() && S.phase !== "over",
     attackLine: A ? { from: A.attacker, to: A.target } : L.hoverTarget ? { from: p?.uid, to: L.hoverTarget } : null,
   });
 }
@@ -517,6 +522,7 @@ function promptHTML() {
   } else {
     html = `<div class="label">${PHASES[S.phase]}</div>`;
   }
+  if (S.hidden && S.phase !== "over") html += `<div class="label" style="margin-top:8px">Fog of war: ${S.hidden} enemy unit${S.hidden === 1 ? "" : "s"} unseen</div>`;
   if (S.attack || S.lastAttack) html += diceHTML(S.attack || S.lastAttack, !!S.attack);
   return html;
 }
@@ -600,7 +606,7 @@ function diceHTML(A, live) {
   const df = unitById(A.target);
   const selectable = live && S.pending?.type === "attackMods" && S.pending.pid === token;
   const res = A.result ? ` · ${A.result.strikes} Strike, ${A.result.rends} Rend` : "";
-  return `<hr><div class="label">${live ? "Attack in progress" : "Last attack"} · R${A.range}${A.obstructed ? " · obstructed" : ""}${res}</div>
+  return `<hr><div class="label">${A.ambush ? "Ambush! · " : ""}${live ? "Attack in progress" : "Last attack"} · R${A.range}${A.obstructed ? " · haze" : ""}${res}</div>
     <div style="font-size:13px;margin:4px 0">${esc(at?.name)} → ${esc(df?.name)}</div>
     <div class="dice">${A.atk.map((f, i) => `<span class="die atk ${f} ${L.diceSel.has(i) ? "sel" : ""} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}" ${selectable ? `data-die="${i}" style="cursor:pointer"` : ""}>${iconSVG(DIE_ICON[f])}</span>`).join("")}</div>
     <div class="dice" style="margin-top:4px">${A.def.map((f, i) => `<span class="die def ${f} ${rolled("d", i, f)}" title="${f}">${iconSVG(DIE_ICON[f])}</span>`).join("") || (live ? "<span class='muted'>defence not rolled yet</span>" : "<span class='muted'>no defence dice</span>")}${A.brace ? " <span class='tag'>brace</span>" : ""}</div>`;

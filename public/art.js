@@ -74,6 +74,8 @@ export async function loadArtIndex() {
   }
 }
 const missing = (path) => index && !index.has(path);
+/** Art paths that exist and match a prefix, e.g. artList("terrain/ruins-"). */
+export const artList = (prefix) => (index ? [...index].filter((p) => p.startsWith(prefix)).sort() : []);
 
 /** The loaded image for an art path such as "units/thane.png", or null. */
 export function artImage(path) {

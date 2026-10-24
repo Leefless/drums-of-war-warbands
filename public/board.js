@@ -5,7 +5,8 @@
 import { BASE_SIZE, BOARD, corners, maneuverPose, maneuverSegments, parseManeuver, poseAlong, pointInPoly } from "/shared/geometry.js";
 import { FACTIONS } from "/shared/factions.js";
 import { zoneFor } from "/shared/engine.js";
-import { EMBLEMS, ICONS, UNIT_ICON, artImage, path2d } from "/art.js";
+import { TERRAIN, visionOf } from "/shared/terrain.js";
+import { EMBLEMS, ICONS, UNIT_ICON, artImage, artList, path2d } from "/art.js";
 
 const DISPLAY = '"Cinzel", "Trajan Pro", Georgia, serif';
 const PARCHMENT = "#EFE3C6";
@@ -106,23 +107,27 @@ function paintTerrain(state, px) {
   g.setTransform(px / BOARD, 0, 0, px / BOARD, 0, 0);
   const R = rng(seedOf(state));
 
-  // Meadow ground: the painted texture when present, mottled with soft blotches.
+  // Ground: a painted battlefield map (one per battle, chosen by seed), else the
+  // tiling texture, else procedural meadow. Mottling is layered on top either way.
   g.fillStyle = "#566F3A";
   g.fillRect(0, 0, BOARD, BOARD);
-  const ground = artImage("ground.jpg");
-  if (ground) {
+  const map = pickArt(state, "ground/", 0);
+  const ground = map ? null : artImage("ground.jpg");
+  if (map) {
+    g.drawImage(map, 0, 0, BOARD, BOARD);
+  } else if (ground) {
     const pat = g.createPattern(ground, "repeat");
     pat.setTransform(new DOMMatrix().scale(320 / ground.width));
     g.fillStyle = pat;
     g.fillRect(0, 0, BOARD, BOARD);
   }
   const greens = ["#4A6331", "#5D7840", "#6A8347", "#43592B", "#768A4C", "#52693A"];
-  for (let i = 0; i < (ground ? 90 : 420); i++) blob(g, R() * BOARD, R() * BOARD, 15 + R() * 85, greens[(R() * greens.length) | 0], "55");
+  for (let i = 0; i < (map ? 30 : ground ? 90 : 420); i++) blob(g, R() * BOARD, R() * BOARD, 15 + R() * 85, greens[(R() * greens.length) | 0], "55");
   for (let i = 0; i < 9; i++) blob(g, R() * BOARD, R() * BOARD, 40 + R() * 70, "#7B6643", "40");
 
-  // Two winding dirt roads crossing the field.
+  // Winding dirt roads (painted maps bring their own character, so one faint track there).
   g.lineCap = "round";
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < (map ? 0 : 2); i++) {
     const vertical = R() < 0.5;
     const a = R() * 600 + 150;
     const b = R() * 600 + 150;
@@ -143,7 +148,7 @@ function paintTerrain(state, px) {
   // Grass tufts, wildflowers, pebbles.
   const tuft = ["#3E5428", "#7D9450", "#8FA35A", "#4F6A33"];
   g.lineWidth = 1;
-  for (let i = 0; i < 3200; i++) {
+  for (let i = 0; i < (map ? 600 : 3200); i++) {
     const x = R() * BOARD;
     const y = R() * BOARD;
     const a = -Math.PI / 2 + (R() - 0.5) * 0.9;
@@ -168,17 +173,19 @@ function paintTerrain(state, px) {
     g.fill();
   }
 
+  paintDecor(g, state, R, px);
+
   const rifts = [];
-  for (const o of state.obstacles) {
-    const sprite = artImage(`terrain/${o.kind}.png`);
+  for (const [n, o] of state.obstacles.entries()) {
+    const sprite = pickArt(state, `terrain/${o.kind}-`, n + 1) || artImage(`terrain/${o.kind}.png`);
     if (sprite) {
-      g.save();
-      g.translate(o.x, o.y);
-      g.rotate(R() * Math.PI * 2);
-      g.drawImage(sprite, -o.r * 1.2, -o.r * 1.2, o.r * 2.4, o.r * 2.4);
-      g.restore();
-      if (o.kind === "rift") rifts.push({ o, cracks: [], phase: R() * 6 });
-    } else if (o.kind === "ruins") paintRuins(g, o, R);
+      drawSprite(g, sprite, o.x, o.y, o.r * (o.kind === "hill" ? 2.1 : 2.25), R() * Math.PI * 2, px);
+      if (o.kind === "rift" || o.kind === "lava") rifts.push({ o, cracks: [], phase: R() * 6 });
+    } else if (o.kind === "hill") paintHill(g, o);
+    else if (o.kind === "lava") rifts.push(paintLava(g, o, R));
+    else if (o.kind === "marsh") paintMarsh(g, o, R);
+    else if (o.kind === "block") paintBlock(g, o, R, px);
+    else if (o.kind === "ruins") paintRuins(g, o, R);
     else if (o.kind === "thicket") paintThicket(g, o, R);
     else rifts.push(paintRift(g, o, R));
   }
@@ -194,6 +201,13 @@ function paintTerrain(state, px) {
     g.lineTo(BOARD, i);
     g.stroke();
   }
+  // Warm key light from the upper left, cool falloff to the lower right.
+  const light = g.createLinearGradient(0, 0, BOARD, BOARD);
+  light.addColorStop(0, "rgba(255, 220, 160, 0.14)");
+  light.addColorStop(0.55, "rgba(255, 220, 160, 0)");
+  light.addColorStop(1, "rgba(20, 30, 60, 0.18)");
+  g.fillStyle = light;
+  g.fillRect(0, 0, BOARD, BOARD);
   const v = g.createRadialGradient(BOARD / 2, BOARD / 2, BOARD * 0.35, BOARD / 2, BOARD / 2, BOARD * 0.75);
   v.addColorStop(0, "rgba(0,0,0,0)");
   v.addColorStop(1, "rgba(0,0,0,0.42)");
@@ -203,6 +217,70 @@ function paintTerrain(state, px) {
   g.lineWidth = 6;
   g.strokeRect(3, 3, BOARD - 6, BOARD - 6);
   return { canvas: c, rifts };
+}
+
+// ── Painted art helpers ──────────────────────────────────────────────────────
+/** Deterministically pick one loaded variant among files with this prefix. */
+function pickArt(state, prefix, salt) {
+  const list = artList(prefix);
+  if (!list.length) return null;
+  const k = (seedOf(state) + salt * 2654435761) >>> 0;
+  return artImage(list[k % list.length]);
+}
+
+// Painted sprites carry transparent margins; measure the opaque part once so
+// the visible piece, not the image square, matches the rules footprint.
+const trims = new WeakMap();
+function trimOf(img) {
+  if (trims.has(img)) return trims.get(img);
+  const N = 96;
+  const c = document.createElement("canvas");
+  c.width = c.height = N;
+  const g = c.getContext("2d");
+  g.drawImage(img, 0, 0, N, N);
+  const d = g.getImageData(0, 0, N, N).data;
+  let x0 = N, y0 = N, x1 = 0, y1 = 0;
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    if (d[(y * N + x) * 4 + 3] > 40) {
+      x0 = Math.min(x0, x); x1 = Math.max(x1, x);
+      y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+    }
+  }
+  const t = x1 > x0 ? { cx: (x0 + x1 + 1) / 2 / N, cy: (y0 + y1 + 1) / 2 / N, size: Math.max(x1 - x0 + 1, y1 - y0 + 1) / N } : { cx: 0.5, cy: 0.5, size: 1 };
+  trims.set(img, t);
+  return t;
+}
+
+/** Draw a sprite so its opaque part spans `size` board units, with a cast shadow. */
+function drawSprite(g, img, x, y, size, rot, px) {
+  const t = trimOf(img);
+  const full = size / t.size;
+  g.save();
+  g.translate(x, y);
+  g.rotate(rot);
+  g.shadowColor = "rgba(0, 0, 0, 0.5)";
+  g.shadowBlur = 14 * (px / BOARD);
+  g.shadowOffsetX = 5 * (px / BOARD);
+  g.shadowOffsetY = 7 * (px / BOARD);
+  g.drawImage(img, -full * t.cx, -full * t.cy, full, full);
+  g.restore();
+}
+
+/** Small flat ground details, away from obstacles: purely decorative. */
+function paintDecor(g, state, R, px) {
+  const list = artList("decor/");
+  if (!list.length) return;
+  for (let i = 0, placed = 0; i < 60 && placed < 14; i++) {
+    const x = 60 + R() * (BOARD - 120);
+    const y = 60 + R() * (BOARD - 120);
+    if (state.obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + 45)) continue;
+    const img = artImage(list[(R() * list.length) | 0]);
+    if (!img) continue;
+    g.globalAlpha = 0.9;
+    drawSprite(g, img, x, y, 22 + R() * 18, R() * Math.PI * 2, px);
+    g.globalAlpha = 1;
+    placed++;
+  }
 }
 
 function stoneBlock(g, x, y, w, h, ang, R) {
@@ -251,6 +329,83 @@ function paintRuins(g, o, R) {
   g.fill();
   g.strokeStyle = "rgba(30,25,15,0.6)";
   g.stroke();
+}
+
+function paintHill(g, o) {
+  // Contour rings, lit from the upper left.
+  for (let i = 0; i < 4; i++) {
+    const r = o.r * (1 - i * 0.22);
+    const grd = g.createRadialGradient(o.x - r * 0.35, o.y - r * 0.35, r * 0.1, o.x, o.y, r);
+    grd.addColorStop(0, `rgba(150, 175, 95, ${0.35 + i * 0.1})`);
+    grd.addColorStop(1, `rgba(40, 55, 25, ${0.35 + i * 0.05})`);
+    g.fillStyle = grd;
+    g.beginPath();
+    g.arc(o.x + i * 3, o.y + i * 3, r, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = "rgba(30, 40, 15, 0.35)";
+    g.stroke();
+  }
+}
+
+function paintLava(g, o, R) {
+  const grd = g.createRadialGradient(o.x, o.y, 0, o.x, o.y, o.r);
+  grd.addColorStop(0, "#FFD27A");
+  grd.addColorStop(0.45, "#F06A1E");
+  grd.addColorStop(0.8, "#7A1E0C");
+  grd.addColorStop(1, "#1A0E0A");
+  g.fillStyle = grd;
+  g.beginPath();
+  g.arc(o.x, o.y, o.r, 0, Math.PI * 2);
+  g.fill();
+  for (let i = 0; i < 9; i++) {
+    g.fillStyle = "rgba(30, 15, 10, 0.7)";
+    g.beginPath();
+    g.ellipse(o.x + (R() - 0.5) * o.r, o.y + (R() - 0.5) * o.r, 4 + R() * 9, 3 + R() * 6, R() * 3, 0, Math.PI * 2);
+    g.fill();
+  }
+  return { o, cracks: [], phase: R() * 6 };
+}
+
+function paintMarsh(g, o, R) {
+  blob(g, o.x, o.y, o.r * 1.1, "#3F4A30", "DD");
+  g.fillStyle = "rgba(40, 70, 75, 0.75)";
+  g.beginPath();
+  g.ellipse(o.x, o.y, o.r * 0.75, o.r * 0.55, R() * 3, 0, Math.PI * 2);
+  g.fill();
+  g.strokeStyle = "#8A9A55";
+  g.lineWidth = 1.2;
+  for (let i = 0; i < 40; i++) {
+    const a = R() * Math.PI * 2;
+    const d = o.r * (0.6 + R() * 0.4);
+    const x = o.x + Math.cos(a) * d;
+    const y = o.y + Math.sin(a) * d;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + (R() - 0.5) * 3, y - 6 - R() * 6);
+    g.stroke();
+  }
+}
+
+function paintBlock(g, o, R, px) {
+  g.save();
+  g.shadowColor = "rgba(0,0,0,0.55)";
+  g.shadowBlur = 12 * (px / BOARD);
+  g.shadowOffsetX = 5 * (px / BOARD);
+  g.shadowOffsetY = 7 * (px / BOARD);
+  g.fillStyle = "#77736A";
+  g.beginPath();
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const d = o.r * (0.85 + R() * 0.15);
+    i ? g.lineTo(o.x + Math.cos(a) * d, o.y + Math.sin(a) * d) : g.moveTo(o.x + Math.cos(a) * d, o.y + Math.sin(a) * d);
+  }
+  g.closePath();
+  g.fill();
+  g.restore();
+  g.fillStyle = "rgba(255, 250, 235, 0.18)";
+  g.beginPath();
+  g.arc(o.x - o.r * 0.25, o.y - o.r * 0.25, o.r * 0.45, 0, Math.PI * 2);
+  g.fill();
 }
 
 function paintThicket(g, o, R) {
@@ -322,7 +477,8 @@ function paintRift(g, o, R) {
 }
 
 function ensureTerrain(state, px) {
-  const art = ["ground.jpg", "terrain/ruins.png", "terrain/thicket.png", "terrain/rift.png"].map((p) => (artImage(p) ? 1 : 0)).join("");
+  const paths = ["ground.jpg", "terrain/ruins.png", "terrain/thicket.png", "terrain/rift.png", ...artList("ground/"), ...artList("terrain/"), ...artList("decor/")];
+  const art = paths.map((p) => (artImage(p) ? 1 : 0)).join("");
   const key = `${seedOf(state)}|${px}|${art}`;
   if (terrain?.key !== key) terrain = { key, ...paintTerrain(state, px) };
   return terrain;
@@ -499,6 +655,7 @@ function render(canvas, state, opts, now) {
     }
   }
 
+  if (opts.fog) drawFog(ctx, canvas, state);
   if (opts.attackLine) drawAttackLine(ctx, state, opts.attackLine, now);
   drawEffects(ctx, k, now);
   drawFloaters(ctx, now);
@@ -558,6 +715,45 @@ function drawRiftGlow(ctx, k, now) {
   ctx.restore();
 }
 
+// Fog of war: darkness outside what this player's units can see (vision is
+// computed on the server; this is the matching visual).
+let fogLayer = null;
+function drawFog(ctx, canvas, state) {
+  if (!fogLayer || fogLayer.width !== canvas.width) {
+    fogLayer = document.createElement("canvas");
+    fogLayer.width = fogLayer.height = canvas.width;
+  }
+  const k = canvas.width / BOARD;
+  const g = fogLayer.getContext("2d");
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.globalCompositeOperation = "source-over";
+  g.clearRect(0, 0, fogLayer.width, fogLayer.height);
+  g.fillStyle = "rgba(6, 8, 12, 0.62)";
+  g.fillRect(0, 0, fogLayer.width, fogLayer.height);
+  g.setTransform(k, 0, 0, k, 0, 0);
+  g.globalCompositeOperation = "destination-out";
+  for (const u of state.units) {
+    if (u.dead || u.owner !== state.you) continue;
+    const r = BASE_SIZE[u.base] / 2 + visionOf(state, u) * 100;
+    const grd = g.createRadialGradient(u.x, u.y, r * 0.75, u.x, u.y, r);
+    grd.addColorStop(0, "rgba(0,0,0,1)");
+    grd.addColorStop(1, "rgba(0,0,0,0)");
+    g.fillStyle = grd;
+    g.beginPath();
+    g.arc(u.x, u.y, r, 0, Math.PI * 2);
+    g.fill();
+  }
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.drawImage(fogLayer, 0, 0);
+  ctx.restore();
+}
+
+/** Terrain under a board point, for tooltips. */
+export function terrainAt(state, pt) {
+  return state.obstacles.find((o) => Math.hypot(o.x - pt.x, o.y - pt.y) < o.r);
+}
+
 function drawFootprint(ctx, o) {
   // The obstacle's rules footprint, so players can judge contact.
   ctx.save();
@@ -574,9 +770,10 @@ function drawFootprint(ctx, o) {
   ctx.font = `600 9px ${DISPLAY}`;
   ctx.textAlign = "center";
   ctx.fillStyle = "rgba(0,0,0,0.55)";
-  ctx.fillText(o.kind.toUpperCase(), o.x + 0.8, o.y + o.r + 11.8);
+  const label = (TERRAIN[o.kind]?.name || o.kind).toUpperCase();
+  ctx.fillText(label, o.x + 0.8, o.y + o.r + 11.8);
   ctx.fillStyle = "rgba(240, 230, 200, 0.85)";
-  ctx.fillText(o.kind.toUpperCase(), o.x, o.y + o.r + 11);
+  ctx.fillText(label, o.x, o.y + o.r + 11);
   ctx.restore();
 }
 

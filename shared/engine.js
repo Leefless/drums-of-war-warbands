@@ -10,10 +10,11 @@
 //   end         tokens clear, regeneration, victory check
 
 import {
-  BASE_SIZE, BOARD, corners, inArc, insideBoard, maneuverPose, parseManeuver, polyCircleOverlap,
-  polyDistance, polysOverlap, rangeBand, right, segmentHitsCircle,
+  BASE_SIZE, BOARD, corners, inArc, insideBoard, maneuverPose, maneuverSegments, parseManeuver, polyCircleOverlap,
+  polyDistance, polysOverlap, rangeBand, right,
 } from "./geometry.js";
 import { FACTION_TAGS, FACTIONS, UPGRADES, unitDef, validateArmy } from "./factions.js";
+import { COVER, SLOW_DEPTH, hazeBetween, inside, layTerrain, lineOfSight, onKind, touches, visibleTo } from "./terrain.js";
 
 export const MAX_PLAYERS = 4;
 export const ATTACK_FACES = ["strike", "strike", "strike", "rend", "omen", "omen", "blank", "blank"];
@@ -25,7 +26,7 @@ export const CRIT_TEXT = {
   staggered: "Staggered: cannot take actions during its next activation.",
   broken: "Broken Arms: rolls 1 fewer attack die for the rest of the battle.",
 };
-export const OBSTACLE_KINDS = ["ruins", "thicket", "rift"];
+export const OBSTACLE_KINDS = ["hill", "thicket", "ruins", "lava", "marsh", "rift", "block"];
 
 // ── State ────────────────────────────────────────────────────────────────────
 export function createGame({ budget = 100, maxRounds = 12, seed = Date.now() } = {}) {
@@ -196,19 +197,7 @@ function buildUnit(state, p, entry) {
 }
 
 function placeObstacles(state) {
-  state.obstacles = [];
-  let tries = 0;
-  while (state.obstacles.length < 6 && tries++ < 500) {
-    const r = 35 + Math.floor(rand(state) * 25);
-    const o = {
-      id: `o${state.obstacles.length + 1}`,
-      kind: OBSTACLE_KINDS[state.obstacles.length % 3],
-      x: 180 + rand(state) * (BOARD - 360),
-      y: 180 + rand(state) * (BOARD - 360),
-      r,
-    };
-    if (state.obstacles.every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 90)) state.obstacles.push(o);
-  }
+  state.obstacles = layTerrain(() => rand(state));
 }
 
 function startDeploy(state) {
@@ -238,6 +227,7 @@ export function deployUnit(state, pid, uid, x, y, h) {
   const moved = { ...u, x: Number(x), y: Number(y), h: ((Number(h) % 360) + 360) % 360 };
   if (!inZone(moved, zoneFor(p.seat))) fail("Units must deploy fully inside your zone.");
   if (state.units.some((o) => o.id !== uid && polysOverlap(poly(moved), poly(o)))) fail("Bases cannot overlap.");
+  if (blocksAt(state, u, moved)) fail("Units cannot stand on rocks.");
   Object.assign(u, { x: moved.x, y: moved.y, h: moved.h });
   p.ready = false;
 }
@@ -304,6 +294,12 @@ function overlapsAny(state, u, pose) {
   return others(state, u).filter((o) => polysOverlap(P, poly(o)));
 }
 
+/** True when a pose would put the unit's base on impassable rocks. */
+function blocksAt(state, u, pose) {
+  return state.obstacles.some((o) => o.kind === "block" && touches(u, o, pose));
+}
+const flies = (u) => has(u, "flying") || has(u, "ethereal");
+
 function obstaclesOnPath(state, u, poses) {
   const hit = new Set();
   for (const pose of poses) {
@@ -324,6 +320,16 @@ function obstacleEffect(state, u, o) {
     if (rule(u, "wildwood")) return;
     log(state, `${u.name} is tangled in a thicket.`);
     gainStrain(state, u);
+  } else if (o.kind === "lava") {
+    if (u.faction === "calamity") {
+      u.tokens.charge = Math.min(2, u.tokens.charge + 1);
+      log(state, `${u.name} bathes in the lava (+1 Calamity charge).`);
+      return;
+    }
+    log(state, `${u.name} is burned crossing the lava.`);
+    damage(state, u, "strike", null);
+  } else if (o.kind === "marsh") {
+    log(state, `${u.name} wades into the marsh.`);
   } else if (o.kind === "rift") {
     if (u.faction === "calamity") {
       u.tokens.charge = Math.min(2, u.tokens.charge + 1);
@@ -345,38 +351,73 @@ export function planMove(state, u, code) {
   if (man.type === "X") return { man, pose: start, t: 1, bumped: [], path: [start], fled: false };
   const STEP = 0.02;
   let t = 1;
-  let pose = maneuverPose(start, man, size, 1);
+  let slowedBy = null;
+  let blockedBy = null;
+  // Walk the template: rocks stop the unit before it touches them, and lava or
+  // marsh let it in only SLOW_DEPTH deep. Rifts, fliers and ghosts skip this.
+  if (man.type !== "RF" && !flies(u)) {
+    const len = man.type === "S" || man.type === "A" ? size + 40 * man.speed : maneuverLength(man, size);
+    const startIn = new Set(state.obstacles.filter((o) => touches(u, o)).map((o) => o.id));
+    let limit = 1;
+    for (let s2 = STEP; s2 <= 1 + 1e-9 && s2 <= limit; s2 += STEP) {
+      const p = maneuverPose(start, man, size, Math.min(1, s2));
+      const rock = state.obstacles.find((o) => o.kind === "block" && touches(u, o, p));
+      if (rock) {
+        blockedBy = rock;
+        limit = Math.max(0, s2 - STEP);
+        break;
+      }
+      if (!slowedBy) {
+        const bog = state.obstacles.find((o) => (o.kind === "lava" || o.kind === "marsh") && !startIn.has(o.id) && touches(u, o, p));
+        if (bog) {
+          slowedBy = bog;
+          limit = Math.min(1, s2 + SLOW_DEPTH / len);
+        }
+      }
+    }
+    t = Math.min(1, limit);
+  }
+  let pose = maneuverPose(start, man, size, t);
   let bumped = overlapsAny(state, u, pose);
-  if (bumped.length) {
-    for (t = 1 - STEP; t > 0; t -= STEP) {
+  if (bumped.length || blocksAt(state, u, pose)) {
+    const t0 = t;
+    for (t = t0 - STEP; t > 0; t -= STEP) {
       pose = maneuverPose(start, man, size, t);
-      if (!overlapsAny(state, u, pose).length) break;
+      if (!overlapsAny(state, u, pose).length && !blocksAt(state, u, pose)) break;
     }
     if (t <= 0) {
       t = 0;
       pose = start;
     }
   }
+  if (t < 1 && man.type === "A") pose = maneuverPose(start, man, size, t); // a stopped Wheel About does not turn
   const path = [];
   for (let s = 0; s <= t + 1e-9; s += 0.05) path.push(maneuverPose(start, man, size, Math.min(s, t)));
   path.push(pose);
-  return { man, pose, t, bumped, path, fled: !insideBoard(corners(pose, size)) };
+  return { man, pose, t, bumped, path, slowedBy, blockedBy, fled: !insideBoard(corners(pose, size)) };
+}
+
+function maneuverLength(man, size) {
+  const segs = maneuverSegments(man, size);
+  return segs.reduce((a, g) => a + (g.kind === "line" ? g.len : g.r * (Math.abs(g.deg) * Math.PI) / 180), 0);
 }
 
 function executeManeuver(state, u, code) {
+  const wasHigh = onKind(state, u, "hill");
   const mv = planMove(state, u, code);
   const { man } = mv;
   u.trail = mv.path.map((p) => ({ x: p.x, y: p.y }));
   Object.assign(u, { x: mv.pose.x, y: mv.pose.y, h: mv.pose.h });
   u.revealed = code;
-  const bumpNote = mv.bumped.length ? `, bumping ${mv.bumped.map((b) => b.name).join(", ")}` : "";
+  const climbed = !wasHigh && onKind(state, u, "hill");
+  const bumpNote = mv.bumped.length ? `, bumping ${mv.bumped.map((b) => b.name).join(", ")}` : mv.blockedBy ? ", stopped by rocks" : mv.slowedBy ? `, slowed by the ${mv.slowedBy.kind}` : "";
   log(state, `${u.name} executes ${code.replace(":", " ")}${bumpNote}.`);
   if (mv.fled) {
     log(state, `${u.name} leaves the field and is lost.`);
     kill(state, u, "fled");
     return mv;
   }
-  if (mv.bumped.length) u.cond.noAction = true;
+  if (mv.bumped.length || mv.blockedBy) u.cond.noAction = true;
   if (mv.bumped.length && has(u, "ram")) {
     for (const b of mv.bumped) if (b.owner !== u.owner) {
       log(state, `${u.name} rams ${b.name}!`);
@@ -387,6 +428,10 @@ function executeManeuver(state, u, code) {
   const ignorePath = has(u, "ethereal") || man.type === "RF";
   const touched = obstaclesOnPath(state, u, ignorePath ? [mv.pose] : mv.path);
   if (!ignoresObstacles(u)) for (const o of touched) obstacleEffect(state, u, o);
+  if (climbed && !flies(u)) {
+    log(state, `${u.name} climbs to the high ground.`);
+    gainStrain(state, u);
+  }
   if (man.color === "red") gainStrain(state, u);
   if (man.color === "blue" && u.strain > 0) u.strain -= 1;
   if (rule(u, "momentum") && man.speed >= 4) {
@@ -409,6 +454,7 @@ function actionMovePose(state, u, a, dir) {
   }
   if (!insideBoard(corners(pose, size))) return null;
   if (overlapsAny(state, u, pose).length) return null;
+  if (blocksAt(state, u, pose)) return null;
   return pose;
 }
 
@@ -678,19 +724,24 @@ function finishActivation(state, u) {
 // ── Engagement ───────────────────────────────────────────────────────────────
 const tagged = (t) => t.tags.includes("undead") || t.tags.includes("calamity");
 
+/** Lava or marsh between the two units: the defender gains +1 die. */
 function obstructed(state, a, t) {
-  return state.obstacles.some((o) => segmentHitsCircle(a, t, o));
+  return hazeBetween(state, a, t);
 }
+const inCover = (state, u) => state.obstacles.some((o) => COVER.has(o.kind) && inside(u, o));
+const maxRange = (state, u, w) => Math.min(4, w.range[1] + (onKind(state, u, "hill") ? 1 : 0));
 
 /** Every legal (target, weapon) pair for a unit. */
 export function attackOptions(state, u) {
   if (u.dead) return [];
   const out = [];
+  const spotted = visibleTo(state, u.owner);
   for (let wi = 0; wi < u.weapons.length; wi++) {
     const w = u.weapons[wi];
     for (const t of enemiesOf(state, u)) {
+      if (!spotted.has(t.id) || !lineOfSight(state, u, t)) continue;
       const r = rangeBetween(u, t);
-      if (r < w.range[0] || r > w.range[1]) continue;
+      if (r < w.range[0] || r > maxRange(state, u, w)) continue;
       if (has(t, "stealthy") && r >= 3) continue;
       if (!inArc(u, w.arc, t, sizeOf(t))) continue;
       out.push({ target: t.id, weapon: wi, range: r });
@@ -706,6 +757,8 @@ export function attackDice(state, u, t, w, r) {
   if (has(u, "brutal") && r === 1) n += 1;
   if (has(u, "charge") && r === 1 && u.lastSpeed >= 3) n += 1;
   if (has(u, "berserk") && u.wounds < u.maxWounds) n += 1;
+  if (onKind(state, u, "thicket") && !rule(u, "wildwood")) n -= 1;
+  if (!visibleTo(state, t.owner).has(u.id)) n += 1; // ambush from out of sight
   if (has(u, "swarm")) {
     const buddy = friendsOf(state, u).some((f) => has(f, "swarm") && rangeBetween(f, t) <= 2 && inArc(f, "front", t, sizeOf(t)));
     if (buddy) n += 1;
@@ -717,6 +770,9 @@ export function defenseDice(state, u, t, w, r) {
   let n = t.def;
   if (r >= 3 && !w.noRangeBonus && !has(u, "sniper")) n += 1;
   if (obstructed(state, u, t)) n += 1;
+  if (inCover(state, t)) n += 1;
+  if (onKind(state, t, "hill") && !onKind(state, u, "hill")) n += 1;
+  if (onKind(state, t, "marsh")) n -= 1;
   if (has(t, "elusive") && r >= 2) n += 1;
   if (has(t, "shieldwall") && friendsOf(state, t).some((f) => has(f, "shieldwall") && rangeBetween(f, t) <= 1)) n += 1;
   if (friendsOf(state, t).some((f) => has(f, "guardian") && rangeBetween(f, t) <= 1)) n += 1;
@@ -731,14 +787,17 @@ export function declareAttack(state, pid, { target, weapon }) {
   const opt = pend.options.find((o) => o.target === target && o.weapon === weapon) || fail("Not a legal target.");
   const t = unit(state, target);
   const w = u.weapons[weapon];
+  const ambush = !visibleTo(state, t.owner).has(u.id);
   const n = attackDice(state, u, t, w, opt.range);
+  u.firedRound = state.round; // firing gives away your position this round
   state.attack = {
     attacker: u.id, target: t.id, weapon, range: opt.range,
     obstructed: obstructed(state, u, t),
     atk: Array.from({ length: n }, () => roll(state, ATTACK_FACES)),
     def: [], rerolled: [], used: [], brace: false, defDice: defenseDice(state, u, t, w, opt.range),
   };
-  log(state, `${u.name} attacks ${t.name} with ${w.name} at range ${opt.range}: ${state.attack.atk.join(", ")}.`);
+  state.attack.ambush = ambush;
+  log(state, `${ambush ? "Ambush! " : ""}${u.name} attacks ${t.name} with ${w.name} at range ${opt.range}: ${state.attack.atk.join(", ")}.`);
   state.pending = null;
   offerAttackMods(state);
 }
@@ -1035,7 +1094,11 @@ export function run(state) {
   }
 }
 
-/** The state as one seat may see it: other players' planned dials stay secret. */
+/**
+ * The state as one seat may see it. Other players' planned dials stay secret,
+ * and once deployment starts the fog of war hides every enemy unit this player's
+ * units cannot see (spectators, pid null, see everything).
+ */
 export function viewFor(state, pid) {
   const v = JSON.parse(JSON.stringify(state));
   delete v.rng;
@@ -1043,5 +1106,17 @@ export function viewFor(state, pid) {
   v.dials = {};
   for (const [uid, code] of Object.entries(state.dials)) if (unit(state, uid)?.owner === pid) v.dials[uid] = code;
   v.you = pid;
+  v.hidden = 0;
+  const fogged = pid && player(state, pid) && state.phase !== "muster" && state.phase !== "over";
+  if (fogged) {
+    const seen = visibleTo(state, pid);
+    const hidden = v.units.filter((u) => u.owner !== pid && !u.dead && !seen.has(u.id));
+    const hide = new Set(hidden.map((u) => u.id));
+    v.units = v.units.filter((u) => !hide.has(u.id));
+    v.hidden = hidden.length;
+    // Names of unseen units would leak positions through the log.
+    const names = [...new Set(hidden.map((u) => u.name))].filter((n) => !v.units.some((u) => u.name === n));
+    for (const entry of v.log) for (const n of names) entry.msg = entry.msg.split(n).join("an unseen enemy");
+  }
   return v;
 }
