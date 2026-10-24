@@ -111,7 +111,7 @@ export function removePlayer(state, pid) {
 export function setSettings(state, pid, msg) {
   const { budget, maxRounds, openSpectators } = msg && typeof msg === "object" ? msg : {};
   if (state.phase !== "muster") fail("Settings are locked once deployment begins.");
-  if (state.players[0]?.id !== pid) fail("Only the host (first seat) can change settings.");
+  if (state.players.find((p) => !p.ai)?.id !== pid) fail("Only the host (the first player seated) can change settings.");
   if (budget != null) {
     state.settings.budget = Math.max(40, Math.min(300, Number(budget) || 100));
     state.board = boardSize(state.settings.budget);
@@ -1205,7 +1205,8 @@ export function run(state) {
     if (state.pending || state.phase === "over") return;
     if (state.phase === "muster") {
       const fits = (p) => validateArmy(p.faction, p.army, state.settings.budget).ok;
-      if (state.players.length >= 2 && state.players.every((p) => p.ready && fits(p))) startDeploy(state);
+      // state.hold: a computer-only table waits for a watcher to start it (or someone to sit down).
+      if (!state.hold && state.players.length >= 2 && state.players.every((p) => p.ready && fits(p))) startDeploy(state);
       else return;
     } else if (state.phase === "deploy") {
       if (allReady(state)) startRound(state);

@@ -33,13 +33,29 @@ async function codeStamp() {
 }
 const BOOT_STAMP = await codeStamp();
 let stale = false;
+// Page files are re-read from disk on every request, so open tabs just need a reload to
+// pick them up. The build stamp changes when the page files change or the server restarts.
+async function pageStamp() {
+  let newest = 0;
+  for (const f of await readdir(join(ROOT, "public")).catch(() => [])) {
+    if (/\.(js|css|html)$/.test(f)) newest = Math.max(newest, (await stat(join(ROOT, "public", f))).mtimeMs);
+  }
+  return newest;
+}
+let build = `${Date.now()}:${await pageStamp()}`;
 setInterval(async () => {
-  if (stale) return;
-  if ((await codeStamp().catch(() => 0)) > BOOT_STAMP) {
-    stale = true;
+  const page = await pageStamp().catch(() => 0);
+  const next = `${build.split(":")[0]}:${page}`;
+  const nowStale = stale || (await codeStamp().catch(() => 0)) > BOOT_STAMP;
+  if (next !== build || nowStale !== stale) {
+    build = next;
+    stale = nowStale;
     broadcast();
   }
 }, 10000).unref();
+
+/** The host is the first human in a seat: computer opponents never host. */
+const hostId = () => game.players.find((p) => !p.ai)?.id ?? null;
 // Started from Start Game, exit code 75 asks that window to start a fresh server.
 const SUPERVISED = process.env.DOW_SUPERVISED === "1";
 const STALE_HINT = SUPERVISED
@@ -88,7 +104,7 @@ function saveArmy(owner, author, { id, name, faction, list }) {
 function deleteArmy(pid, id) {
   const a = armies.find((x) => x.id === id);
   if (!a) return;
-  if (a.owner !== pid && game.players[0]?.id !== pid) throw new Error("Only the army's author or the host can delete it.");
+  if (a.owner !== pid && hostId() !== pid) throw new Error("Only the army's author or the host can delete it.");
   armies = armies.filter((x) => x.id !== id);
   return persistArmies();
 }
@@ -169,6 +185,8 @@ function broadcast() {
     view.spectator = info.spectator || !E.player(game, info.token);
     view.armies = publicArmies(info.spectator ? null : info.token);
     view.serverStale = stale;
+    view.build = build;
+    view.host = E.player(game, hostId()) ? `p${E.player(game, hostId()).seat}` : null;
     view.canRestart = SUPERVISED;
     ws.send(JSON.stringify({ t: "state", state: view }));
   }
@@ -181,7 +199,10 @@ function handle(ws, info, m) {
       if (typeof m.token !== "string" || !/^[A-Za-z0-9]{8,64}$/.test(m.token)) throw new Error("Bad session token; reload the page.");
       info.token = m.token;
       info.spectator = !!m.spectate;
-      if (!info.spectator && !E.player(game, info.token) && game.phase === "muster") E.addPlayer(game, info.token, m.name);
+      if (!info.spectator && !E.player(game, info.token) && game.phase === "muster") {
+        E.addPlayer(game, info.token, m.name);
+        game.hold = false; // a human is seated again: they decide when to start
+      }
       if (E.player(game, info.token) && m.name) E.player(game, info.token).name = String(m.name).slice(0, 24);
       break;
     case "faction": E.setFaction(game, pid, m.faction); break;
@@ -209,11 +230,26 @@ function handle(ws, info, m) {
     case "removeAI": removeAI(pid, m.seat); break;
     case "saveArmy": return saveArmy(E.player(game, pid) ? pid : null, E.player(game, pid)?.name || "Unknown", m);
     case "deleteArmy": return deleteArmy(pid, m.id);
+    case "startWatch": {
+      if (game.phase !== "muster" || game.players.some((p) => !p.ai)) throw new Error("Only a computer-only table can be started from the watching screen.");
+      game.hold = false;
+      break;
+    }
+    case "sitOut": {
+      // Give up the seat before the battle and watch instead (computer opponents and settings stay).
+      if (game.phase !== "muster") throw new Error("You can only step out of your seat before the battle starts.");
+      E.removePlayer(game, pid);
+      info.spectator = true;
+      break;
+    }
     case "reset": {
-      const host = game.players[0]?.id === pid;
-      if (!host && !(game.phase === "over" && E.player(game, pid))) throw new Error("Only the host can restart mid-battle.");
+      const host = hostId() === pid;
+      const noHumans = !game.players.some((p) => !p.ai); // a computer-only battle: any watcher may end it
+      if (!host && !noHumans && !(game.phase === "over" && E.player(game, pid))) throw new Error("Only the host can restart mid-battle.");
       const old = game;
       game = E.createGame(old.settings);
+      game.settings.openSpectators = old.settings.openSpectators;
+      game.hold = noHumans; // don't let a computer-only table start straight back up
       for (const p of old.players) {
         const np = E.addPlayer(game, p.id, p.name);
         np.ai = !!p.ai;
@@ -254,7 +290,7 @@ function aiTick() {
 }
 
 function addAI(pid, faction) {
-  if (game.players[0]?.id !== pid) throw new Error("Only the host can add computer opponents.");
+  if (hostId() !== pid) throw new Error("Only the host can add computer opponents.");
   if (game.phase !== "muster") throw new Error("Add computer opponents before the battle starts.");
   const id = `ai${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const fid = Object.hasOwn(AI_NAMES, faction) ? faction : Object.keys(AI_NAMES)[Math.floor(Math.random() * 6)];
@@ -264,7 +300,7 @@ function addAI(pid, faction) {
 }
 
 function removeAI(pid, seatId) {
-  if (game.players[0]?.id !== pid) throw new Error("Only the host can remove computer opponents.");
+  if (hostId() !== pid) throw new Error("Only the host can remove computer opponents.");
   const p = game.players.find((x) => x.ai && `p${x.seat}` === seatId);
   if (p) E.removePlayer(game, p.id);
 }

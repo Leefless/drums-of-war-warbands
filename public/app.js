@@ -26,7 +26,7 @@ let S = null; // latest server state
 const L = {
   name: store.get("dow.name") || "",
   joined: !!store.get("dow.joined"),
-  spectate: false,
+  spectate: store.get("dow.spectate") === "1", // watching survives a reload
   selected: null,
   hover: null,
   draft: [],
@@ -51,6 +51,9 @@ function connect() {
     if (m.t === "state") {
       const prevPending = S?.pending && JSON.stringify(S.pending);
       S = m.state;
+      // The page or the server was updated: reload so this tab runs the same code (the battle lives on the server).
+      if (L.build && S.build && S.build !== L.build) return location.reload();
+      L.build ||= S.build;
       if (prevPending !== (S.pending && JSON.stringify(S.pending))) {
         L.sub = null;
         L.diceSel.clear();
@@ -109,6 +112,20 @@ function header() {
   if (!canQuit) L.confirmQuit = false;
   btn.textContent = L.confirmQuit ? "Confirm surrender" : "Surrender";
   btn.classList.toggle("armed", !!L.confirmQuit);
+  // Watching a computer-only battle: any watcher may end it and go back to the muster.
+  const aiOnly = !!S && S.players.length > 0 && S.players.every((p) => p.ai) && !me();
+  $("#endBattle").hidden = !(aiOnly && ["deploy", "plan", "activation", "engagement"].includes(S.phase));
+}
+
+/** A watcher takes a seat for the next battle (only during the muster). */
+function takeSeat() {
+  L.spectate = false;
+  store.set("dow.spectate", "");
+  L.joined = true;
+  L.name ||= store.get("dow.name") || "Warlord";
+  store.set("dow.joined", "1");
+  send("hello", { token, name: L.name });
+  render();
 }
 
 // ── Top bar: surrender (two clicks, no browser dialog) and the rulebook ──────
@@ -186,6 +203,7 @@ async function openRules() {
   }
 }
 $("#rulesBtn").onclick = openRules;
+$("#endBattle").onclick = () => send("reset");
 $("#restartNow").onclick = () => {
   send("restart");
   $("#restartNow").disabled = true;
@@ -252,10 +270,13 @@ function renderJoin(app) {
     store.set("dow.name", L.name);
     store.set("dow.joined", "1");
     L.joined = true;
+    L.spectate = false;
+    store.set("dow.spectate", "");
     send("hello", { token, name: L.name });
   };
   $("#watch").onclick = () => {
     L.spectate = true;
+    store.set("dow.spectate", "1");
     send("hello", { token, spectate: true });
     render();
   };
@@ -378,7 +399,11 @@ function renderMuster(app) {
   L.mode = "muster";
   const p = me();
   if (!p) {
-    app.innerHTML = `<div class="center"><h2>Waiting for the muster</h2><p class="muted">You are watching. ${S.players.length} warlord(s) seated.</p></div>`;
+    app.innerHTML = `<div class="center"><h2>Watching the muster</h2><p class="muted">You are watching. ${S.players.length} warlord(s) seated. The battle starts when every seated player is ready.</p>
+      <div class="btns" style="justify-content:center"><button class="cta" id="takeSeat" ${S.players.length >= 4 ? "disabled" : ""}>Take a seat</button>
+      ${S.players.length >= 2 && S.players.every((x) => x.ai) ? `<button id="startWatch">Start computer battle</button>` : ""}</div></div>`;
+    $("#takeSeat").onclick = takeSeat;
+    $("#startWatch") && ($("#startWatch").onclick = () => send("startWatch"));
     return;
   }
   if (L.draftFaction !== p.faction) {
@@ -386,7 +411,7 @@ function renderMuster(app) {
     L.draft = p.faction ? loadDraft(p) : [];
     Object.assign(L, { open: null, tab: "units", role: "all", search: "", armyName: "", loadedId: null });
   }
-  const host = S.players[0]?.id === S.you;
+  const host = S.host === S.you;
   const f = p.faction ? FACTIONS[p.faction] : null;
   const v = draftCost();
   const pct = Math.min(100, (v.cost / S.settings.budget) * 100);
@@ -409,7 +434,7 @@ function renderMuster(app) {
         <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
-        <label class="label" style="display:flex;gap:6px;align-items:center" title="When on, Watch only screens see every unit, ignoring fog of war"><input type="checkbox" id="openSpec" ${S.settings.openSpectators ? "checked" : ""}> Spectators see all</label>
+        <label class="label" style="display:flex;gap:6px;align-items:center" title="Watchers (Watch only, or Watch this battle instead) see every unit, ignoring fog of war. This does not take you out of your seat."><input type="checkbox" id="openSpec" ${S.settings.openSpectators ? "checked" : ""}> Watchers see all units</label>
       </div>` : `<div class="label">Budget ${S.settings.budget} · ${S.settings.maxRounds} rounds</div>`}
     </div>
     ${host ? `<div class="btns" style="margin-top:10px;align-items:center">
@@ -418,6 +443,8 @@ function renderMuster(app) {
       <button id="addAI" ${S.players.length >= 4 ? "disabled" : ""}>Add computer opponent</button>
       ${S.players.filter((x) => x.ai).map((x) => `<span class="chip">${esc(x.name)} <button class="small ghost" data-rmai="${x.id}" aria-label="Remove ${esc(x.name)}">Remove</button></span>`).join("")}
     </div>` : ""}
+    <div class="btns" style="margin-top:8px;align-items:center"><button class="ghost" id="sitOut" title="Give up your seat: the battle runs without you and you watch">Watch instead of playing</button>
+      <span class="muted" style="font-size:14px">${S.players.some((x) => x.ai) ? "Leaves the computer opponents to fight each other while you watch." : "Gives up your seat; take it back from the watching screen."}</span></div>
     <div class="factions ${f ? "compact" : ""}" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
       <button class="fcard ${p.faction === x.id ? "on" : ""}" style="--fc:${x.color}" data-faction="${x.id}" ${locked ? "disabled" : ""}>
         ${artTag(`banners/${x.id}.jpg`, "banner-img")}${emblemSVG(x.id)}<h3>${esc(x.name)}</h3><div class="label">${esc(x.kin)}</div>
@@ -532,6 +559,12 @@ function wireMuster(app, f) {
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
   $("#rounds") && ($("#rounds").onchange = (e) => send("settings", { maxRounds: Number(e.target.value) }));
   $("#openSpec") && ($("#openSpec").onchange = (e) => send("settings", { openSpectators: e.target.checked }));
+  $("#sitOut") && ($("#sitOut").onclick = () => {
+    L.spectate = true;
+    store.set("dow.spectate", "1");
+    send("sitOut");
+    render();
+  });
   $("#addAI") && ($("#addAI").onclick = () => send("addAI", { faction: $("#aiFaction").value || null }));
   on("[data-rmai]", "onclick", (b) => send("removeAI", { seat: b.dataset.rmai }));
 }
