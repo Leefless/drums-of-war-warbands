@@ -26,6 +26,15 @@ Each browser remembers its seat, so a refresh or dropped connection rejoins
 automatically. Use a different browser (or a private window) per player when
 testing on one machine.
 
+## Art
+
+Painted art lives in `public/art/`: unit portraits (`units/`), faction banners
+(`banners/`), terrain sprites (`terrain/`), `title.jpg` and `ground.jpg`. It was
+generated with ChatGPT (image generation on a Plus subscription), then sliced
+and resized for the game. Every file is optional: delete one and the game falls
+back to its built-in vector art. `npm run art` can regenerate the portraits
+and sprites through the OpenAI Images API instead, if a key is set in `.env`.
+
 ## Layout
 
 | Path | Role |
