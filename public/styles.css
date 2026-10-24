@@ -261,3 +261,9 @@ canvas { display: block; cursor: crosshair; touch-action: none; border: 1px soli
   .lrow.entry { flex-wrap: wrap; }
 }
 .toast.ok { background: var(--good); }
+
+/* Selectable dice are buttons (keyboard and screen readers) styled like the dice. */
+button.die { padding: 0; cursor: pointer; }
+@media (max-width: 900px) {
+  .boardwrap { height: auto; aspect-ratio: 1 / 1; width: 100%; }
+}

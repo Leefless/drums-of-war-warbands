@@ -4,7 +4,7 @@ import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, upgrades
 import { costBreakdown } from "/shared/cost.js";
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
-import { playerColor, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
+import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
 import { TERRAIN } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
@@ -50,7 +50,9 @@ function connect() {
       if (prevPending !== (S.pending && JSON.stringify(S.pending))) {
         L.sub = null;
         L.diceSel.clear();
+        L.hoverTarget = null;
       }
+      if (L.selected && !unitById(L.selected)) L.selected = null; // hidden by fog or gone
       if (S.pending?.uid && S.pending.pid === S.you) L.selected = S.pending.uid;
       render();
     } else if (m.t === "error") toast(m.msg);
@@ -59,6 +61,7 @@ function connect() {
 }
 function send(t, payload = {}) {
   if (ws?.readyState === 1) ws.send(JSON.stringify({ t, ...payload }));
+  else toast("Reconnecting to the table, try again in a moment.");
 }
 function toast(msg, kind = "error") {
   const el = $("#toast");
@@ -72,6 +75,7 @@ function toast(msg, kind = "error") {
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const me = () => (S?.you ? S.players.find((p) => p.id === S.you) : null);
 const unitById = (id) => S.units.find((u) => u.id === id);
+const unitName = (id) => unitById(id)?.name ?? "an unseen unit";
 const nameOf = (pid) => S.players.find((p) => p.id === pid)?.name ?? "?";
 const myUnits = () => S.units.filter((u) => u.owner === S.you && !u.dead);
 const PHASES = { muster: "Muster", deploy: "Deployment", plan: "Planning", activation: "Activation", engagement: "Engagement", over: "Battle over" };
@@ -87,6 +91,20 @@ function header() {
 }
 
 function render() {
+  // Broadcasts re-render the page; keep the field being typed in focused.
+  const active = document.activeElement;
+  const keep = active?.id && (active.tagName === "INPUT" || active.tagName === "SELECT") ? { id: active.id, a: active.selectionStart, b: active.selectionEnd } : null;
+  renderInner();
+  if (keep) {
+    const el = document.getElementById(keep.id);
+    if (el && el !== document.activeElement) {
+      el.focus();
+      try { if (keep.a != null) el.setSelectionRange(keep.a, keep.b); } catch { /* not a text field */ }
+    }
+  }
+}
+
+function renderInner() {
   header();
   const app = $("#app");
   if (!S || (!L.joined && !L.spectate)) return renderJoin(app);
@@ -96,7 +114,10 @@ function render() {
     L.rejoinSent = true;
     send("hello", { token, name: L.name });
   }
-  if (S.phase === "muster") return renderMuster(app);
+  if (S.phase === "muster") {
+    resetBoard(); // a new battle starts with a clean animation timeline
+    return renderMuster(app);
+  }
   renderBattle(app);
 }
 
@@ -118,6 +139,7 @@ function renderJoin(app) {
     ${started ? `<p class="muted">A battle is in progress. If you were seated, use the same browser you joined with to rejoin automatically.</p>` : ""}
     <p class="label"><a href="/docs/RULES.md" target="_blank" style="color:inherit">Rules</a> · <a href="/docs/LORE.md" target="_blank" style="color:inherit">Lore</a></p>
   </div>`;
+  $("#name").oninput = (e) => (L.name = e.target.value);
   $("#join").onclick = () => {
     L.name = $("#name").value.trim() || "Warlord";
     store.set("dow.name", L.name);
@@ -137,11 +159,19 @@ const unitIcon = (u) => u.icon || UNIT_ICON[u.id] || "sword";
 const draftKey = (fid) => `dow.draft.${fid}`;
 const unitIn = (fid, id) => FACTIONS[fid]?.units.find((u) => u.id === id);
 
+/** Drop units that no longer exist and upgrades a unit can no longer take. */
+function cleanList(fid, list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter((e) => e && unitIn(fid, e.unit)).map((e) => {
+    const ok = e.upgrade && upgradesFor(fid, unitIn(fid, e.unit)).some((g) => g.id === e.upgrade);
+    return { unit: e.unit, upgrade: ok ? e.upgrade : null };
+  });
+}
+
 function loadDraft(p) {
-  if (p.army.length) return p.army.map((e) => ({ ...e }));
+  if (p.army.length) return cleanList(p.faction, p.army);
   try {
-    const saved = JSON.parse(store.get(draftKey(p.faction)) || "[]");
-    return Array.isArray(saved) ? saved.filter((e) => unitIn(p.faction, e.unit)) : [];
+    return cleanList(p.faction, JSON.parse(store.get(draftKey(p.faction)) || "[]"));
   } catch {
     return [];
   }
@@ -220,7 +250,7 @@ function entryHTML(f, e, i, locked) {
   const u = unitIn(f.id, e.unit);
   const ups = upgradesFor(f.id, u);
   return `<div class="lrow entry"><span class="portrait tiny">${iconSVG(unitIcon(u), "emblem")}${artTag(`units/${u.id}.png`, "")}</span>
-    <span style="flex:1">${esc(u.name)} <span class="muted num">${u.cost}${e.upgrade ? ` +${UPGRADES[e.upgrade].cost}` : ""}</span></span>
+    <span style="flex:1">${esc(u.name)} <span class="muted num">${u.cost}${UPGRADES[e.upgrade] ? ` +${UPGRADES[e.upgrade].cost}` : ""}</span></span>
     <select data-up="${i}" ${locked ? "disabled" : ""} aria-label="Upgrade"><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
     <button class="small ghost" data-rm="${i}" ${locked ? "disabled" : ""} aria-label="Remove">✕</button></div>`;
 }
@@ -301,7 +331,7 @@ function renderMuster(app) {
           <button id="clearArmy" class="ghost" ${L.draft.length && !locked ? "" : "disabled"}>Clear</button></div>
         ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} pts · ${esc(a.author)}</span></span>
           <button class="small" data-load="${esc(a.id)}" ${locked ? "disabled" : ""}>Load</button>
-          <button class="small ghost" data-del="${esc(a.id)}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button></div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
+          ${a.mine || host ? `<button class="small ghost" data-del="${esc(a.id)}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button>` : ""}</div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
         <hr><div class="label">Upgrades</div>
         ${upgradesFor(f.id, { abilities: [], actions: [] }).map((g) => `<div style="font-size:14px"><b>${esc(g.name)}</b> <span class="muted">+${g.cost}${g.relic ? ", relic" : ""}</span>: ${esc(g.text)}</div>`).join("")}
       </aside>
@@ -322,7 +352,7 @@ function wireMuster(app, f) {
   on("[data-open]", "onclick", (b) => { L.open = L.open === b.dataset.open ? null : b.dataset.open; render(); });
   on("[data-add]", "onclick", (b) => {
     const u = unitIn(f.id, b.dataset.add);
-    if (u.champion) L.draft = L.draft.filter((e) => !unitIn(f.id, e.unit).champion);
+    if (u.champion) L.draft = L.draft.filter((e) => !unitIn(f.id, e.unit)?.champion);
     L.draft.push({ unit: u.id, upgrade: null });
     changed();
   });
@@ -331,7 +361,7 @@ function wireMuster(app, f) {
   on("[data-load]", "onclick", (b) => {
     const a = S.armies.find((x) => x.id === b.dataset.load);
     if (!a) return;
-    Object.assign(L, { draft: a.list.map((e) => ({ ...e })), armyName: a.name, loadedId: a.id });
+    Object.assign(L, { draft: cleanList(f.id, a.list), armyName: a.name, loadedId: a.id });
     changed();
   });
   on("[data-del]", "onclick", (b) => {
@@ -340,6 +370,8 @@ function wireMuster(app, f) {
       L.confirmDel = null;
     } else {
       L.confirmDel = b.dataset.del;
+      clearTimeout(L.confirmTimer);
+      L.confirmTimer = setTimeout(() => { L.confirmDel = null; render(); }, 4000);
       render();
     }
   });
@@ -391,7 +423,7 @@ function dialHTML(dial, current, mini = false, strainedNow = false) {
       const m = ms.find((x) => x.speed === s && (c === "*" ? ["A", "RF", "X"].includes(x.type) : x.type === c));
       if (!m) { html += `<button class="empty" disabled></button>`; continue; }
       const blocked = strainedNow && m.color === "red";
-      html += `<button class="${m.color} ${current === m.code ? "on" : ""}" ${mini ? "disabled" : `data-man="${m.code}"`} ${blocked ? "disabled title='Strained: no red maneuvers'" : ""} title="${m.code}">${GLYPH[m.type]}</button>`;
+      html += `<button class="${m.color} ${current === m.code ? "on" : ""}" ${mini ? "disabled" : `data-man="${m.code}"`} ${blocked ? "disabled" : ""} title="${blocked ? "Strained: no red maneuvers" : m.code}">${GLYPH[m.type]}</button>`;
     }
   }
   return `${html}</div>`;
@@ -418,9 +450,21 @@ function renderBattle(app) {
       const u = unitById(L.selected);
       if (!u || u.owner !== S.you) return;
       if (ev.key === "q" || ev.key === "e") send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + (ev.key === "e" ? 45 : -45) });
+      // Arrow keys nudge the selected unit, so deployment works without a mouse.
+      const nudge = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] }[ev.key];
+      if (nudge) {
+        ev.preventDefault();
+        send("deploy", { uid: u.id, x: u.x + nudge[0], y: u.y + nudge[1], h: u.h });
+      }
     };
   }
-  $("#prompt").innerHTML = promptHTML();
+  try {
+    $("#prompt").innerHTML = promptHTML();
+  } catch (err) {
+    console.error(err);
+    L.sub = null;
+    $("#prompt").innerHTML = `<p class="muted">Something in this prompt could not be shown.</p>${S.pending?.pid === S.you ? `<button class="cta" id="pass">Done</button>` : ""}`;
+  }
   $("#prompt").className = `scroll ${S.pending?.pid === S.you ? "prompt" : ""}`;
   $("#card").innerHTML = cardHTML();
   $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
@@ -442,7 +486,7 @@ function drawBoard() {
   const p = S.pending;
   if (p?.pid === S.you) {
     if (p.type === "attack") p.options.forEach((o) => highlight.add(o.target));
-    if (L.sub?.targets) L.sub.targets.forEach((t) => highlight.add(typeof t === "string" ? t : t.id));
+    for (const id of stepTargets().ids) highlight.add(id);
   }
   const A = S.attack || null;
   updateBoard(canvas, S, {
@@ -464,10 +508,14 @@ function onBoardClick(ev) {
     const s = unitById(L.selected);
     if (s?.owner === S.you) return send("deploy", { uid: s.id, x: pt.x, y: pt.y, h: s.h });
   }
-  // During a targeted choice, clicking a highlighted unit picks it.
-  if (u && L.sub?.targets && S.pending?.pid === S.you) {
-    const hit = L.sub.targets.find((t) => (typeof t === "string" ? t : t.id) === u.id);
-    if (hit) return chooseTarget(u.id);
+  // During a targeted choice, clicking a highlighted unit picks it for the current step.
+  const step = stepTargets();
+  if (u && step.ids.includes(u.id) && S.pending?.pid === S.you) {
+    if (step.kind === "command") {
+      L.sub.target = u.id;
+      return render();
+    }
+    return chooseTarget(u.id);
   }
   if (u && S.pending?.type === "attack" && S.pending.pid === S.you) {
     const opts = S.pending.options.filter((o) => o.target === u.id);
@@ -478,12 +526,22 @@ function onBoardClick(ev) {
   render();
 }
 
+/** The unit ids the current multi-step choice is asking for, and what kind of step it is. */
+function stepTargets() {
+  const o = L.sub;
+  if (!o || S.pending?.pid !== S.you) return { ids: [], kind: null };
+  if (o.a === "command" && !o.target) return { ids: o.targets.map((t) => t.id), kind: "command" };
+  if (o.a === "command" && !o.subA) return { ids: [], kind: null };
+  const spec = o.a === "command" ? o.targets.find((x) => x.id === o.target)?.subs.find((s) => s.a === o.subA) : o;
+  return { ids: (spec?.targets || []).filter((id) => typeof id === "string" && unitById(id)), kind: "target" };
+}
+
 function waitingText(p) {
   const who = esc(nameOf(p.pid));
   const u = p.uid ? unitById(p.uid) : null;
   return {
-    action: `${who} is choosing an action for ${esc(u?.name)}.`,
-    attack: `${who} is choosing a target for ${esc(u?.name)}.`,
+    action: `${who} is choosing an action for ${esc(u?.name ?? "an unseen unit")}.`,
+    attack: `${who} is choosing a target for ${esc(u?.name ?? "an unseen unit")}.`,
     attackMods: `${who} is modifying attack dice.`,
     defenseMods: `${who} is modifying defence dice.`,
   }[p.type];
@@ -546,6 +604,7 @@ function myPromptHTML(p) {
     return `<div class="label">Your attack · ${esc(u.name)}</div>
       <div class="ulist" style="margin:8px 0">${p.options.map((o, i) => {
         const t = unitById(o.target);
+        if (!t) return "";
         return `<button data-atk="${i}" data-hover="${t.id}"><span>${esc(t.name)} <span class="muted">${esc(nameOf(t.owner))}</span></span><span class="muted">${esc(u.weapons[o.weapon].name)} · R${o.range}</span></button>`;
       }).join("")}</div><button class="ghost" id="pass">Hold fire</button>`;
   }
@@ -569,22 +628,25 @@ function subChoiceHTML(u) {
   const o = L.sub;
   const back = `<button class="ghost" id="back">Back</button>`;
   if (o.a === "command" && !o.target) {
-    return `<div class="label">Command · pick a friendly unit</div><div class="ulist" style="margin:8px 0">${o.targets.map((t) => `<button data-cmdt="${t.id}">${esc(unitById(t.id).name)}</button>`).join("")}</div>${back}`;
+    return `<div class="label">Command · pick a friendly unit</div><div class="ulist" style="margin:8px 0">${o.targets.map((t) => `<button data-cmdt="${t.id}">${esc(unitName(t.id))}</button>`).join("")}</div>${back}`;
   }
   if (o.a === "command" && !o.subA) {
     const t = o.targets.find((x) => x.id === o.target);
-    return `<div class="label">Command ${esc(unitById(t.id).name)} to</div><div class="btns" style="margin:8px 0">${t.subs.map((s) => `<button data-cmds="${s.a}">${esc(ACTIONS[s.a].name)}</button>`).join("")}</div>${back}`;
+    if (!t) return `<p class="muted">That unit is no longer available.</p>${back}`;
+    return `<div class="label">Command ${esc(unitName(t.id))} to</div><div class="btns" style="margin:8px 0">${t.subs.map((s) => `<button data-cmds="${s.a}">${esc(ACTIONS[s.a].name)}</button>`).join("")}</div>${back}`;
   }
-  const spec = o.a === "command" ? o.targets.find((x) => x.id === o.target).subs.find((s) => s.a === o.subA) : o;
+  const spec = o.a === "command" ? o.targets.find((x) => x.id === o.target)?.subs.find((s) => s.a === o.subA) : o;
+  if (!spec) return `<p class="muted">That choice is no longer available.</p>${back}`;
   if (spec.dirs) {
     const name = { L: spec.a === "surge" ? "Bank left" : "Left", S: "Straight", R: spec.a === "surge" ? "Bank right" : "Right" };
     return `<div class="label">${esc(ACTIONS[spec.a].name)} · direction</div><div class="btns" style="margin:8px 0">${spec.dirs.map((d) => `<button data-dir="${d}">${name[d]}</button>`).join("")}</div>${back}`;
   }
-  return `<div class="label">${esc(ACTIONS[spec.a].name)} · pick a unit (or click it on the board)</div><div class="ulist" style="margin:8px 0">${spec.targets.map((id) => `<button data-tgt="${id}" data-hover="${id}">${esc(unitById(id).name)} <span class="muted">${esc(nameOf(unitById(id).owner))}</span></button>`).join("")}</div>${back}`;
+  return `<div class="label">${esc(ACTIONS[spec.a].name)} · pick a unit (or click it on the board)</div><div class="ulist" style="margin:8px 0">${spec.targets.filter((id) => unitById(id)).map((id) => `<button data-tgt="${id}" data-hover="${id}">${esc(unitName(id))} <span class="muted">${esc(nameOf(unitById(id).owner))}</span></button>`).join("") || `<p class="muted">No valid targets in sight.</p>`}</div>${back}`;
 }
 
 function chooseTarget(id) {
   const o = L.sub;
+  L.hoverTarget = null;
   if (o.a === "command") send("act", { a: "command", params: { target: o.target, sub: o.subA, subParams: { target: id } } });
   else send("act", { a: o.a, params: { target: id } });
 }
@@ -610,7 +672,7 @@ function diceHTML(A, live) {
   const res = A.result ? ` · ${A.result.strikes} Strike, ${A.result.rends} Rend` : "";
   return `<hr><div class="label">${A.ambush ? "Ambush! · " : ""}${live ? "Attack in progress" : "Last attack"} · R${A.range}${A.obstructed ? " · haze" : ""}${res}</div>
     <div style="font-size:13px;margin:4px 0">${esc(at?.name)} → ${esc(df?.name)}</div>
-    <div class="dice">${A.atk.map((f, i) => `<span class="die atk ${f} ${L.diceSel.has(i) ? "sel" : ""} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}" ${selectable ? `data-die="${i}" style="cursor:pointer"` : ""}>${iconSVG(DIE_ICON[f])}</span>`).join("")}</div>
+    <div class="dice">${A.atk.map((f, i) => `${selectable ? `<button class="die atk ${f} ${L.diceSel.has(i) ? "sel" : ""} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}" data-die="${i}" aria-pressed="${L.diceSel.has(i)}" aria-label="${f} die">${iconSVG(DIE_ICON[f])}</button>` : `<span class="die atk ${f} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}">${iconSVG(DIE_ICON[f])}</span>`}`).join("")}</div>
     <div class="dice" style="margin-top:4px">${A.def.map((f, i) => `<span class="die def ${f} ${rolled("d", i, f)}" title="${f}">${iconSVG(DIE_ICON[f])}</span>`).join("") || (live ? "<span class='muted'>defence not rolled yet</span>" : "<span class='muted'>no defence dice</span>")}${A.brace ? " <span class='tag'>brace</span>" : ""}</div>`;
 }
 

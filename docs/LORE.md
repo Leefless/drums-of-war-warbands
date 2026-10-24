@@ -38,7 +38,7 @@ So the Broken Marches are fought over by warbands: a commander, a few units, and
 The Marches are the shattered country between the old kingdoms, and everyone wants a piece of them. Three kinds of ground decide the fighting there:
 
 - **Ruins.** Fallen watchtowers, collapsed holds and hollowed-out chapels from the world before. They give cover and block the line, and rumor says some of them still remember their builders.
-- **Thickets.** Tangled growth that has spread unchecked since the Merging. Most armies must hack or wade through it. The Sylvan Courts do not.
+- **Forests.** Tangled growth that has spread unchecked since the Merging. Most armies must hack or wade through it. The Sylvan Courts do not.
 - **Rifts.** Open seams where the Calamity Realm shows through. Stepping near one is a risk. Using one is power, but never a free one.
 
 ---
@@ -51,7 +51,7 @@ The Marches are the shattered country between the old kingdoms, and everyone wan
 
 **What they want.** Their ground. Not conquest, but the return of every stone ever taken from them, and the right to hold it in peace.
 
-**How they fight.** Slowly, with the full weight of oath behind each step. Their top speed is 3, and every turn is a strain, because Dwarves do not turn: they face forward and advance. But they stop cleanly and they are Unyielding: a unit that halts or steps straight ahead may take a second action, to steel itself or brace. The Calamity cannot move a Dwarf who has decided not to be moved, and Brace tokens turn aside a blow after the dice have already fallen.
+**How they fight.** Slowly, with the full weight of oath behind each step. Most of them top out at speed 3, and every hard turn is a strain, because Dwarves do not turn: they face forward and advance. But they stop cleanly and they are Unyielding: a unit that halts or steps straight ahead may take a second action, to steel itself or brace. The Calamity cannot move a Dwarf who has decided not to be moved, and Brace tokens turn aside a blow after the dice have already fallen.
 
 - **Hold-Thane**: Oath-bound lord of a mountain hold. He leads from the front line and rarely retreats.
 - **Ironbreaker Shieldline**: Locked shields, rune-etched mail. They advance one step at a time and do not step back.
@@ -134,7 +134,7 @@ The Marches are the shattered country between the old kingdoms, and everyone wan
 
 **What they want.** Different things, held together by a shared understanding that the Marches belong to whatever the Rifts say they do. The Demons want more of the world. The Mages want more power. The Mutants want to stop being hunted.
 
-**How they fight.** With power that bites back. Overreach lets every unit take a second action, but then it rolls a Taint die, and a Strike costs 1 damage while a Rend is a critical wound. Channel banks Calamity charges, up to 2, that turn any die into a Rend. The Rifts themselves feed the Host: where other armies are burned by an open seam, a Calamity unit drinks a charge from it. Rift maneuvers teleport a unit straight ahead, ignoring everything in the way. Plain and white at low speed, red at the Rift jumps of 2 to 4. They are mighty and they are mortal, and the Calamity keeps the ledger.
+**How they fight.** With power that bites back. Overreach lets every unit take a second action, but then it rolls a Taint die, and a Strike costs 1 damage while a Rend is a critical wound. Channel banks Calamity charges, up to 2, that turn any die into a Rend. The Rifts themselves feed the Host: where other armies are burned by an open seam, a Calamity unit drinks a charge from it. Rift maneuvers teleport a unit straight ahead, ignoring everything in the way. Plain and white at low speed, mostly red on the longer Rift jumps. They are mighty and they are mortal, and the Calamity keeps the ledger.
 
 - **Demon of Calamity**: A thing from the Calamity Realm, wearing the shape of every nightmare at once.
 - **Spawn of Calamity**: Unstable flesh that bursts when it dies.

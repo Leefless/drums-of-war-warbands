@@ -63,7 +63,7 @@ export function playerColor(state, pid) {
 // ── Canvas sizing and hit-testing ────────────────────────────────────────────
 export function sizeCanvas(canvas) {
   const box = canvas.parentElement.getBoundingClientRect();
-  const side = Math.max(280, Math.floor(Math.min(box.width, box.height) - 24)); // minus .boardwrap padding
+  const side = Math.max(200, Math.floor(Math.min(box.width, box.height) - 24)); // minus .boardwrap padding
   const dpr = window.devicePixelRatio || 1;
   if (canvas.width !== Math.round(side * dpr)) {
     canvas.style.width = `${side}px`;
@@ -603,6 +603,14 @@ function displayPose(u, now) {
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
+/** Forget the last battle's units and animations (unit ids repeat across battles). */
+export function resetBoard() {
+  prevUnits = null;
+  prevAttackKey = null;
+  for (const k of ["moves", "effects", "floaters", "deaths"]) anim[k] = [];
+  anim.busyUntil = 0;
+  current = { canvas: null, state: null, opts: {} };
+}
 /**
  * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, zones: bool }
  */

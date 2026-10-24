@@ -6,18 +6,18 @@ import { BASE_SIZE, BOARD, corners, polyCircleOverlap, polyDistance, rangeBand, 
 export const TERRAIN = {
   hill: {
     name: "Hill",
-    up: "High ground: +1 maximum range, sees one band farther and over forests and ruins, +1 defence die against attackers below.",
+    up: "High ground: +1 maximum weapon range (up to range 4), sees one band farther and over forests and ruins, +1 defence die against attackers below.",
     down: "Climbing onto it costs 1 strain. A unit on a hill cannot hide.",
   },
   thicket: {
     name: "Forest",
     up: "Cover: +1 defence die inside. Blocks line of sight. Units inside can only be spotted from range 1.",
-    down: "Entering costs 1 strain (Sylvan units ignore this). Attacks made from inside roll 1 fewer die.",
+    down: "Entering costs 1 strain, and attacks made from inside roll 1 fewer die (Sylvan units ignore both).",
   },
   ruins: {
     name: "Ruins",
     up: "Cover: +1 defence die inside. Blocks line of sight.",
-    down: "Rubble: crossing it rolls an attack die for damage and the unit loses its actions.",
+    down: "Rubble: entering it rolls an attack die (Strike: 1 damage, Rend: 1 damage and a critical) and the unit loses its actions.",
   },
   lava: {
     name: "Lava",

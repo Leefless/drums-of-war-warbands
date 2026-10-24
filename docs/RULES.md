@@ -19,7 +19,9 @@ For the world and its armies, see [LORE.md](LORE.md).
   forests, ruins, lava, marsh, a rift and rocks (see section 8). The ground is
   one of several painted battlefields, chosen per battle.
 - Each player deploys from one table edge (south, north, west, east, in seat
-  order).
+  order), in a zone 150 deep. Units start in neat ranks; move them by clicking
+  inside the zone (or with the arrow keys) and rotate with Q and E. Bases may
+  not overlap when you press Ready.
 
 ## 2. Muster
 
@@ -53,6 +55,10 @@ No cost is set by hand: each unit's price is computed from its profile
 | Init | Higher initiative moves later and shoots first. |
 | Actions | Each action on the bar, with red actions and links at reduced value. |
 | Abilities | A fixed value per ability (Thrall subtracts). |
+
+Champions cost 15% more than their computed value: one unique, optional slot of
+concentrated power. The coefficients were tuned on 1,440-game bot simulations so
+that each army wins roughly 47 to 55% of random 100-point battles.
 
 ## 3. Unit profile
 
@@ -142,7 +148,7 @@ it may immediately take the second as part of the same action.
 | Guard | Gain a Guard token. Spend it while defending to add one Parry. |
 | Brace | Gain a Brace token. Spend it after defence dice to cancel one Strike. |
 | Mark | Mark an enemy at range 1 to 3. When attacking it, spend the Mark to reroll any attack dice. |
-| Surge | Move a 1-straight or 1-bank. Fails if it would overlap or leave the table. |
+| Surge | Move a 1-straight or 1-bank. Fails if it would overlap a unit or rocks, or leave the table. Terrain it enters still applies (including a hill climb). |
 | Sidestep | Slide sideways one base width plus 40. Same restriction. |
 | Command | A friendly unit at range 1 to 2 (not Strained) takes one free white action. |
 | Mend | Restore 1 ward to yourself or a friend at range 1. |
@@ -159,13 +165,17 @@ board to see its effects.
 
 | Terrain | Upside | Downside |
 | --- | --- | --- |
-| **Hill** | High ground: +1 maximum weapon range, sees 1 band farther and over forests and ruins, and +1 defence die against attackers not on a hill. | Climbing onto it gives 1 strain. A unit on a hill can never be concealed. |
-| **Forest** | Cover: +1 defence die inside. Blocks line of sight. Units inside are concealed. | Touching it gives 1 strain (Sylvan units ignore this). Attacks made from inside roll 1 fewer die (Sylvan excepted). |
-| **Ruins** | Cover: +1 defence die inside. Blocks line of sight. | Crossing it rolls an attack die (Strike = 1 damage, Rend = 1 critical) and the unit loses its actions. |
+| **Hill** | High ground: +1 maximum weapon range (up to 4), sees 1 band farther and over forests and ruins, and +1 defence die against attackers not on a hill. | Climbing onto it gives 1 strain. A unit on a hill can never be concealed. |
+| **Forest** | Cover: +1 defence die inside. Blocks line of sight. Units inside are concealed. | Entering it gives 1 strain, and attacks made from inside roll 1 fewer die (Sylvan units ignore both). |
+| **Ruins** | Cover: +1 defence die inside. Blocks line of sight. | Entering it rolls an attack die (Strike = 1 damage, Rend = 1 damage and a critical) and the unit loses its actions. |
 | **Lava** | Heat haze: attacks that cross it give the defender +1 die. | Burns for 1 damage, and a unit that enters it stops 40 into it. Calamity units are not burned and gain a Calamity charge instead. |
 | **Marsh** | Mist: attacks that cross it give the defender +1 die. | A unit that enters it stops 40 into it, and units standing in it roll 1 fewer defence die. |
 | **Rift** | Calamity units gain a Calamity charge when they touch it. | Others roll an attack die: Omen = 1 strain, Strike or Rend = damage. |
 | **Rocks** | Block line of sight completely: hide behind them. | Impassable: a moving unit stops before touching them and loses its actions, like a bump. |
+
+Terrain effects trigger when a unit **enters** a piece (by maneuver, Surge or
+Sidestep), not every round it stays there. Standing effects (cover, high
+ground, concealment, marsh footing) apply for as long as the unit is in it.
 
 Flying and Ethereal units ignore terrain while moving (no strain, slowing,
 damage or climbing), but still cannot end a move on rocks.
@@ -178,7 +188,9 @@ is on a hill.
 
 From deployment onward, each player only sees the enemy units their own units
 can spot; the others are not shown on that player's board or named in their
-log. (The **Watch only** view sees everything.)
+log. A **Watch only** screen sees only what every player can see, unless the
+host ticks **Spectators see all** in the muster settings (for a table TV that
+no player can glance at).
 
 - A unit spots enemies within **3 range bands** (4 from a hill) in line of
   sight.
@@ -198,13 +210,13 @@ log. (The **Watch only** view sees everything.)
 1. **Declare** a target and weapon.
 2. **Roll attack dice:** weapon dice, +1 at range 1 (not for artillery), +1 for
    an ambush, plus abilities (Bane, Brutal, Swarm, Charge, Berserk), minus Broken
-   Arms, minus 1 if attacking from inside a forest.
+   Arms, minus 1 if attacking from inside a forest. Always at least 1 die.
 3. **Attacker modifies:** Steel, Mark, Frenzy, Inspire, Channel. Each die may be
    rerolled only once.
 4. **Roll defence dice:** Defence, +1 at range 3 or more (not vs artillery),
    +1 for haze (lava or marsh between), +1 in cover, +1 on high ground against
    an attacker below, -1 standing in marsh, plus Elusive, Shieldwall or
-   Guardian, minus 1 for Pierce.
+   Guardian, +1 for Concord Discipline, minus 1 for Pierce.
 5. **Defender modifies:** Steel, Guard, Brace.
 6. **Cancel:** each Parry cancels a Strike, then Rends. Brace cancels one more
    Strike.
@@ -216,7 +228,7 @@ log. (The **Watch only** view sees everything.)
 | Shaken | Gain 1 strain. |
 | Bleeding | Take 1 damage in the End phase. |
 | Staggered | No actions during its next activation. |
-| Broken Arms | Rolls 1 fewer attack die for the rest of the battle. |
+| Broken Arms | Rolls 1 fewer attack die for the rest of the battle (stacks). |
 
 ## 11. The six armies
 
@@ -227,12 +239,12 @@ Raise (Umbral Covenant).
 
 | Army | Dial | Action economy |
 | --- | --- | --- |
-| **Iron Holds** | Top speed 3, white Stop, every turn red. | **Unyielding:** after a Stop or 1-straight, take a second action (Steel or Brace). Brace action. |
-| **Sylvan Courts** | Speeds 1 to 4, blue banks, white turns. | **Fleetfoot:** actions link into red Sidestep or Surge. **Wildwood:** ignore Thickets. |
+| **Iron Holds** | Mostly top speed 3, white Stop, red hard turns (rams and gyros reach 4). | **Unyielding:** after a Stop or 1-straight, take a second action (Steel or Brace). Brace action. |
+| **Sylvan Courts** | Speeds 1 to 4 (cavalry and flyers 5), blue banks, white turns. | **Fleetfoot:** actions link into red Sidestep or Surge. **Wildwood:** forests never hinder them. |
 | **Greenskin Warhorde** | No Stop, blue fast straights, red hard turns. | **Mob Rule:** Strained only at 2. **Momentum:** speed 4+ gives Frenzy. No Guard. |
-| **Umbral Covenant** | Speeds 1 to 3, all white, no blue. | **Puppet Strings:** thralls have no actions; masters take 2 and Command thralls to Steel, Guard or Surge. **Deathless:** strain becomes 1 damage instead. |
-| **Calamity Host** | Low and white, plus red Rift jumps. | **Overreach:** a second action, then roll Taint (Strike = 1 damage, Rend = critical). **Channel** charges. |
-| **Dawnward Concord** | Balanced 1 to 4. | **Rally** while Strained. Commanders and Command. Bane vs undead and Calamity. |
+| **Umbral Covenant** | Mostly speeds 1 to 3, white turns, no blue. | **Puppet Strings:** thralls have no actions; masters take 2 (and may Command twice) to drive thralls to Steel, Guard or Surge. **Deathless:** strain becomes 1 damage instead. |
+| **Calamity Host** | Low and white, plus Rift jumps (mostly red). | **Overreach:** a second action, then roll Taint (Strike = 1 damage, Rend = 1 damage and a critical). **Channel** charges. |
+| **Dawnward Concord** | Balanced 1 to 4. | **Discipline:** +1 defence die while another friendly unit is at range 1. **Rally** while Strained. Commanders and Command. Bane vs undead and Calamity. |
 
 ## 12. Abilities
 
@@ -245,20 +257,20 @@ Raise (Umbral Covenant).
 | Ram | When this unit bumps an enemy, that enemy suffers 1 damage. |
 | Swarm | +1 attack die if another friendly Swarm unit also has the target in its front arc at range 1 to 2. |
 | Regenerate | End phase: roll an attack die; Strike or Rend recovers 1 wound. |
-| Master | Takes 2 actions each activation. |
+| Master | Takes 2 actions each activation, and may Command twice (two different units). |
 | Raise | Gains a Soul (max 3) whenever a unit dies at range 1 to 2. End phase: spend Souls to heal thralls at range 2. |
 | Thrall | No actions of its own. |
 | Fear | Start of Engagement: each enemy at range 1 gains 1 strain (undead are immune). |
 | Ethereal | Moves through units and obstacles without effect; still cannot end on a unit. |
 | Unstable | When destroyed, every unit at range 1 suffers 1 damage. |
-| Elusive | +1 defence die at range 2 and 3. |
+| Elusive | +1 defence die at range 2 or more. |
 | Bane | +1 attack die against undead and Calamity units. |
 | Brutal | +1 attack die at range 1. |
 | Charge | +1 attack die at range 1 after a maneuver of speed 3 or more this round. |
 | Sniper | Targets do not gain the range 3 defence bonus. |
 | Armored | An attack that would deal 2 or more damage deals 1 less. |
 | Flying | Ignores obstacles when moving. |
-| Healer | End phase: heal 1 wound on the most wounded friendly unit at range 1. |
+| Healer | End phase: heal 1 wound on the friendly unit at range 1 with the lowest share of its wounds left. |
 | Berserk | +1 attack die while wounded. |
 | Stealthy | Cannot be attacked from range 3 or more. |
 | Guardian | Other friendly units at range 1 roll 1 extra defence die. |
@@ -266,12 +278,15 @@ Raise (Umbral Covenant).
 | Poison | An attack that deals damage also inflicts Bleeding. |
 | Blast | An attack that deals damage also deals 1 damage to every other enemy at range 1 of the target. |
 | Fearless | Immune to Fear and to the Shaken critical. |
-| Warcry | Start of Engagement: friendly units at range 1 to 2 (and itself) gain a Steel token. |
+| Warcry | Start of Engagement: this unit and friendly units at range 1 to 2 each have at least one Steel token. |
 
 ## 13. Victory
 
 - The battle ends when only one warband remains, or after the round limit.
 - **Victory points** = the points cost (with upgrades) of every enemy unit you
   destroyed, plus fleeing enemies.
-- On the round limit, the most VP wins; ties go to the most points still on
-  the table.
+- On the round limit, the warband with the most VP **among those still on the
+  field** wins; ties go to the most points still on the table.
+- Deaths in the End phase (Bleeding) count immediately. A Poison kill scores
+  for the poisoner; terrain, Taint and strain deaths score for nobody, and a
+  unit that flees scores for every opponent.

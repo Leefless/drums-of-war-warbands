@@ -5,6 +5,10 @@ Movement and turn structure follow the X-Wing Miniatures Game: secret
 maneuver dials, templates, initiative order, and dice with token modifiers.
 2 to 4 players each play from their own computer on the same Wi-Fi.
 
+Six armies of 25+ units and 10+ champions each, an army builder with saved
+lists, terrain with tactical upsides and downsides, and fog of war (you only see
+what your units can see).
+
 - **Rules:** [docs/RULES.md](docs/RULES.md)
 - **Lore:** [docs/LORE.md](docs/LORE.md)
 
@@ -34,11 +38,14 @@ testing on one machine.
 
 ## Art
 
-Painted art lives in `public/art/`: unit portraits (`units/`), faction banners
+Painted art lives in `public/art/` (portraits, banners, three battlefield maps
+in `ground/`, six variants per terrain kind in `terrain/`, ground `decor/`): unit portraits (`units/`), faction banners
 (`banners/`), terrain sprites (`terrain/`), `title.jpg` and `ground.jpg`. It was
 generated with ChatGPT (image generation on a Plus subscription), then sliced
 and resized for the game. Every file is optional: delete one and the game falls
-back to its built-in vector art. `npm run art` can regenerate the portraits
+back to its built-in vector art. New art can be dropped into the `Art/` folder
+(named `dow-art__<path with __>`) and installed with `npm run install-art`;
+`receive.html` lets a browser tab on this computer hand files to the server. `npm run art` can regenerate the portraits
 and sprites through the OpenAI Images API instead, if a key is set in `.env`.
 
 ## Layout
@@ -54,7 +61,8 @@ and sprites through the OpenAI Images API instead, if a key is set in `.env`.
 | `shared/engine.js` | Authoritative rules engine and phase state machine. |
 | `server/index.js` | HTTP + WebSocket server; one process is one table. |
 | `public/` | Browser client (vanilla JS, canvas board). |
-| `test/` | `npm test`: rules, rosters, costs, abilities, and random battles using all 247 units. |
+| `shared/terrain.js` | Terrain kinds and effects, line of sight, fog-of-war vision. |
+| `test/` | `npm test`: 25 tests covering rules, rosters, costs, abilities, terrain, fog, and random battles using all 247 units. |
 | `data/armies.json` | Saved armies (created on first save, not in git). |
 
 The server is authoritative: browsers send intents, the engine validates them,
