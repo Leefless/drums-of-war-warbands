@@ -2,6 +2,7 @@
 // authoritative and sends a fresh filtered state after every change.
 import { ABILITIES, ACTIONS, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
+import { PRESETS } from "/shared/presets.js";
 import { parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, strained } from "/shared/engine.js";
 import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
@@ -160,6 +161,32 @@ const draftKey = (fid) => `dow.draft.${fid}`;
 const unitIn = (fid, id) => FACTIONS[fid]?.units.find((u) => u.id === id);
 
 /** Drop units that no longer exist and upgrades a unit can no longer take. */
+/** Prebuilt warbands for the muster screen: one card per play style, loaded with one click. */
+function presetsHTML(f, locked) {
+  const list = PRESETS[f.id] || [];
+  if (!list.length) return "";
+  const same = (a, b) => a.length === b.length && a.every((e, i) => e.unit === b[i].unit && (e.upgrade || null) === (b[i].upgrade || null));
+  return `<div class="presets"><div class="label">Prebuilt warbands · balanced 100 point lists, one per play style</div>
+    <div class="pgrid">${list.map((pr) => {
+      const v = validateArmy(f.id, pr.list, S.settings.budget);
+      const counts = new Map();
+      for (const e of pr.list) {
+        const u = unitIn(f.id, e.unit);
+        if (u) counts.set(u, (counts.get(u) || 0) + 1);
+      }
+      const champ = [...counts.keys()].find((u) => u.champion);
+      const troops = [...counts].filter(([u]) => !u.champion).map(([u, n]) => `${n > 1 ? `${n} ` : ""}${esc(u.name)}`).join(", ");
+      const on = same(L.draft, pr.list);
+      return `<div class="pcard ${on ? "on" : ""}" style="--fc:${f.color}">
+        <div class="lrow"><span class="label">${esc(pr.style)}</span><span class="num muted">${v.cost} pts</span></div>
+        <h4>${esc(pr.name)}</h4>
+        <p class="pblurb">${esc(pr.blurb)}</p>
+        <p class="pcomp">${champ ? `<b>${esc(champ.name)}</b> leads ` : ""}${troops}</p>
+        <button class="small ${on ? "" : "cta"}" data-preset="${esc(pr.id)}" ${locked || !v.ok || on ? "disabled" : ""}>${on ? "Loaded" : v.ok ? "Use this army" : `Needs a ${v.cost} pt budget`}</button>
+      </div>`;
+    }).join("")}</div></div>`;
+}
+
 function cleanList(fid, list) {
   if (!Array.isArray(list)) return [];
   return list.filter((e) => e && unitIn(fid, e.unit)).map((e) => {
@@ -309,6 +336,7 @@ function renderMuster(app) {
         <div><div class="label">Step 2 · Muster</div><h2>${esc(f.name)}</h2></div>
         <p style="margin:0"><b>Action economy.</b> ${esc(f.economy)}</p>
         <p style="margin:0" class="muted"><b>Dial.</b> ${esc(f.dialNote)}</p>
+        ${presetsHTML(f, locked)}
         <div class="rtabs" role="tablist">
           <button role="tab" data-tab="champions" class="${L.tab === "champions" ? "on" : ""}">Champions <span class="muted">${f.units.filter((u) => u.champion).length}</span></button>
           <button role="tab" data-tab="units" class="${L.tab !== "champions" ? "on" : ""}">Units <span class="muted">${f.units.filter((u) => !u.champion).length}</span></button>
@@ -364,6 +392,12 @@ function wireMuster(app, f) {
   });
   on("[data-rm]", "onclick", (b) => { L.draft.splice(Number(b.dataset.rm), 1); changed(); });
   on("[data-up]", "onchange", (s) => { L.draft[Number(s.dataset.up)].upgrade = s.value || null; changed(); });
+  on("[data-preset]", "onclick", (b) => {
+    const pr = (PRESETS[f.id] || []).find((x) => x.id === b.dataset.preset);
+    if (!pr) return;
+    Object.assign(L, { draft: cleanList(f.id, pr.list), armyName: pr.name, loadedId: null });
+    changed();
+  });
   on("[data-load]", "onclick", (b) => {
     const a = S.armies.find((x) => x.id === b.dataset.load);
     if (!a) return;
@@ -441,7 +475,7 @@ function dialHTML(dial, current, mini = false, strainedNow = false) {
 function renderBattle(app) {
   if (L.mode !== "battle") {
     L.mode = "battle";
-    app.innerHTML = `<div class="battle"><div class="boardcol"><div class="boardwrap"><canvas id="board"></canvas></div><div class="roster" id="roster"></div></div>
+    app.innerHTML = `<div class="battle"><div class="boardcol"><div class="boardwrap"><canvas id="board"></canvas></div><div class="unitbar" id="roster"></div></div>
       <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div><div id="umodal"></div>`;
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
@@ -875,7 +909,7 @@ function unitModalHTML(u) {
     ...(u.upgrade ? [row(++n, "crown", UPGRADES[u.upgrade].name, "Upgrade, bought at muster", esc(UPGRADES[u.upgrade].text), `<p><b>Type:</b> Upgrade</p>`)] : []),
   ];
   return `<header class="cbanner">
-      <span class="medal big">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "icon")}${artTag(`units/${u.type}.png`, "")}</span>
+      <span class="medal lg">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "icon")}${artTag(`units/${u.type}.png`, "")}</span>
       <div class="cname"><h3>${esc(u.name)}</h3><div class="csub">${esc(def?.role || (u.champion ? "Champion" : "Unit"))} · ${esc(f.name)}</div></div>
       <div class="cbrand">Drums<small>of</small>War</div>
       <button class="cclose" data-close aria-label="Close">×</button>

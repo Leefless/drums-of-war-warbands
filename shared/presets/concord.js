@@ -1,0 +1,61 @@
+// Prebuilt warbands for the Dawnward Concord. Schema: see shared/presets.js.
+export const presets = [
+  {
+    id: "concord-dawn-muster",
+    name: "The Dawn Muster",
+    style: "Combined arms",
+    blurb: "Halberds hold the centre, crossbows and yeomen shoot over their shoulders, and a Knight-Captain keeps everyone moving. Stay close so Discipline keeps your defence dice up, and Rally strain away.",
+    list: [
+      { unit: "captain", upgrade: null },
+      { unit: "halberdiers", upgrade: "hardened" },
+      { unit: "halberdiers", upgrade: null },
+      { unit: "crossbows", upgrade: null },
+      { unit: "crossbows", upgrade: null },
+      { unit: "conLongbows", upgrade: null },
+      { unit: "conPriests", upgrade: null },
+    ],
+  },
+  {
+    id: "concord-gun-line",
+    name: "Powder and Prayer",
+    style: "Firing line",
+    blurb: "Handgunners and longbows pour fire into anything that closes, with a Knight-Captain to steady them, priests to mend the line and militia to screen. Pick a hill, keep the line tight and let the enemy walk into it.",
+    list: [
+      { unit: "conHandgunners", upgrade: null },
+      { unit: "conHandgunners", upgrade: null },
+      { unit: "captain", upgrade: null },
+      { unit: "conLongbows", upgrade: null },
+      { unit: "conLongbows", upgrade: null },
+      { unit: "conMilitia", upgrade: null },
+      { unit: "conPriests", upgrade: null },
+    ],
+  },
+  {
+    id: "concord-lance-charge",
+    name: "The Dawnward Lance",
+    style: "Cavalry charge",
+    blurb: "Two lances of knights, light horse on both flanks and a Pegasus rider to strike where it hurts. Hit hard on the first turns before the enemy can set, and keep a priest close for the wounded.",
+    list: [
+      { unit: "conKnights", upgrade: "hardened" },
+      { unit: "conKnights", upgrade: "hardened" },
+      { unit: "conLightHorse", upgrade: null },
+      { unit: "conLightHorse", upgrade: null },
+      { unit: "conPegasusKnights", upgrade: null },
+      { unit: "conPriests", upgrade: null },
+    ],
+  },
+  {
+    id: "concord-witch-hunt",
+    name: "The Cleansing Hunt",
+    style: "Elite strike",
+    blurb: "Inquisitor Roe marks the prey, the Witch Hunter Cadre and hounds run it down. A small, quick force with sharp eyes: pick targets, strike first and do not stand in the open.",
+    list: [
+      { unit: "conHawkEye", upgrade: null },
+      { unit: "hunters", upgrade: "veteran" },
+      { unit: "hunters", upgrade: null },
+      { unit: "hunters", upgrade: null },
+      { unit: "conHounds", upgrade: null },
+      { unit: "conHounds", upgrade: null },
+    ],
+  },
+];

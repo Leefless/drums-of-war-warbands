@@ -1,0 +1,58 @@
+// Prebuilt warbands for the Sylvan Courts. Schema: see shared/presets.js.
+export const presets = [
+  {
+    id: "sylvan-glade-court",
+    name: "The Glade Court",
+    style: "All-rounder",
+    blurb: "A balanced court under the Lady of the Glade: archers behind a spear line, knights and blades to strike. Use the Lady's command to keep units together and let the archers pick targets while the Eternal Guard hold the centre.",
+    list: [
+      { unit: "lady", upgrade: null },
+      { unit: "wardens", upgrade: null },
+      { unit: "sylEternalGuard", upgrade: "hardened" },
+      { unit: "bladesingers", upgrade: null },
+      { unit: "thornriders", upgrade: "veteran" },
+    ],
+  },
+  {
+    id: "sylvan-moonlit-volley",
+    name: "The Moonlit Volley",
+    style: "Archery gunline",
+    blurb: "Three ranks of Glade Wardens behind the Seaguard, with a Starweaver for burst damage and Dewkeepers to mend the line. Mark targets, shoot, then Sidestep out of reach. Keep the Seaguard in front and never let the enemy reach the bows.",
+    list: [
+      { unit: "wardens", upgrade: null },
+      { unit: "wardens", upgrade: null },
+      { unit: "wardens", upgrade: null },
+      { unit: "sylSeaGuard", upgrade: null },
+      { unit: "starweaver", upgrade: null },
+      { unit: "sylSandrootDewkeepers", upgrade: null },
+    ],
+  },
+  {
+    id: "sylvan-stormwing-raid",
+    name: "The Stormwing Raid",
+    style: "Fast flankers",
+    blurb: "Eagle Riders, Thornriders and light skirmishers strike from every side at once. Pick off shooters and stragglers, then Surge clear before the line can answer. Fragile, so never trade evenly.",
+    list: [
+      { unit: "sylEagleRiders", upgrade: null },
+      { unit: "sylEagleRiders", upgrade: null },
+      { unit: "thornriders", upgrade: null },
+      { unit: "sylElkOutriders", upgrade: null },
+      { unit: "sylSpriteSwarm", upgrade: null },
+      { unit: "sylWardancers", upgrade: null },
+      { unit: "sylGreatEagle", upgrade: null },
+    ],
+  },
+  {
+    id: "sylvan-dawnshield-guard",
+    name: "The Dawnshield Guard",
+    style: "Elite few",
+    blurb: "Prince Eldarion and a handful of the finest blades, backed by Dewkeepers to mend wounds. Few bodies, so protect each one: fight where the Dewkeepers can reach and let the Phoenix Guard hold the ground.",
+    list: [
+      { unit: "sylEldarionDawnshield", upgrade: null },
+      { unit: "sylPhoenixGuard", upgrade: null },
+      { unit: "bladesingers", upgrade: null },
+      { unit: "sylSandrootDewkeepers", upgrade: null },
+      { unit: "sylBriarSlingers", upgrade: null },
+    ],
+  },
+];

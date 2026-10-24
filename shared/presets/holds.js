@@ -1,0 +1,60 @@
+// Prebuilt warbands for the Iron Holds. Schema: see shared/presets.js.
+export const presets = [
+  {
+    id: "holds-hearth-and-hammer",
+    name: "Hearth and Hammer",
+    style: "All-rounder",
+    blurb: "A Thane, a shield line, Longbeards, two gun ranks and a screen of Beardlings and Miners. Hold the centre with the Ironbreakers and Longbeards, shoot what walks into the open, and let the Thane's Command keep everything moving.",
+    list: [
+      { unit: "thane", upgrade: null },
+      { unit: "ironbreakers", upgrade: null },
+      { unit: "holdLongbeards", upgrade: null },
+      { unit: "gunners", upgrade: null },
+      { unit: "holdThunderers", upgrade: null },
+      { unit: "holdBeardlings", upgrade: null },
+      { unit: "holdMiners", upgrade: null },
+    ],
+  },
+  {
+    id: "holds-unbroken-wall",
+    name: "The Unbroken Wall",
+    style: "Defensive line",
+    blurb: "The Thane anchors two Ironbreaker blocks and a rank of Longbeards, with Beardlings to fill every gap and Miners to guard the flank. Plant it on an objective, Brace, and let the enemy bleed on the shields.",
+    list: [
+      { unit: "thane", upgrade: null },
+      { unit: "ironbreakers", upgrade: null },
+      { unit: "ironbreakers", upgrade: null },
+      { unit: "holdLongbeards", upgrade: null },
+      { unit: "holdBeardlings", upgrade: null },
+      { unit: "holdBeardlings", upgrade: null },
+      { unit: "holdBeardlings", upgrade: null },
+      { unit: "holdMiners", upgrade: null },
+    ],
+  },
+  {
+    id: "holds-grudge-battery",
+    name: "The Grudge Battery",
+    style: "Artillery gunline",
+    blurb: "Brokkr Ironbrow commands a line of long guns and cannon with an Organ Gun for close work. Open fire at maximum range, Mark your target, and trade ground for shots.",
+    list: [
+      { unit: "holdBrokkr", upgrade: null },
+      { unit: "holdThunderers", upgrade: null },
+      { unit: "gunners", upgrade: null },
+      { unit: "holdOrganGun", upgrade: null },
+      { unit: "grudgecannon", upgrade: "hardened" },
+    ],
+  },
+  {
+    id: "holds-mountain-charge",
+    name: "Down From the Mountain",
+    style: "Fast strike",
+    blurb: "Jarl Skarn leads bears and rams in a hard first charge, three blocks of rams and bears together. Hit one wing together on turn two, because this list cannot afford a long fight.",
+    list: [
+      { unit: "holdBearLord", upgrade: null },
+      { unit: "holdBearRiders", upgrade: null },
+      { unit: "holdRamRiders", upgrade: null },
+      { unit: "holdRamRiders", upgrade: null },
+      { unit: "holdRamRiders", upgrade: null },
+    ],
+  },
+];

@@ -140,6 +140,14 @@ main { flex: 1; min-height: 0; }
 .coin .icon { width: 11px; height: 11px; vertical-align: 0; }
 .muster { display: grid; grid-template-columns: 1fr 340px; gap: 20px; margin-top: 20px; align-items: start; }
 .roster { display: grid; gap: 8px; }
+.presets { display: grid; gap: 6px; }
+.pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.pcard { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; background: var(--texture), var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--fc); border-radius: 2px; }
+.pcard.on { outline: 2px solid var(--accent); outline-offset: -2px; }
+.pcard h4 { margin: 0; font: 700 17px/1.2 var(--display); }
+.pcard .pblurb { margin: 0; font-size: 14.5px; color: var(--ink-2); }
+.pcard .pcomp { margin: 0; font-size: 13px; color: var(--ink-3); flex: 1; }
+.pcard button { align-self: flex-start; margin-top: 4px; }
 .ucard { background: var(--texture), var(--panel); border: 1px solid var(--line); border-top: 2px solid var(--accent); border-radius: 2px; padding: 12px; display: grid; gap: 6px;
   box-shadow: inset 0 0 0 1px var(--inset), 0 1px 4px var(--shade); }
 .ucard .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
@@ -159,8 +167,8 @@ main { flex: 1; min-height: 0; }
 .battle { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100%; }
 .boardcol { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .boardcol .boardwrap { flex: 1; }
-.roster { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--texture), var(--panel); }
-.roster:empty { display: none; }
+.unitbar { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--texture), var(--panel); }
+.unitbar:empty { display: none; }
 .rchip { position: relative; padding: 2px; border: 2px solid var(--fc); border-radius: 3px; background: var(--raise); display: flex; flex-direction: column; gap: 2px; }
 .rchip.on { outline: 2px solid var(--accent); outline-offset: 1px; }
 .rchip .portrait { border: 0; }
@@ -180,7 +188,7 @@ main { flex: 1; min-height: 0; }
 .cbrand small { display: block; font-size: 9px; letter-spacing: 0.2em; }
 .cclose { align-self: flex-start; background: transparent; border: 1px solid #C9A227; color: #F2E6C8; width: 30px; height: 30px; padding: 0; font-size: 20px; line-height: 1; }
 .medal { position: relative; flex: none; width: 58px; height: 58px; border-radius: 50%; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; background: radial-gradient(circle at 35% 30%, var(--fc-mid), var(--fc-deep)); color: #E8C76A; border: 3px solid #C9A227; box-shadow: 0 0 0 2px var(--fc-deep), 0 3px 8px rgba(0, 0, 0, 0.45); }
-.medal.big { width: 76px; height: 76px; }
+.medal.lg { width: 76px; height: 76px; }
 .medal img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .cbody { padding: 14px 18px 6px; display: grid; gap: 12px; }
 .cintro { margin: 0; text-align: center; font: italic 17px/1.4 var(--sans); color: #3A2E20; }
