@@ -5,6 +5,8 @@ export const presets = [
     name: "Hearth and Hammer",
     style: "All-rounder",
     blurb: "A Thane, a shield line, Longbeards, two gun ranks and a screen of Beardlings and Miners. Hold the centre with the Ironbreakers and Longbeards, shoot what walks into the open, and let the Thane's Command keep everything moving.",
+    items: ["holds-great-book-of-grudges", "holds-grudgebearer-hammer", "holds-gromril-plate", "holds-ironbrow-command-standard", "holds-runic-powder-charge", "holds-ancestors-brooch"],
+    terrain: ["hill", "ruins"],
     list: [
       { unit: "thane", upgrade: null },
       { unit: "ironbreakers", upgrade: null },
@@ -17,9 +19,12 @@ export const presets = [
   },
   {
     id: "holds-unbroken-wall",
+    gear: 0.01, // share of DP on magic items, tuned for balance (1 = default)
     name: "The Unbroken Wall",
     style: "Defensive line",
     blurb: "The Thane anchors two Ironbreaker blocks and a rank of Longbeards, with Beardlings to fill every gap and Miners to guard the flank. Plant it on an objective, Brace, and let the enemy bleed on the shields.",
+    items: ["holds-crown-of-the-unmoved", "holds-stoneheart-amulet", "holds-runemail-of-stone", "holds-grudgebearer-hammer", "holds-banner-of-the-unbroken-hold", "holds-gromril-plate"],
+    terrain: ["block"], // one rock to anchor on: more terrain cost the second Ironbreaker block (24% vs 51%),
     list: [
       { unit: "thane", upgrade: null },
       { unit: "ironbreakers", upgrade: null },
@@ -36,6 +41,8 @@ export const presets = [
     name: "The Grudge Battery",
     style: "Artillery gunline",
     blurb: "Brokkr Ironbrow commands a line of long guns and cannon with an Organ Gun for close work. Open fire at maximum range, Mark your target, and trade ground for shots.",
+    items: ["holds-ironbrow-siege-sight", "holds-runic-powder-charge", "holds-swivel-mount", "holds-rune-of-far-reaching", "holds-rune-of-forge-fire"],
+    terrain: ["hill", "block"],
     list: [
       { unit: "holdBrokkr", upgrade: null },
       { unit: "holdThunderers", upgrade: null },
@@ -49,6 +56,8 @@ export const presets = [
     name: "Down From the Mountain",
     style: "Fast strike",
     blurb: "Jarl Skarn leads bears and rams in a hard first charge, three blocks of rams and bears together. Hit one wing together on turn two, because this list cannot afford a long fight.",
+    items: ["holds-ancestral-hammer", "holds-ram-lance", "holds-iron-capped-horns", "holds-hold-iron-barding", "holds-anvil-heart-of-grungni"],
+    terrain: ["block", "hill"],
     list: [
       { unit: "holdBearLord", upgrade: null },
       { unit: "holdBearRiders", upgrade: null },

@@ -259,6 +259,6 @@ export function validateArmy(factionId, list, budget, buys = []) {
   if (champions > 1) errors.push("Only one champion per army.");
   if (regulars > limits.units) errors.push(`No more than ${limits.units} units plus a champion.`);
   if (relics > 1) errors.push("Only one relic per army.");
-  if (cost > budget) errors.push(`Over budget: ${cost} / ${budget}.`);
+  if (cost > budget) errors.push(`Over the DP limit: ${cost} / ${budget} DP.`);
   return { ok: errors.length === 0, cost, errors };
 }

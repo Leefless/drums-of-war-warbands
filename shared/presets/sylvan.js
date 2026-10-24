@@ -5,6 +5,8 @@ export const presets = [
     name: "The Glade Court",
     style: "All-rounder",
     blurb: "A balanced court under the Lady of the Glade: archers behind a spear line, knights and blades to strike. Use the Lady's command to keep units together and let the archers pick targets while the Eternal Guard hold the centre.",
+    items: ["sylvan-crown-of-the-glade","sylvan-oakheart-shield","sylvan-glade-standard","sylvan-heartwood-spear","sylvan-dewdrop-charm"],
+    terrain: ["hill", "thicket"],
     list: [
       { unit: "lady", upgrade: null },
       { unit: "wardens", upgrade: null },
@@ -18,6 +20,8 @@ export const presets = [
     name: "The Moonlit Volley",
     style: "Archery gunline",
     blurb: "Three ranks of Glade Wardens behind the Seaguard, with a Starweaver for burst damage and Dewkeepers to mend the line. Mark targets, shoot, then Sidestep out of reach. Keep the Seaguard in front and never let the enemy reach the bows.",
+    items: ["sylvan-moonsilver-arrows","sylvan-starfall-staff","sylvan-windcut-bow","sylvan-leafweave-cloak","sylvan-emerald-ward"],
+    terrain: ["hill", "thicket"],
     list: [
       { unit: "wardens", upgrade: null },
       { unit: "wardens", upgrade: null },
@@ -32,6 +36,8 @@ export const presets = [
     name: "The Stormwing Raid",
     style: "Fast flankers",
     blurb: "Eagle Riders, Thornriders and light skirmishers strike from every side at once. Pick off shooters and stragglers, then Surge clear before the line can answer. Fragile, so never trade evenly.",
+    items: ["sylvan-stormlance-tip","sylvan-eagle-barding","sylvan-hunters-knot","sylvan-gale-steed","sylvan-windcut-bow"],
+    terrain: ["hill", "block"],
     list: [
       { unit: "sylEagleRiders", upgrade: null },
       { unit: "sylEagleRiders", upgrade: null },
@@ -47,6 +53,8 @@ export const presets = [
     name: "The Dawnshield Guard",
     style: "Elite few",
     blurb: "Prince Eldarion and a handful of the finest blades, backed by Dewkeepers to mend wounds. Few bodies, so protect each one: fight where the Dewkeepers can reach and let the Phoenix Guard hold the ground.",
+    items: ["sylvan-heart-of-the-wood","sylvan-silverhelm-plate","sylvan-dawn-edge","sylvan-dewdrop-charm","sylvan-moonwell-phial"],
+    terrain: ["ruins", "thicket", "hill"],
     list: [
       { unit: "sylEldarionDawnshield", upgrade: null },
       { unit: "sylPhoenixGuard", upgrade: null },

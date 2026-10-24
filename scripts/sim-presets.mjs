@@ -6,12 +6,12 @@
 import { aiStep } from "../shared/ai.js";
 import { FACTIONS } from "../shared/factions.js";
 import * as E from "../shared/engine.js";
-import { PRESETS, presetList } from "../shared/presets.js";
+import { PRESETS, presetBuild } from "../shared/presets.js";
 
 const games = Number(process.argv[2]) || 2;
 const focus = process.argv[3] === "all" ? undefined : process.argv[3];
 const budget = Number(process.argv[4]) || 100;
-const all = Object.entries(PRESETS).flatMap(([fid, ps]) => ps.map((p) => ({ fid, ...p, list: presetList(fid, p, budget) })));
+const all = Object.entries(PRESETS).flatMap(([fid, ps]) => ps.map((p) => ({ fid, ...p, ...presetBuild(fid, p, budget) })));
 const score = new Map(all.map((p) => [p.id, { p, w: 0, n: 0 }]));
 
 function battle(a, b, seed) {
@@ -20,8 +20,8 @@ function battle(a, b, seed) {
   E.addPlayer(s, "b", "B");
   E.setFaction(s, "a", a.fid);
   E.setFaction(s, "b", b.fid);
-  E.submitArmy(s, "a", a.list);
-  E.submitArmy(s, "b", b.list);
+  E.submitArmy(s, "a", a.list, a.buys);
+  E.submitArmy(s, "b", b.list, b.buys);
   E.run(s);
   let steps = 0;
   while (s.phase !== "over" && steps++ < 30000) {

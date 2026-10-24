@@ -26,7 +26,7 @@ For the world and its armies, see [LORE.md](LORE.md).
 
 ## 2. Muster
 
-1. The host (first seat) sets the **budget** (default 100 points) and the
+1. The host (first seat) sets the **DP** (deployment points, default 100) and the
    **round limit** (default 12).
 2. Each player picks an army and builds a warband in the army builder. Every
    army offers at least 25 units and at least 10 champions.
@@ -42,7 +42,7 @@ For the world and its armies, see [LORE.md](LORE.md).
      it. An item can appear only once per army.
 4. **Saved armies:** name a list and press Save. Saved armies live on the host
    computer (`data/armies.json`), survive restarts, and can be loaded by anyone
-   at the table. A saved list may be over the current budget; it just cannot
+   at the table. A saved list may be over the current DP; it just cannot
    be readied until it fits.
 5. Press **Ready for battle**. Deployment starts when every seated player is
    ready.
@@ -67,16 +67,16 @@ that each army wins roughly 47 to 55% of random 100-point battles.
 
 ### Bigger games
 
-Larger budgets field larger armies on a larger battlefield, so space per point stays about the same.
+Larger DP games field larger armies on a larger battlefield, so space per point stays about the same.
 
-| Budget | Units (plus a champion) | Copies of one unit | Battlefield | Terrain pieces |
+| DP | Units (plus a champion) | Copies of one unit | Battlefield | Terrain pieces |
 | --- | --- | --- | --- | --- |
 | 100 or less | 12 | 3 | 900 x 900 | 10 |
 | 150 | 18 | 5 | 1100 x 1100 | 12 |
 | 200 | 24 | 6 | 1300 x 1300 | 17 |
 | 300 | 36 | 9 | 1600 x 1600 | 26 |
 
-Deployment zones deepen with the battlefield. Prebuilt warbands scale to the budget in the same proportions.
+Deployment zones deepen with the battlefield. Prebuilt warbands are built for every DP, with magic items and terrain included.
 
 **Same army twice.** Several players may pick the same army. The first of them
 keeps the army colour; the others' units, name chips and deployment zones are
@@ -87,7 +87,7 @@ marked in bone white, cobalt or magenta so every side stays easy to tell apart.
 An item changes a unit's profile: extra attack dice or range, defence, wounds,
 ward or initiative, an ability, or an action. Its price comes from the same cost
 model that prices units: the unit's cost with the item minus its cost without,
-times 1.5 (1.0 for the Greenskin Warhorde), at least 3 points. So the same blade
+times 1.5 (1.0 for the Greenskin Warhorde), at least 3 DP. So the same blade
 costs more on a monster than on a goblin. The 1.5 comes from battle simulations:
 priced at the plain modelled value, an army that spent points on items beat the
 same style spending them on units 63% of the time; at these prices it is 53%.
@@ -95,8 +95,8 @@ same style spending them on units 63% of the time; at these prices it is 53%.
 ### Terrain to place
 
 Armies may buy terrain in the muster and place it before the battle: a Hill 8,
-Forest 5, Ruins 5, Lava 5, Rift 5, Marsh 4 or Rocks 3 points, up to 3 pieces at
-100 points (more in bigger games). Pieces go anywhere on the battlefield that is
+Forest 5, Ruins 5, Lava 5, Rift 5, Marsh 4 or Rocks 3 DP, up to 3 pieces at
+100 DP (more in bigger games). Pieces go anywhere on the battlefield that is
 clear of every player's deployment zone and of other terrain; the board shows a
 green or red outline while you place. Each piece bought replaces one and a half
 pieces of random scenery. Anything not placed when you ready is placed for you,
@@ -104,8 +104,8 @@ leaning toward your side.
 
 ### Battlefields
 
-The player with the **most points left unspent** chooses the battlefield during
-deployment (ties go to the lowest seat), so keeping points in reserve is a real
+The player with the **most DP left unspent** chooses the battlefield during
+deployment (ties go to the lowest seat), so keeping DP in reserve is a real
 choice. Until they choose, the battle is set for a random one. The battlefield
 sets the ground and the mix of random terrain, and gives two armies an edge and
 two a handicap. Every army is favoured on exactly one battlefield and hindered on

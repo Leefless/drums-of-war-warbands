@@ -5,6 +5,8 @@ export const presets = [
     name: "The Host of Ruin",
     style: "All-rounder",
     blurb: "Two mutant lines hold the centre while a Mage Channels behind them and a Hulking Demon and Frenzied Mutants hit where the enemy bends. Hellhounds flank. A good first Calamity list.",
+    items: ["calamity-riftfocus", "calamity-gate-splitter-edge", "calamity-mutating-hide", "calamity-venom-fangs", "calamity-shardblade"],
+    terrain: ["lava", "rift", "hill"],
     list: [
       { unit: "mutants", upgrade: null },
       { unit: "mutants", upgrade: null },
@@ -19,6 +21,8 @@ export const presets = [
     name: "The Burning Tide",
     style: "Assault wave",
     blurb: "Fast, cheap bodies thrown at the enemy all at once. Hellhounds, twin Chargers and Winged Horrors strike first, Zealots, Frenzied Mutants and Bloodcallers follow to drain what is left. Close the distance before they can shoot you down.",
+    items: ["calamity-brand-of-ash", "calamity-night-wings", "calamity-fear-mask", "calamity-venom-fangs", "calamity-banner-voice"],
+    terrain: ["lava", "rift"],
     list: [
       { unit: "calHellhounds", upgrade: null },
       { unit: "calRiftChargers", upgrade: null },
@@ -34,6 +38,8 @@ export const presets = [
     name: "The Rift Choir",
     style: "Caster battery",
     blurb: "A Calamity Mage and two Acolyte choirs Channel and blast from behind a Hulking Demon, Mutants and a Cultist screen. Keep the casters back, build Calamity charges, then turn the dice to Rends.",
+    items: ["calamity-riftfocus", "calamity-staff-of-reach", "calamity-spell-lens", "calamity-ruin-orb", "calamity-scab-mail"],
+    terrain: ["hill", "rift", "ruins"],
     list: [
       { unit: "mage", upgrade: null },
       { unit: "calAcolytes", upgrade: null },
@@ -45,9 +51,12 @@ export const presets = [
   },
   {
     id: "calamity-chosen-of-the-pit",
+    gear: 2, // share of DP on magic items, tuned for balance (1 = default)
     name: "The Chosen of the Pit",
     style: "Elite few",
     blurb: "Demon Knights, a Hulking Demon and two mutant packs, with a Flesh-Hulk to screen. Few models, each one a threat the enemy must answer. Protect your big hitters and trade them for whole units.",
+    items: ["calamity-hell-plate", "calamity-hellforged-glaive", "calamity-gate-splitter-edge", "calamity-mutating-hide", "calamity-soulthirst"],
+    terrain: ["lava", "rift", "block"],
     list: [
       { unit: "calDemonKnights", upgrade: null },
       { unit: "calBruteDemon", upgrade: null },

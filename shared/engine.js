@@ -140,7 +140,7 @@ export function submitArmy(state, pid, list, buys = []) {
   p.buys = Array.isArray(buys) ? [...buys] : [];
   p.spent = v.cost;
   p.ready = true;
-  log(state, `${p.name} musters ${FACTIONS[p.faction].name} (${v.cost} pts).`);
+  log(state, `${p.name} musters ${FACTIONS[p.faction].name} (${v.cost} DP).`);
 }
 
 export function unready(state, pid) {
@@ -246,7 +246,7 @@ function applyBattlefield(state) {
 /** The chooser picks the battlefield during deployment (once); random terrain is re-laid for it. */
 export function chooseMap(state, pid, mapId) {
   if (state.phase !== "deploy") fail("The battlefield is chosen during deployment.");
-  if (state.mapChooser !== pid) fail("Only the player with the most points in reserve chooses the battlefield.");
+  if (state.mapChooser !== pid) fail("Only the player with the most DP in reserve chooses the battlefield.");
   if (state.mapChosen) fail("The battlefield is already chosen.");
   if (!Object.hasOwn(MAPS, mapId)) fail("Unknown battlefield.");
   state.map = mapId;
@@ -379,7 +379,7 @@ function startDeploy(state) {
   for (const u of state.units) (byName[u.name] ||= []).push(u);
   for (const group of Object.values(byName)) if (group.length > 1) group.forEach((u, i) => (u.name = `${u.name} (${i + 1})`));
   const chooser = player(state, state.mapChooser);
-  if (chooser) log(state, `${chooser.name} kept the most points in reserve (${left(chooser)}) and chooses the battlefield.`);
+  if (chooser) log(state, `${chooser.name} kept the most DP in reserve (${left(chooser)}) and chooses the battlefield.`);
   log(state, "Deployment begins. Arrange your warband inside your edge zone, place any terrain you bought, then press Ready.");
 }
 

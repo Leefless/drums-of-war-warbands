@@ -2,9 +2,12 @@
 export const presets = [
   {
     id: "greenskin-warband-basics",
+    gear: 0.5, // share of DP on magic items, tuned for balance (1 = default)
     name: "Da Proper Warband",
     style: "All-rounder",
     blurb: "Boyz hold the line, boars hit the flank, a troll smashes what is left and the shaman keeps the Waaagh going. Easy to read and hard to stop, a good first list.",
+    items: ["greenskin-waaagh-banner", "greenskin-spiked-log", "greenskin-iron-jaw-helm", "greenskin-waaagh-totem", "greenskin-boom-stikk"],
+    terrain: ["hill", "thicket"],
     list: [
       { unit: "boyz", upgrade: "banner" },
       { unit: "boyz", upgrade: null },
@@ -20,6 +23,8 @@ export const presets = [
     name: "Da Big Green Tide",
     style: "Horde",
     blurb: "Ten units of cheap bodies, three each of goblins, boyz and pit runts, plus drummers to keep them howling. Swamp the objectives and let them lose count of the dead.",
+    items: ["greenskin-waaagh-banner", "greenskin-rusty-shivs", "greenskin-skull-pole", "greenskin-da-big-flag", "greenskin-krumpa-flail"],
+    terrain: ["block", "thicket"],
     list: [
       { unit: "goblins", upgrade: null },
       { unit: "goblins", upgrade: null },
@@ -35,9 +40,12 @@ export const presets = [
   },
   {
     id: "greenskin-stompin-mob",
+    gear: 0.01, // share of DP on magic items, tuned for balance (1 = default)
     name: "Da Stompin' Mob",
     style: "Monster mash",
     blurb: "Trolls and ogres straight up the middle, with goblin screens and War Drummers beating time behind them. Heavy hitters with a thin crowd around them: screen the monsters early and let them crash in together.",
+    items: ["greenskin-spiked-log", "greenskin-iron-jaw-helm", "greenskin-boar-tooth-whistle", "greenskin-dodgy-charm", "greenskin-bad-moon-fetish"],
+    terrain: ["marsh", "hill"],
     list: [
       { unit: "trolls", upgrade: null },
       { unit: "grnTrollBrute", upgrade: null },
@@ -53,6 +61,8 @@ export const presets = [
     name: "Boomsta's Barrage",
     style: "Shooty bombs",
     blurb: "Boomsta Bombmaster, rock and spike throwers, archers and squigs. Shoot early, then send the bombers and living bombs into whatever closes.",
+    items: ["greenskin-da-biggest-boom", "greenskin-extra-scrap-cannons", "greenskin-dodgy-charm", "greenskin-sling-of-stonks", "greenskin-fat-squig-mount"],
+    terrain: ["hill", "ruins"],
     list: [
       { unit: "grnBoomsta", upgrade: null },
       { unit: "grnRockLobba", upgrade: "veteran" },

@@ -71,7 +71,7 @@ test("terrain shop: bought pieces cost points, are limited, and are placed outsi
 test("battlefield: the player with the most points left chooses it, once, and armies get their effects", () => {
   const s = game("holds", "concord", [{ unit: "ironbreakers" }], [{ unit: "halberdiers" }, { unit: "crossbows" }]);
   assert.equal(s.mapChooser, "a", "the cheaper army chooses");
-  assert.throws(() => E.chooseMap(s, "b", "moor"), /most points in reserve/);
+  assert.throws(() => E.chooseMap(s, "b", "moor"), /most DP in reserve/);
   const before = s.units.find((u) => u.owner === "b").init;
   E.chooseMap(s, "a", "meadow");
   assert.throws(() => E.chooseMap(s, "a", "scar"), /already chosen/);

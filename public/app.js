@@ -2,7 +2,7 @@
 // authoritative and sends a fresh filtered state after every change.
 import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, UPGRADES, armyLimits, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
-import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
+import { PRESETS, presetBuild } from "/shared/presets.js";
 import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
@@ -306,10 +306,11 @@ function presetsHTML(f, locked) {
   if (!list.length) return "";
   const same = (a, b) => a.length === b.length && a.every((e, i) => e.unit === b[i].unit && (e.upgrade || null) === (b[i].upgrade || null));
   const budget = S.settings.budget;
-  return `<div class="presets"><div class="label">Prebuilt warbands · one per play style, ${budget === PRESET_BUDGET ? "tuned at 100 points" : `scaled to ${budget} points`}</div>
+  return `<div class="presets"><div class="label">Prebuilt warbands · one per play style, built for ${budget} DP with items and terrain</div>
     <div class="pgrid">${list.map((pr) => {
-      const scaled = presetList(f.id, pr, budget);
-      const v = validateArmy(f.id, scaled, budget);
+      const build = presetBuild(f.id, pr, budget);
+      const scaled = build.list;
+      const v = validateArmy(f.id, scaled, budget, build.buys);
       const counts = new Map();
       for (const e of scaled) {
         const u = unitIn(f.id, e.unit);
@@ -317,14 +318,18 @@ function presetsHTML(f, locked) {
       }
       const champ = [...counts.keys()].find((u) => u.champion);
       const troops = [...counts].filter(([u]) => !u.champion).map(([u, n]) => `${n > 1 ? `${n} ` : ""}${esc(u.name)}`).join(", ");
-      const on = same(L.draft, scaled);
+      const on = same(L.draft, scaled) && [...(L.buys || [])].sort().join() === [...build.buys].sort().join();
+      const gear = scaled.filter((e) => e.item).map((e) => itemById(f.id, e.item)?.name).filter(Boolean);
+      const ground = Object.entries(build.buys.reduce((a, k) => ((a[k] = (a[k] || 0) + 1), a), {})).map(([k, n]) => `${TERRAIN_NAME[k]}${n > 1 ? ` ×${n}` : ""}`);
       const capped = v.cost < budget * 0.94; // the 12-unit limit stops a cheap army spending everything
       return `<div class="pcard ${on ? "on" : ""}" style="--fc:${f.color}">
-        <div class="lrow"><span class="label">${esc(pr.style)}</span><span class="num muted">${v.cost} pts</span></div>
+        <div class="lrow"><span class="label">${esc(pr.style)}</span><span class="num muted">${v.cost} DP</span></div>
         <h4>${esc(pr.name)}</h4>
         <p class="pblurb">${esc(pr.blurb)}</p>
         <p class="pcomp">${champ ? `<b>${esc(champ.name)}</b> leads ` : ""}${troops}</p>
-        ${capped ? `<p class="pcomp">At the ${armyLimits(budget).units} unit limit: fills ${v.cost} of ${budget} points.</p>` : ""}
+        ${gear.length ? `<p class="pcomp"><b>Items:</b> ${gear.map(esc).join(", ")}</p>` : ""}
+        ${ground.length ? `<p class="pcomp"><b>Terrain:</b> ${ground.join(", ")}</p>` : ""}
+        ${capped ? `<p class="pcomp">At the ${armyLimits(budget).units} unit limit: fills ${v.cost} of ${budget} DP.</p>` : ""}
         <button class="small ${on ? "" : "cta"}" data-preset="${esc(pr.id)}" ${locked || !v.ok || on ? "disabled" : ""}>${on ? "Loaded" : "Use this army"}</button>
       </div>`;
     }).join("")}</div></div>`;
@@ -381,7 +386,7 @@ function detailsHTML(u) {
     ${u.abilities.length ? `<div class="muted" style="font-size:14px">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}
     <div style="font-size:14px;color:var(--ink-2)"><i>${esc(u.flavor)}</i></div>
     ${dialHTML(u.dial, null, true)}
-    <div class="stats costparts" title="Cost is computed from the profile">${part("power", "Power")}${part("movement", "Move")}${part("initiative", "Init")}${part("actions", "Actions")}${part("abilities", "Abilities")}<span>= <b>${b.total}</b> pts</span></div>
+    <div class="stats costparts" title="Cost is computed from the profile">${part("power", "Power")}${part("movement", "Move")}${part("initiative", "Init")}${part("actions", "Actions")}${part("abilities", "Abilities")}<span>= <b>${b.total}</b> DP</span></div>
   </div>`;
 }
 
@@ -419,7 +424,7 @@ function armyEdgesHTML(f) {
   const bad = Object.values(MAPS).find((m) => { const e = mapEffect(m.id, f.id); return e && (e.init || 0) + (e.melee || 0) + (e.ranged || 0) < 0; });
   const fx = (m) => { const e = mapEffect(m.id, f.id); return `${esc(m.name)}: ${esc(e.name)}, ${esc(e.text)}`; };
   return `<p style="margin:0"><b>Hunts ${esc(FACTIONS[preyOf(f.id)].name)}</b> (+1 attack die against them). <span class="muted">Hunted by ${esc(FACTIONS[hunterOf(f.id)].name)}. ${esc(HUNT_REASON[f.id])}</span></p>
-    <p style="margin:0" class="muted"><b>Battlefields.</b> Favoured on ${good ? fx(good) : "none"}. Hindered on ${bad ? fx(bad) : "none"}. The player with the most points left unspent chooses the battlefield.</p>`;
+    <p style="margin:0" class="muted"><b>Battlefields.</b> Favoured on ${good ? fx(good) : "none"}. Hindered on ${bad ? fx(bad) : "none"}. The player with the most DP left unspent chooses the battlefield.</p>`;
 }
 
 /** The terrain shop: buy pieces in the muster, place them during deployment. */
@@ -499,7 +504,7 @@ function renderMuster(app) {
     <div class="row" style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap">
       <div><div class="label">Step 1</div><h2>Choose your army</h2></div>
       ${host ? `<div class="btns" style="align-items:center">
-        <span class="label">Budget</span>
+        <span class="label" title="Deployment points: what every army may spend">DP</span>
         <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
@@ -559,7 +564,7 @@ function renderMuster(app) {
         <div class="btns"><input id="armyName" placeholder="Army name" maxlength="40" value="${esc(L.armyName)}" style="flex:1;min-width:0">
           <button id="saveArmy" ${L.draft.length ? "" : "disabled"}>${L.loadedId && saved.some((a) => a.id === L.loadedId && a.name === L.armyName) ? "Update" : "Save"}</button>
           <button id="clearArmy" class="ghost" ${L.draft.length && !locked ? "" : "disabled"}>Clear</button></div>
-        ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} pts · ${esc(a.author)}</span></span>
+        ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} DP · ${esc(a.author)}</span></span>
           <button class="small" data-load="${esc(a.id)}" ${locked ? "disabled" : ""}>Load</button>
           ${a.mine || host ? `<button class="small ghost" data-del="${esc(a.id)}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button>` : ""}</div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
         <hr><div class="label">Terrain to place <span class="num">${(L.buys || []).length} / ${terrainLimit(S.settings.budget)}</span></div>
@@ -603,7 +608,8 @@ function wireMuster(app, f) {
   on("[data-preset]", "onclick", (b) => {
     const pr = (PRESETS[f.id] || []).find((x) => x.id === b.dataset.preset);
     if (!pr) return;
-    Object.assign(L, { draft: cleanList(f.id, presetList(f.id, pr, S.settings.budget)), armyName: pr.name, loadedId: null });
+    const build = presetBuild(f.id, pr, S.settings.budget); // units, items and terrain together
+    Object.assign(L, { draft: cleanList(f.id, build.list), buys: [...build.buys], armyName: pr.name, loadedId: null });
     changed();
   });
   on("[data-load]", "onclick", (b) => {
@@ -1119,7 +1125,7 @@ function battlefieldHTML() {
   const chooser = S.players.find((p) => p.id === S.mapChooser);
   const canChoose = S.mapChooser === S.you && !S.mapChosen;
   if (canChoose) {
-    return `<div class="bf"><div class="label">You kept the most points in reserve: choose the battlefield</div>
+    return `<div class="bf"><div class="label">You kept the most DP in reserve: choose the battlefield</div>
       ${Object.values(MAPS).map((m) => `<div class="bfcard ${S.map === m.id ? "on" : ""}"><div class="lrow"><b>${esc(m.name)}</b><button class="small ${S.map === m.id ? "" : "cta"}" data-map="${m.id}">Fight here</button></div>
         <p class="muted">${esc(m.text)}</p><ul class="bffx">${effectsFor(m)}</ul></div>`).join("")}
       <p class="muted" style="font-size:13px;margin:0">If you ready without choosing, the battle is fought on ${esc(MAPS[S.map]?.name ?? "")}.</p></div>`;

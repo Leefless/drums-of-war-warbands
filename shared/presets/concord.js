@@ -4,7 +4,9 @@ export const presets = [
     id: "concord-dawn-muster",
     name: "The Dawn Muster",
     style: "Combined arms",
-    blurb: "Halberds hold the centre, crossbows and yeomen shoot over their shoulders, and a Knight-Captain keeps everyone moving. Stay close so Discipline keeps your defence dice up, and Rally strain away.",
+    blurb: "Halberds hold the centre, crossbows and yeomen shoot over their shoulders, and a Knight-Captain keeps everyone moving. Stay close so Discipline keeps your defence dice up, and Rally strain away. Marshal's Sunspear and ruins to hold.",
+    items: ["concord-marshals-sunspear", "concord-guild-halberd", "concord-silvered-shot", "concord-dawnfire-censer", "concord-sunburst-pennon"],
+    terrain: ["ruins", "hill"],
     list: [
       { unit: "captain", upgrade: null },
       { unit: "halberdiers", upgrade: "hardened" },
@@ -19,7 +21,9 @@ export const presets = [
     id: "concord-gun-line",
     name: "Powder and Prayer",
     style: "Firing line",
-    blurb: "Handgunners and longbows pour fire into anything that closes, with a Knight-Captain to steady them, priests to mend the line and militia to screen. Pick a hill, keep the line tight and let the enemy walk into it.",
+    blurb: "Handgunners and longbows pour fire into anything that closes, with a Knight-Captain to steady them, priests to mend the line and militia to screen. Pick a hill, keep the line tight and let the enemy walk into it. Silvered Shot behind a hill.",
+    items: ["concord-silvered-shot", "concord-lamp-oil-bolts", "concord-guild-mail", "concord-sunbeam-array", "concord-dawnfire-censer"],
+    terrain: ["hill", "thicket"],
     list: [
       { unit: "conHandgunners", upgrade: null },
       { unit: "conHandgunners", upgrade: null },
@@ -34,7 +38,9 @@ export const presets = [
     id: "concord-lance-charge",
     name: "The Dawnward Lance",
     style: "Cavalry charge",
-    blurb: "Two lances of knights, light horse on both flanks and a Pegasus rider to strike where it hurts. Hit hard on the first turns before the enemy can set, and keep a priest close for the wounded.",
+    blurb: "Two lances of knights, light horse on both flanks and a Pegasus rider to strike where it hurts. Hit hard on the first turns before the enemy can set, and keep a priest close for the wounded. Sunsteel Lance and open lanes.",
+    items: ["concord-sunsteel-lance", "concord-lumen-barding", "concord-warhorse-of-dawn", "concord-sunburst-pennon", "concord-dawnfire-censer"],
+    terrain: ["block", "marsh"],
     list: [
       { unit: "conKnights", upgrade: "hardened" },
       { unit: "conKnights", upgrade: "hardened" },
@@ -46,9 +52,12 @@ export const presets = [
   },
   {
     id: "concord-witch-hunt",
+    gear: 0.5, // share of DP on magic items, tuned for balance (1 = default)
     name: "The Cleansing Hunt",
     style: "Elite strike",
-    blurb: "Inquisitor Roe marks the prey, the Witch Hunter Cadre and hounds run it down. A small, quick force with sharp eyes: pick targets, strike first and do not stand in the open.",
+    blurb: "Inquisitor Roe marks the prey, the Witch Hunter Cadre and hounds run it down. A small, quick force with sharp eyes: pick targets, strike first and do not stand in the open. Roe's Last Round and cover to stalk from.",
+    items: ["concord-cassians-last-round", "concord-hunters-brand", "concord-hunters-coat", "concord-sunbeam-array", "concord-dawn-locket"],
+    terrain: ["thicket", "ruins"],
     list: [
       { unit: "conHawkEye", upgrade: null },
       { unit: "hunters", upgrade: "veteran" },
