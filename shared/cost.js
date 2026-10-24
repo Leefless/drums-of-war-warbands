@@ -14,15 +14,15 @@ const POWER_K = 1.6;
 const ARC = { front: 1, rear: 0.55, full: 1.45 };
 
 export const ACTION_VALUE = {
-  steel: 1.2, guard: 1.2, brace: 1.1, mark: 0.9, surge: 1.1, sidestep: 1.3,
-  command: 1.6, mend: 1.3, rally: 0.6, channel: 1.1,
+  steel: 1.8, guard: 1.2, brace: 1.1, mark: 0.9, surge: 1.1, sidestep: 1.3,
+  command: 1.3, mend: 1.3, rally: 0.2, channel: 2.8,
 };
 
 export const ABILITY_VALUE = {
-  inspire: 2, shieldwall: 1.2, wardRegen: 1.6, pierce: 1.4, ram: 0.8, swarm: 0.8, regenerate: 1.8,
-  master: 3, raise: 2, thrall: -1.5, fear: 1.5, ethereal: 1.4, unstable: 0.3, elusive: 1.5, bane: 1,
-  brutal: 1.2, charge: 1.3, sniper: 1.2, armored: 2, flying: 1, healer: 2, berserk: 1, stealthy: 1.4,
-  guardian: 1.8, vampiric: 1.5, poison: 1.3, blast: 1.8, fearless: 0.6, warcry: 2.2,
+  inspire: 3, shieldwall: 0.8, wardRegen: 2.1, pierce: 1.4, ram: 0.8, swarm: 0.8, regenerate: 2.3,
+  master: 2, raise: 2, thrall: -2.5, fear: 2, ethereal: 1.4, unstable: 0.3, elusive: 1.5, bane: 1,
+  brutal: 1.7, charge: 1.3, sniper: 0.7, armored: 2, flying: 1, healer: 2, berserk: 1, stealthy: 1.4,
+  guardian: 1.8, vampiric: 2, poison: 1.3, blast: 1.8, fearless: 0.6, warcry: 6,
   // Relic abilities are priced by the relic itself, not the unit.
   stoneRune: 0, phylactery: 0, riftEye: 0,
 };

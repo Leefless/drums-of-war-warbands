@@ -41,12 +41,14 @@ test("fog of war: the view strips unseen enemies and their names from the log", 
   const [o] = mine(s, "b");
   place(g, 450, 820);
   place(o, 450, 80, 180); // far beyond 3 range bands
-  s.log.push({ round: 1, msg: `${o.name} lurks.` });
+  s.log.push({ round: 1, msg: `${o.name} lurks.`, refs: [o.id] });
   const v = E.viewFor(s, "a");
   assert.ok(!v.units.some((u) => u.id === o.id));
   assert.equal(v.hidden, 1);
   assert.ok(!v.log.some((l) => l.msg.includes(o.name)));
-  assert.ok(E.viewFor(s, null).units.some((u) => u.id === o.id), "spectators see everything");
+  assert.ok(!E.viewFor(s, null).units.some((u) => u.id === o.id), "spectators are fogged by default");
+  s.settings.openSpectators = true;
+  assert.ok(E.viewFor(s, null).units.some((u) => u.id === o.id), "open spectating shows everything");
 });
 
 test("forests and Stealthy conceal: spotted only from range 1", () => {
@@ -112,4 +114,39 @@ test("ambush: attacking from out of sight adds a die, and firing reveals the att
   g.firedRound = s.round;
   assert.ok(visibleTo(s, "b").has(g.id), "firing reveals");
   assert.equal(E.attackDice(s, g, o, w, 2), hiddenDice - 1, "no ambush bonus once seen");
+});
+
+test("terrain triggers on entering, not every round while standing in it", () => {
+  const s = battle(["ironbreakers"], ["boyz"]);
+  const [ib] = mine(s, "a");
+  const [o] = mine(s, "b");
+  place(ib, 450, 450);
+  place(o, 450, 120, 180);
+  s.obstacles = [{ id: "f", kind: "thicket", x: 450, y: 450, r: 60 }];
+  E.setDial(s, "a", ib.id, "0X:w");
+  E.setDial(s, "b", o.id, "2S:w");
+  E.ready(s, "a");
+  E.ready(s, "b");
+  E.run(s);
+  assert.equal(ib.strain, 0, "standing still inside a forest costs nothing");
+});
+
+test("a Master can Command twice in one activation, on different units", () => {
+  const s = battle(["shade", "skeletons", "ghouls"], ["boyz"], "umbral", "greenskin");
+  const [m, a, b] = mine(s, "a");
+  const [o] = mine(s, "b");
+  place(m, 450, 700);
+  place(a, 380, 700);
+  place(b, 520, 700);
+  place(o, 450, 100, 180);
+  for (const u of [m, a, b]) E.setDial(s, "a", u.id, "1S:w");
+  E.setDial(s, "b", o.id, "2S:w");
+  E.ready(s, "a");
+  E.ready(s, "b");
+  E.run(s);
+  while (s.pending && s.pending.uid !== m.id) E.pass(s, s.pending.pid), E.run(s);
+  const cmd = () => s.pending.options.find((x) => x.a === "command");
+  E.act(s, "a", { a: "command", params: { target: cmd().targets[0].id, sub: "steel" } });
+  assert.ok(cmd(), "second Command offered");
+  assert.equal(cmd().targets.length, 1, "on the other unit only");
 });

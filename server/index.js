@@ -30,19 +30,41 @@ async function persistArmies() {
   await writeFile(ARMIES, JSON.stringify(armies, null, 2));
 }
 
-function saveArmy(author, { id, name, faction, list }) {
+const MAX_ARMIES = 300;
+const MAX_ARMIES_EACH = 40;
+
+function saveArmy(owner, author, { id, name, faction, list }) {
+  if (!owner) throw new Error("Take a seat to save armies.");
   if (!FACTIONS[faction]) throw new Error("Unknown faction.");
+  if (!Array.isArray(list) || list.length > 20) throw new Error("Bad army list.");
   const title = String(name || "").trim().slice(0, 40);
   if (!title) throw new Error("Give the army a name.");
   // Structure only: a saved list may be built for any budget.
   const v = validateArmy(faction, list, Infinity);
   if (!v.ok) throw new Error(v.errors.join(" "));
-  const entry = { id: id || `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: title, faction, list: list.map((e) => ({ unit: e.unit, upgrade: e.upgrade || null })), cost: v.cost, author, savedAt: new Date().toISOString() };
-  const i = armies.findIndex((a) => a.id === entry.id);
-  if (i >= 0) armies[i] = entry;
+  // Ids are always server-made; a client id only selects one of its own armies to update.
+  const existing = armies.findIndex((a) => a.id === id && a.owner === owner);
+  if (existing < 0 && (armies.length >= MAX_ARMIES || armies.filter((a) => a.owner === owner).length >= MAX_ARMIES_EACH)) throw new Error("Too many saved armies; delete some first.");
+  const entry = {
+    id: existing >= 0 ? armies[existing].id : `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
+    name: title, faction, list: list.map((e) => ({ unit: String(e.unit), upgrade: e.upgrade ? String(e.upgrade) : null })),
+    cost: v.cost, author: String(author).slice(0, 24), owner, savedAt: new Date().toISOString(),
+  };
+  if (existing >= 0) armies[existing] = entry;
   else armies.push(entry);
   return persistArmies();
 }
+
+function deleteArmy(pid, id) {
+  const a = armies.find((x) => x.id === id);
+  if (!a) return;
+  if (a.owner !== pid && game.players[0]?.id !== pid) throw new Error("Only the army's author or the host can delete it.");
+  armies = armies.filter((x) => x.id !== id);
+  return persistArmies();
+}
+
+// Saved armies as a viewer sees them: owner tokens stay on the server.
+const publicArmies = (pid) => armies.map(({ owner, ...a }) => ({ ...a, mine: !!pid && owner === pid }));
 const sockets = new Map(); // ws -> { token, spectator }
 
 const http = createServer(async (req, res) => {
@@ -51,7 +73,12 @@ const http = createServer(async (req, res) => {
     // Art handoff from a browser on THIS computer only (the ChatGPT art pipeline).
     // Files land in Art/ and are installed by scripts/install-art.mjs.
     const local = ["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(req.socket.remoteAddress);
-    if (!local) return res.writeHead(403).end("local only");
+    const origin = req.headers.origin;
+    const okOrigin = !origin || /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    // The custom header forces a CORS preflight, which this server never answers,
+    // so other web pages open in the host's browser cannot post here.
+    if (!local || !okOrigin || req.headers["x-dow-art"] !== "1") return res.writeHead(403).end("local art pipeline only");
+    if (Number(req.headers["content-length"] || 0) > 8e6) return res.writeHead(413).end("too large");
     let body = "";
     for await (const chunk of req) {
       body += chunk;
@@ -87,7 +114,20 @@ const http = createServer(async (req, res) => {
   }
 });
 
-const wss = new WebSocketServer({ server: http });
+// Same-origin browsers only (stops other web pages from driving the game), small frames.
+const wss = new WebSocketServer({
+  server: http,
+  maxPayload: 64 * 1024,
+  verifyClient: ({ req }) => {
+    const origin = req.headers.origin;
+    if (!origin) return true; // non-browser clients (tests, bots)
+    try {
+      return new URL(origin).host === req.headers.host;
+    } catch {
+      return false;
+    }
+  },
+});
 
 function broadcast() {
   const online = new Set([...sockets.values()].map((s) => s.token));
@@ -95,7 +135,7 @@ function broadcast() {
     const view = E.viewFor(game, info.spectator ? null : info.token);
     for (const p of view.players) p.connected = online.has(p.id);
     view.spectator = info.spectator || !E.player(game, info.token);
-    view.armies = armies;
+    view.armies = publicArmies(info.spectator ? null : info.token);
     ws.send(JSON.stringify({ t: "state", state: view }));
   }
 }
@@ -104,7 +144,8 @@ function handle(ws, info, m) {
   const pid = info.token;
   switch (m.t) {
     case "hello":
-      info.token = String(m.token || "").slice(0, 64);
+      if (typeof m.token !== "string" || !/^[A-Za-z0-9]{8,64}$/.test(m.token)) throw new Error("Bad session token; reload the page.");
+      info.token = m.token;
       info.spectator = !!m.spectate;
       if (!info.spectator && !E.player(game, info.token) && game.phase === "muster") E.addPlayer(game, info.token, m.name);
       if (E.player(game, info.token) && m.name) E.player(game, info.token).name = String(m.name).slice(0, 24);
@@ -121,10 +162,11 @@ function handle(ws, info, m) {
     case "attack": E.declareAttack(game, pid, m); break;
     case "mod": E.modify(game, pid, m); break;
     case "leave": E.removePlayer(game, pid); break;
-    case "saveArmy": return saveArmy(E.player(game, pid)?.name || "Unknown", m);
-    case "deleteArmy": armies = armies.filter((a) => a.id !== m.id); return persistArmies();
+    case "saveArmy": return saveArmy(E.player(game, pid) ? pid : null, E.player(game, pid)?.name || "Unknown", m);
+    case "deleteArmy": return deleteArmy(pid, m.id);
     case "reset": {
-      if (game.players[0]?.id !== pid && game.phase !== "over") throw new Error("Only the host can restart mid-battle.");
+      const host = game.players[0]?.id === pid;
+      if (!host && !(game.phase === "over" && E.player(game, pid))) throw new Error("Only the host can restart mid-battle.");
       const old = game;
       game = E.createGame(old.settings);
       for (const p of old.players) {

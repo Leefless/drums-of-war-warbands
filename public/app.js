@@ -51,7 +51,7 @@ function connect() {
         L.sub = null;
         L.diceSel.clear();
       }
-      if (S.pending?.uid && S.pending.pid === token) L.selected = S.pending.uid;
+      if (S.pending?.uid && S.pending.pid === S.you) L.selected = S.pending.uid;
       render();
     } else if (m.t === "error") toast(m.msg);
   };
@@ -70,10 +70,10 @@ function toast(msg, kind = "error") {
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-const me = () => S?.players.find((p) => p.id === token);
+const me = () => (S?.you ? S.players.find((p) => p.id === S.you) : null);
 const unitById = (id) => S.units.find((u) => u.id === id);
 const nameOf = (pid) => S.players.find((p) => p.id === pid)?.name ?? "?";
-const myUnits = () => S.units.filter((u) => u.owner === token && !u.dead);
+const myUnits = () => S.units.filter((u) => u.owner === S.you && !u.dead);
 const PHASES = { muster: "Muster", deploy: "Deployment", plan: "Planning", activation: "Activation", engagement: "Engagement", over: "Battle over" };
 const GLYPH = { TL: "↰", BL: "↖", S: "↑", BR: "↗", TR: "↱", A: "U", RF: "Rift", X: "■" };
 
@@ -82,7 +82,7 @@ function header() {
   $("#players").innerHTML = (S?.players || []).map((p) => {
     const f = p.faction ? FACTIONS[p.faction] : null;
     const status = S.phase === "over" ? `${p.vp} VP` : p.eliminated ? "broken" : p.ready && S.phase !== "activation" && S.phase !== "engagement" ? "ready" : "";
-    return `<span class="chip ${p.connected ? "" : "off"}"><i class="sw" style="background:${f?.color ?? "var(--ink-3)"}"></i>${esc(p.name)}${p.id === token ? " (you)" : ""}<span class="ok">${status}</span></span>`;
+    return `<span class="chip ${p.connected ? "" : "off"}"><i class="sw" style="background:${f?.color ?? "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${status}</span></span>`;
   }).join("");
 }
 
@@ -237,7 +237,7 @@ function renderMuster(app) {
     L.draft = p.faction ? loadDraft(p) : [];
     Object.assign(L, { open: null, tab: "units", role: "all", search: "", armyName: "", loadedId: null });
   }
-  const host = S.players[0]?.id === token;
+  const host = S.players[0]?.id === S.you;
   const f = p.faction ? FACTIONS[p.faction] : null;
   const v = draftCost();
   const pct = Math.min(100, (v.cost / S.settings.budget) * 100);
@@ -260,6 +260,7 @@ function renderMuster(app) {
         <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
+        <label class="label" style="display:flex;gap:6px;align-items:center" title="When on, Watch only screens see every unit, ignoring fog of war"><input type="checkbox" id="openSpec" ${S.settings.openSpectators ? "checked" : ""}> Spectators see all</label>
       </div>` : `<div class="label">Budget ${S.settings.budget} · ${S.settings.maxRounds} rounds</div>`}
     </div>
     <div class="factions ${f ? "compact" : ""}" style="margin-top:12px">${Object.values(FACTIONS).map((x) => `
@@ -299,8 +300,8 @@ function renderMuster(app) {
           <button id="saveArmy" ${L.draft.length ? "" : "disabled"}>${L.loadedId && saved.some((a) => a.id === L.loadedId && a.name === L.armyName) ? "Update" : "Save"}</button>
           <button id="clearArmy" class="ghost" ${L.draft.length && !locked ? "" : "disabled"}>Clear</button></div>
         ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} pts · ${esc(a.author)}</span></span>
-          <button class="small" data-load="${a.id}" ${locked ? "disabled" : ""}>Load</button>
-          <button class="small ghost" data-del="${a.id}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button></div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
+          <button class="small" data-load="${esc(a.id)}" ${locked ? "disabled" : ""}>Load</button>
+          <button class="small ghost" data-del="${esc(a.id)}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button></div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
         <hr><div class="label">Upgrades</div>
         ${upgradesFor(f.id, { abilities: [], actions: [] }).map((g) => `<div style="font-size:14px"><b>${esc(g.name)}</b> <span class="muted">+${g.cost}${g.relic ? ", relic" : ""}</span>: ${esc(g.text)}</div>`).join("")}
       </aside>
@@ -366,6 +367,7 @@ function wireMuster(app, f) {
   $("#edit") && ($("#edit").onclick = () => send("unready"));
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
   $("#rounds") && ($("#rounds").onchange = (e) => send("settings", { maxRounds: Number(e.target.value) }));
+  $("#openSpec") && ($("#openSpec").onchange = (e) => send("settings", { openSpectators: e.target.checked }));
 }
 
 function actionLabel(entry) {
@@ -414,12 +416,12 @@ function renderBattle(app) {
     window.onkeydown = (ev) => {
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
-      if (!u || u.owner !== token) return;
+      if (!u || u.owner !== S.you) return;
       if (ev.key === "q" || ev.key === "e") send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + (ev.key === "e" ? 45 : -45) });
     };
   }
   $("#prompt").innerHTML = promptHTML();
-  $("#prompt").className = `scroll ${S.pending?.pid === token ? "prompt" : ""}`;
+  $("#prompt").className = `scroll ${S.pending?.pid === S.you ? "prompt" : ""}`;
   $("#card").innerHTML = cardHTML();
   $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
   wirePrompt();
@@ -432,13 +434,13 @@ function drawBoard() {
   sizeCanvas(canvas);
   const sel = unitById(L.selected);
   let ghost = null;
-  if (S.phase === "plan" && sel && sel.owner === token) {
+  if (S.phase === "plan" && sel && sel.owner === S.you) {
     const code = L.hover || S.dials[sel.id];
     if (code) ghost = { uid: sel.id, code };
   }
   const highlight = new Set();
   const p = S.pending;
-  if (p?.pid === token) {
+  if (p?.pid === S.you) {
     if (p.type === "attack") p.options.forEach((o) => highlight.add(o.target));
     if (L.sub?.targets) L.sub.targets.forEach((t) => highlight.add(typeof t === "string" ? t : t.id));
   }
@@ -460,14 +462,14 @@ function onBoardClick(ev) {
   const u = unitAt(S, pt);
   if (S.phase === "deploy" && !u && L.selected) {
     const s = unitById(L.selected);
-    if (s?.owner === token) return send("deploy", { uid: s.id, x: pt.x, y: pt.y, h: s.h });
+    if (s?.owner === S.you) return send("deploy", { uid: s.id, x: pt.x, y: pt.y, h: s.h });
   }
   // During a targeted choice, clicking a highlighted unit picks it.
-  if (u && L.sub?.targets && S.pending?.pid === token) {
+  if (u && L.sub?.targets && S.pending?.pid === S.you) {
     const hit = L.sub.targets.find((t) => (typeof t === "string" ? t : t.id) === u.id);
     if (hit) return chooseTarget(u.id);
   }
-  if (u && S.pending?.type === "attack" && S.pending.pid === token) {
+  if (u && S.pending?.type === "attack" && S.pending.pid === S.you) {
     const opts = S.pending.options.filter((o) => o.target === u.id);
     if (opts.length === 1) return send("attack", { target: u.id, weapon: opts[0].weapon });
   }
@@ -506,7 +508,7 @@ function promptHTML() {
       const allSet = units.every((u) => S.dials[u.id]);
       html = `<div class="label">Planning · secret</div><h3>Set a maneuver for every unit</h3>
         <div class="ulist" style="margin:8px 0">${units.map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)} <span class="muted">i${u.init}${strained(u) ? " · strained" : ""}</span></span><span class="set">${S.dials[u.id] ? esc(S.dials[u.id].replace(":", " ")) : ""}</span></button>`).join("")}</div>
-        ${sel && sel.owner === token ? `<div class="label">${esc(sel.name)} dial (hover to preview)</div>${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}` : `<p class="muted">Select a unit to open its dial.</p>`}
+        ${sel && sel.owner === S.you ? `<div class="label">${esc(sel.name)} dial (hover to preview)</div>${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}` : `<p class="muted">Select a unit to open its dial.</p>`}
         <div class="btns" style="margin-top:10px">${mine.ready ? `<span class="muted">Orders locked. Waiting for the others.</span><button id="unready">Change orders</button>` : `<button class="cta" id="ready" ${allSet ? "" : "disabled"}>Lock in orders</button>`}</div>`;
     }
   } else if (S.phase === "over") {
@@ -515,7 +517,7 @@ function promptHTML() {
       <p class="muted">${winner ? `Victory for ${esc(FACTIONS[winner.faction].name)}.` : ""}</p>
       <table class="victory num" style="width:100%">${S.players.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.vp} VP</td><td class="muted">${((n) => `${n} unit${n === 1 ? "" : "s"} left`)(S.units.filter((u) => u.owner === x.id && !u.dead).length)}</td></tr>`).join("")}</table>
       <div class="btns" style="margin-top:10px"><button class="cta" id="reset">New battle</button></div>`;
-  } else if (p && p.pid === token) {
+  } else if (p && p.pid === S.you) {
     html = myPromptHTML(p);
   } else if (p) {
     html = `<div class="label">${PHASES[S.phase]}</div><p class="muted">${waitingText(p)}</p>`;
@@ -604,7 +606,7 @@ function diceHTML(A, live) {
   }
   const at = unitById(A.attacker);
   const df = unitById(A.target);
-  const selectable = live && S.pending?.type === "attackMods" && S.pending.pid === token;
+  const selectable = live && S.pending?.type === "attackMods" && S.pending.pid === S.you;
   const res = A.result ? ` · ${A.result.strikes} Strike, ${A.result.rends} Rend` : "";
   return `<hr><div class="label">${A.ambush ? "Ambush! · " : ""}${live ? "Attack in progress" : "Last attack"} · R${A.range}${A.obstructed ? " · haze" : ""}${res}</div>
     <div style="font-size:13px;margin:4px 0">${esc(at?.name)} → ${esc(df?.name)}</div>

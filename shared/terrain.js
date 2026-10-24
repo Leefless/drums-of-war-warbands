@@ -122,8 +122,11 @@ export function layTerrain(rand) {
     const [lo, hi] = RADIUS[kind];
     for (let tries = 0; tries < 300; tries++) {
       const r = lo + Math.floor(rand() * (hi - lo + 1));
-      const o = { id: `o${pieces.length + 1}`, kind, r, x: 170 + rand() * (BOARD - 340), y: 170 + rand() * (BOARD - 340) };
-      if (pieces.every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 45)) {
+      // Whole piece stays clear of every deployment zone (150 deep on each edge).
+      const edge = 160 + r;
+      const span = BOARD - 2 * edge;
+      const o = { id: `o${pieces.length + 1}`, kind, r, x: edge + rand() * span, y: edge + rand() * span };
+      if (pieces.every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 30)) {
         pieces.push(o);
         break;
       }

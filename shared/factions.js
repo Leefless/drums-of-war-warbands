@@ -81,9 +81,9 @@ export const FACTIONS = {
     kin: "Humans, Halflings, and Lumanari, led by the Witch Hunters",
     color: "#D8C27A",
     tagline: "Combined arms and discipline. Nobody fights alone.",
-    economy: "Rally: Concord units may Rally (remove 1 strain) even while Strained. Commanders and Banners let one unit spend its action to give another a free action.",
+    economy: "Discipline: a Concord unit rolls +1 defence die while another friendly unit is at range 1. Rally: Concord units may Rally (remove 1 strain) even while Strained. Commanders and Banners let one unit spend its action to give another a free action.",
     dialNote: "Balanced speeds 1 to 4, blue gentle moves, red hard turns at speed 3.",
-    rules: ["rally"],
+    rules: ["rally", "discipline"],
   },
 };
 
@@ -91,8 +91,11 @@ export const FACTIONS = {
 // their library key and every cost is computed from the profile.
 export const MAX_UNITS = 12; // not counting the champion
 export const MAX_COPIES = 3;
+export const CHAMPION_PREMIUM = 1.15;
 for (const [fid, roster] of Object.entries(ROSTERS)) {
-  const build = (u, champion) => ({ ...u, champion, unique: champion, dialKey: u.dial, dial: DIALS[u.dial], cost: unitCost(u, DIALS[u.dial]) });
+  // Champions carry a 15% premium over their computed cost: a unique, optional slot of
+  // concentrated power (simulated champion armies otherwise won about 60% of games).
+  const build = (u, champion) => ({ ...u, champion, unique: champion, dialKey: u.dial, dial: DIALS[u.dial], cost: Math.round(unitCost(u, DIALS[u.dial]) * (champion ? CHAMPION_PREMIUM : 1)) });
   FACTIONS[fid].units = [...roster.champions.map((u) => build(u, true)), ...roster.units.map((u) => build(u, false))];
 }
 
@@ -175,6 +178,10 @@ export function upgradesFor(factionId, unit) {
     if (g.faction && g.faction !== factionId) return false;
     if (g.notThrall && unit.abilities.includes("thrall")) return false;
     if (g.addAction && unit.actions.some((a) => a.replace(/^r:/, "").split(">")[0] === g.addAction)) return false;
+    // Relics only where they do something for this unit.
+    if (g.ability && unit.abilities.includes(g.ability)) return false;
+    if (g.id === "phylactery" && !unit.abilities.includes("raise")) return false;
+    if (g.id === "runeOfStone" && !unit.actions.some((a) => a.includes("brace"))) return false;
     return true;
   });
 }
@@ -182,7 +189,7 @@ export function upgradesFor(factionId, unit) {
 /** Validate a muster list. Returns { ok, cost, errors }. */
 export function validateArmy(factionId, list, budget) {
   const errors = [];
-  const f = FACTIONS[factionId];
+  const f = typeof factionId === "string" && Object.hasOwn(FACTIONS, factionId) ? FACTIONS[factionId] : null;
   if (!f) return { ok: false, cost: 0, errors: ["Pick a faction first."] };
   if (!Array.isArray(list) || list.length === 0) errors.push("Muster at least one unit.");
   let cost = 0;
@@ -190,7 +197,8 @@ export function validateArmy(factionId, list, budget) {
   let champions = 0;
   let regulars = 0;
   const copies = {};
-  for (const entry of list || []) {
+  for (const entry of Array.isArray(list) ? list : []) {
+    if (!entry || typeof entry !== "object") { errors.push("Bad army entry."); continue; }
     const u = f.units.find((x) => x.id === entry.unit);
     if (!u) { errors.push(`Unknown unit ${entry.unit}.`); continue; }
     cost += u.cost;
@@ -199,7 +207,7 @@ export function validateArmy(factionId, list, budget) {
     copies[u.id] = (copies[u.id] || 0) + 1;
     if (!u.champion && copies[u.id] === MAX_COPIES + 1) errors.push(`At most ${MAX_COPIES} of ${u.name}.`);
     if (entry.upgrade) {
-      const g = UPGRADES[entry.upgrade];
+      const g = Object.hasOwn(UPGRADES, entry.upgrade) ? UPGRADES[entry.upgrade] : null;
       if (!g || !upgradesFor(factionId, u).includes(g)) { errors.push(`${u.name} cannot take that upgrade.`); continue; }
       cost += g.cost;
       if (g.relic) relics++;

@@ -71,7 +71,8 @@ test("muster -> deploy -> plan flow and hidden dials", () => {
   E.setDial(s, "a", mine.id, "1S:b");
   const vb = E.viewFor(s, "b");
   assert.equal(vb.dials[mine.id], undefined, "opponent cannot see the dial");
-  assert.ok(vb.planned.includes(mine.id));
+  assert.ok(!vb.planned.includes(mine.id), "an unseen unit's plan is not even listed");
+  assert.ok(!vb.players.some((p) => p.id === "a" || p.id === "b"), "private tokens never leave the server");
   assert.equal(E.viewFor(s, "a").dials[mine.id], "1S:b");
 });
 

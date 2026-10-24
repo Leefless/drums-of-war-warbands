@@ -33,7 +33,7 @@ export function createGame({ budget = 100, maxRounds = 12, seed = Date.now() } =
   return {
     phase: "muster",
     round: 0,
-    settings: { budget, maxRounds },
+    settings: { budget, maxRounds, openSpectators: false },
     players: [],
     units: [],
     obstacles: [],
@@ -61,7 +61,9 @@ function rand(state) {
 const roll = (state, faces) => faces[Math.floor(rand(state) * faces.length)];
 
 function log(state, msg) {
-  state.log.push({ round: state.round, msg });
+  // Record which units a line mentions, so fog of war can scrub it per viewer.
+  const refs = state.units.filter((u) => msg.includes(u.name)).map((u) => u.id);
+  state.log.push({ round: state.round, msg, refs });
   if (state.log.length > 300) state.log.shift();
 }
 
@@ -104,18 +106,20 @@ export function removePlayer(state, pid) {
   state.players = state.players.filter((p) => p.id !== pid);
 }
 
-export function setSettings(state, pid, { budget, maxRounds }) {
+export function setSettings(state, pid, msg) {
+  const { budget, maxRounds, openSpectators } = msg && typeof msg === "object" ? msg : {};
   if (state.phase !== "muster") fail("Settings are locked once deployment begins.");
   if (state.players[0]?.id !== pid) fail("Only the host (first seat) can change settings.");
   if (budget != null) state.settings.budget = Math.max(40, Math.min(300, Number(budget) || 100));
   if (maxRounds != null) state.settings.maxRounds = Math.max(3, Math.min(20, Number(maxRounds) || 12));
+  if (openSpectators != null) state.settings.openSpectators = !!openSpectators;
   for (const p of state.players) p.ready = false;
 }
 
 export function setFaction(state, pid, faction) {
   const p = player(state, pid) || fail("Join the table first.");
   if (state.phase !== "muster") fail("Factions are locked.");
-  if (!FACTIONS[faction]) fail("Unknown faction.");
+  if (typeof faction !== "string" || !Object.hasOwn(FACTIONS, faction)) fail("Unknown faction.");
   p.faction = faction;
   p.army = [];
   p.ready = false;
@@ -138,7 +142,7 @@ export function unready(state, pid) {
 
 // ── Deployment ───────────────────────────────────────────────────────────────
 export function zoneFor(seat) {
-  const D = 110;
+  const D = 150; // deep enough for two ranks of large bases
   const lo = 110;
   const hi = BOARD - 110;
   return [
@@ -200,6 +204,40 @@ function placeObstacles(state) {
   state.obstacles = layTerrain(() => rand(state));
 }
 
+/** Default placement: ranks of evenly spaced bases from the zone's back edge, never overlapping. */
+function layoutZone(units, z) {
+  const horizontal = z.edge === "south" || z.edge === "north";
+  const span = horizontal ? z.x1 - z.x0 : z.y1 - z.y0;
+  const GAP = 8;
+  const rows = [[]];
+  let used = 0;
+  for (const u of units) {
+    const w = BASE_SIZE[u.base] + GAP;
+    if (used + w > span && rows.at(-1).length) {
+      rows.push([]);
+      used = 0;
+    }
+    rows.at(-1).push(u);
+    used += w;
+  }
+  // The back edge is the table edge: south and east zones count inward from the far side.
+  const back = { south: z.y1, north: z.y0, west: z.x0, east: z.x1 }[z.edge];
+  const inward = z.edge === "south" || z.edge === "east" ? -1 : 1;
+  let depth = 4;
+  for (const row of rows) {
+    const deep = Math.max(...row.map((u) => BASE_SIZE[u.base]));
+    const width = row.reduce((a, u) => a + BASE_SIZE[u.base] + GAP, -GAP);
+    let along = (horizontal ? z.x0 : z.y0) + (span - width) / 2;
+    const cross = back + inward * (depth + deep / 2);
+    for (const u of row) {
+      const c = along + BASE_SIZE[u.base] / 2;
+      Object.assign(u, horizontal ? { x: c, y: cross } : { x: cross, y: c }, { h: z.h });
+      along += BASE_SIZE[u.base] + GAP;
+    }
+    depth += deep + GAP;
+  }
+}
+
 function startDeploy(state) {
   state.phase = "deploy";
   placeObstacles(state);
@@ -207,15 +245,13 @@ function startDeploy(state) {
     p.ready = false;
     const z = zoneFor(p.seat);
     const units = p.army.map((e) => buildUnit(state, p, e));
-    const horizontal = z.edge === "south" || z.edge === "north";
-    const span = horizontal ? z.x1 - z.x0 : z.y1 - z.y0;
-    units.forEach((u, i) => {
-      const along = (horizontal ? z.x0 : z.y0) + (span * (i + 1)) / (units.length + 1);
-      const depth = horizontal ? (z.y0 + z.y1) / 2 : (z.x0 + z.x1) / 2;
-      Object.assign(u, horizontal ? { x: along, y: depth } : { x: depth, y: along }, { h: z.h });
-    });
+    layoutZone(units, z);
     state.units.push(...units);
   }
+  // Duplicate units get numbered names so players (and the fog) can tell them apart.
+  const byName = {};
+  for (const u of state.units) (byName[u.name] ||= []).push(u);
+  for (const group of Object.values(byName)) if (group.length > 1) group.forEach((u, i) => (u.name = `${u.name} (${i + 1})`));
   log(state, "Deployment begins. Arrange your warband inside your edge zone, then press Ready.");
 }
 
@@ -237,10 +273,17 @@ export function ready(state, pid) {
   const p = player(state, pid) || fail("Join the table first.");
   if (state.phase === "muster") {
     if (!p.army.length) fail("Submit a valid army first.");
+    const v = validateArmy(p.faction, p.army, state.settings.budget);
+    if (!v.ok) fail(v.errors.join(" "));
   } else if (state.phase === "plan") {
     const mine = alive(state).filter((u) => u.owner === pid);
     if (mine.some((u) => !state.dials[u.id])) fail("Set a maneuver for every unit first.");
-  } else if (state.phase !== "deploy") {
+  } else if (state.phase === "deploy") {
+    const mine = alive(state).filter((u) => u.owner === pid);
+    for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) {
+      if (polysOverlap(poly(mine[i]), poly(mine[j]))) fail(`${mine[i].name} and ${mine[j].name} overlap; move one before readying.`);
+    }
+  } else {
     fail("Nothing to ready for right now.");
   }
   p.ready = true;
@@ -379,6 +422,7 @@ export function planMove(state, u, code) {
   }
   let pose = maneuverPose(start, man, size, t);
   let bumped = overlapsAny(state, u, pose);
+  if (!blockedBy && blocksAt(state, u, pose)) blockedBy = state.obstacles.find((o) => o.kind === "block" && touches(u, o, pose));
   if (bumped.length || blocksAt(state, u, pose)) {
     const t0 = t;
     for (t = t0 - STEP; t > 0; t -= STEP) {
@@ -404,6 +448,7 @@ function maneuverLength(man, size) {
 
 function executeManeuver(state, u, code) {
   const wasHigh = onKind(state, u, "hill");
+  const startTouch = new Set(state.obstacles.filter((o) => touches(u, o)).map((o) => o.id));
   const mv = planMove(state, u, code);
   const { man } = mv;
   u.trail = mv.path.map((p) => ({ x: p.x, y: p.y }));
@@ -426,7 +471,8 @@ function executeManeuver(state, u, code) {
   }
   u.lastSpeed = man.speed;
   const ignorePath = has(u, "ethereal") || man.type === "RF";
-  const touched = obstaclesOnPath(state, u, ignorePath ? [mv.pose] : mv.path);
+  // Only pieces the unit was not already touching trigger (entering, crossing).
+  const touched = obstaclesOnPath(state, u, ignorePath ? [mv.pose] : mv.path).filter((o) => !startTouch.has(o.id));
   if (!ignoresObstacles(u)) for (const o of touched) obstacleEffect(state, u, o);
   if (climbed && !flies(u)) {
     log(state, `${u.name} climbs to the high ground.`);
@@ -540,7 +586,8 @@ function actionParams(state, u, a, depth = 0) {
     case "channel":
       return u.tokens.charge < 2 ? {} : null;
     case "mark": {
-      const targets = enemiesOf(state, u).filter((e) => rangeBetween(u, e) <= 3).map((e) => e.id);
+      const spotted = visibleTo(state, u.owner);
+      const targets = enemiesOf(state, u).filter((e) => spotted.has(e.id) && rangeBetween(u, e) <= 3).map((e) => e.id);
       return targets.length ? { targets } : null;
     }
     case "mend": {
@@ -557,6 +604,7 @@ function actionParams(state, u, a, depth = 0) {
       const targets = [];
       for (const f of friendsOf(state, u)) {
         if (rangeBetween(u, f) > 2 || (strained(f) && !deathless(f))) continue;
+        if (u.act?.commanded?.includes(f.id)) continue; // a Master commands two different units
         const subs = commandMenu(f)
           .map((s) => ({ a: s, ...actionParams(state, f, s, 1) }))
           .filter((s) => actionParams(state, f, s.a, 1));
@@ -581,7 +629,7 @@ function beginActions(state, u) {
   const code = u.revealed || "";
   if (rule(u, "unyielding") && (code.startsWith("0X") || code.startsWith("1S"))) slots.push({ only: ["steel", "brace"] });
   if (rule(u, "overreach")) slots.push({ only: null, taint: true });
-  u.act = { slots, taken: [], link: null };
+  u.act = { slots, taken: [], link: null, commanded: [] };
 }
 
 /** Actions the unit can choose right now during its activation. */
@@ -596,7 +644,7 @@ export function actionOptions(state, u) {
   }
   for (const entry of u.actions) {
     const x = parseAction(entry);
-    if (u.act.taken.includes(x.a)) continue;
+    if (u.act.taken.includes(x.a) && !(x.a === "command" && has(u, "master"))) continue;
     if (!free.some((s) => !s.only || s.only.includes(x.a))) continue;
     const rallyAnyway = x.a === "rally" && rule(u, "rally");
     if (isStrained && !rallyAnyway) continue;
@@ -652,9 +700,15 @@ function applyAction(state, u, a, params, byName) {
       const pose = actionMovePose(state, u, a, params.dir);
       if (!pose) fail("That move is blocked.");
       const from = { x: u.x, y: u.y };
+      const before = new Set(state.obstacles.filter((o) => touches(u, o)).map((o) => o.id));
+      const wasHigh = onKind(state, u, "hill");
       Object.assign(u, pose);
+      if (!wasHigh && onKind(state, u, "hill") && !flies(u)) {
+        log(state, `${u.name} climbs to the high ground.`);
+        gainStrain(state, u);
+      }
       u.trail = [...(u.trail || [from]), { x: u.x, y: u.y }];
-      if (!ignoresObstacles(u)) for (const o of obstaclesOnPath(state, u, [pose])) obstacleEffect(state, u, o);
+      if (!ignoresObstacles(u)) for (const o of obstaclesOnPath(state, u, [pose])) if (!before.has(o.id)) obstacleEffect(state, u, o);
       break;
     }
     default:
@@ -663,7 +717,10 @@ function applyAction(state, u, a, params, byName) {
   log(state, `${who} takes ${a[0].toUpperCase()}${a.slice(1)}.`);
 }
 
-export function act(state, pid, { a, params = {} }) {
+export function act(state, pid, msg) {
+  if (!msg || typeof msg !== "object") fail("Bad action.");
+  const a = msg.a;
+  const params = msg.params && typeof msg.params === "object" ? msg.params : {};
   const pend = state.pending;
   if (!pend || pend.type !== "action" || pend.pid !== pid) fail("It is not your action step.");
   const u = unit(state, pend.uid);
@@ -674,6 +731,7 @@ export function act(state, pid, { a, params = {} }) {
     const sub = t.subs.find((s) => s.a === params.sub) || fail("That unit cannot take that action.");
     log(state, `${u.name} issues a Command.`);
     applyAction(state, unit(state, t.id), sub.a, params.subParams || {}, u.name);
+    u.act.commanded.push(t.id);
   } else {
     applyAction(state, u, a, params, null);
   }
@@ -775,12 +833,16 @@ export function defenseDice(state, u, t, w, r) {
   if (onKind(state, t, "marsh")) n -= 1;
   if (has(t, "elusive") && r >= 2) n += 1;
   if (has(t, "shieldwall") && friendsOf(state, t).some((f) => has(f, "shieldwall") && rangeBetween(f, t) <= 1)) n += 1;
+  // Concord Discipline: nobody fights alone.
+  if (rule(t, "discipline") && friendsOf(state, t).some((f) => rangeBetween(f, t) <= 1)) n += 1;
   if (friendsOf(state, t).some((f) => has(f, "guardian") && rangeBetween(f, t) <= 1)) n += 1;
   if (has(u, "pierce")) n -= 1;
   return Math.max(0, n);
 }
 
-export function declareAttack(state, pid, { target, weapon }) {
+export function declareAttack(state, pid, msg) {
+  if (!msg || typeof msg !== "object") fail("Bad attack.");
+  const { target, weapon } = msg;
   const pend = state.pending;
   if (!pend || pend.type !== "attack" || pend.pid !== pid) fail("It is not your attack.");
   const u = unit(state, pend.uid);
@@ -851,7 +913,10 @@ function rollDefense(state) {
   offerDefenseMods(state);
 }
 
-export function modify(state, pid, { op, dice = [] }) {
+export function modify(state, pid, msg) {
+  if (!msg || typeof msg !== "object") fail("Bad modifier.");
+  const op = msg.op;
+  const dice = Array.isArray(msg.dice) ? msg.dice : [];
   const pend = state.pending;
   if (!pend || (pend.type !== "attackMods" && pend.type !== "defenseMods") || pend.pid !== pid) fail("Not your dice to modify.");
   const opt = pend.options.find((o) => o.op === op) || fail("That modifier is not available.");
@@ -946,6 +1011,7 @@ function resolveAttack(state) {
     }
     if (has(u, "poison") && !t.dead && !t.dying) {
       t.cond.bleeding = true;
+      t.cond.bleedingBy = u.owner;
       log(state, `${t.name} is poisoned (Bleeding).`);
     }
     if (has(u, "blast")) {
@@ -994,11 +1060,14 @@ function startEngagement(state) {
 
 function endPhase(state) {
   flushDying(state);
+  state.phase = "end"; // deaths from here on are immediate, not simultaneous-fire
   for (const u of alive(state)) {
     if (u.cond.bleeding) {
+      const by = u.cond.bleedingBy || null;
       delete u.cond.bleeding;
+      delete u.cond.bleedingBy;
       log(state, `${u.name} bleeds (1 damage).`);
-      damage(state, u, "strike", null);
+      damage(state, u, "strike", by);
     }
   }
   for (const u of alive(state)) {
@@ -1039,7 +1108,9 @@ function endPhase(state) {
   if (standing.length <= 1 || state.round >= state.settings.maxRounds) {
     state.phase = "over";
     const score = (p) => p.vp * 1000 + alive(state).filter((u) => u.owner === p.id).reduce((a, u) => a + u.cost, 0);
-    const ranked = [...state.players].sort((a, b) => score(b) - score(a));
+    // At the round limit, only warbands still on the field can win.
+    const pool = standing.length ? standing : state.players;
+    const ranked = [...pool].sort((a, b) => score(b) - score(a));
     state.winner = standing.length === 1 ? standing[0].id : ranked[0]?.id ?? null;
     log(state, `The drums fall silent. ${player(state, state.winner)?.name ?? "Nobody"} holds the field.`);
     return;
@@ -1054,7 +1125,8 @@ export function run(state) {
   for (let guard = 0; guard < 2000; guard++) {
     if (state.pending || state.phase === "over") return;
     if (state.phase === "muster") {
-      if (state.players.length >= 2 && state.players.every((p) => p.ready)) startDeploy(state);
+      const fits = (p) => validateArmy(p.faction, p.army, state.settings.budget).ok;
+      if (state.players.length >= 2 && state.players.every((p) => p.ready && fits(p))) startDeploy(state);
       else return;
     } else if (state.phase === "deploy") {
       if (allReady(state)) startRound(state);
@@ -1095,28 +1167,53 @@ export function run(state) {
 }
 
 /**
- * The state as one seat may see it. Other players' planned dials stay secret,
- * and once deployment starts the fog of war hides every enemy unit this player's
- * units cannot see (spectators, pid null, see everything).
+ * The state as one seat may see it.
+ * - Private player tokens never leave the server: players appear by public seat id.
+ * - Other players' planned dials stay secret.
+ * - From deployment on, the fog of war hides enemy units this viewer cannot see,
+ *   along with their ids in the queue, plans and prompts, and their names in the log.
+ * - Spectators (pid null) see what every seated player can see, or everything
+ *   when the host has opened spectating.
  */
 export function viewFor(state, pid) {
+  const seated = player(state, pid);
+  const pub = Object.fromEntries(state.players.map((p) => [p.id, `p${p.seat}`]));
   const v = JSON.parse(JSON.stringify(state));
   delete v.rng;
   v.planned = Object.keys(state.dials);
   v.dials = {};
-  for (const [uid, code] of Object.entries(state.dials)) if (unit(state, uid)?.owner === pid) v.dials[uid] = code;
-  v.you = pid;
+  for (const [uid, code] of Object.entries(state.dials)) if (seated && unit(state, uid)?.owner === pid) v.dials[uid] = code;
   v.hidden = 0;
-  const fogged = pid && player(state, pid) && state.phase !== "muster" && state.phase !== "over";
-  if (fogged) {
-    const seen = visibleTo(state, pid);
-    const hidden = v.units.filter((u) => u.owner !== pid && !u.dead && !seen.has(u.id));
-    const hide = new Set(hidden.map((u) => u.id));
-    v.units = v.units.filter((u) => !hide.has(u.id));
-    v.hidden = hidden.length;
-    // Names of unseen units would leak positions through the log.
-    const names = [...new Set(hidden.map((u) => u.name))].filter((n) => !v.units.some((u) => u.name === n));
-    for (const entry of v.log) for (const n of names) entry.msg = entry.msg.split(n).join("an unseen enemy");
+  const battle = state.phase !== "muster" && state.phase !== "over";
+  let seen = null;
+  if (battle && seated) seen = visibleTo(state, pid);
+  else if (battle && !state.settings.openSpectators) {
+    const sets = activePlayers(state).map((p) => visibleTo(state, p.id));
+    seen = new Set(state.units.map((u) => u.id).filter((id) => sets.every((set) => set.has(id))));
   }
+  if (seen) {
+    const hiddenUnits = v.units.filter((u) => !u.dead && !seen.has(u.id) && u.owner !== pid);
+    const hide = new Set(hiddenUnits.map((u) => u.id));
+    const known = (id) => !hide.has(id);
+    v.units = v.units.filter((u) => known(u.id));
+    v.hidden = hiddenUnits.length;
+    v.planned = v.planned.filter(known);
+    v.queue = v.queue.filter(known);
+    if (v.pending && v.pending.pid !== pid) v.pending = { type: v.pending.type, pid: v.pending.pid, uid: known(v.pending.uid) ? v.pending.uid : null };
+    for (const k of ["attack", "lastAttack"]) if (v[k] && (!known(v[k].attacker) || !known(v[k].target))) v[k] = null;
+    const nameOf = Object.fromEntries(hiddenUnits.map((u) => [u.id, u.name]));
+    for (const entry of v.log) {
+      for (const id of entry.refs || []) if (nameOf[id]) entry.msg = entry.msg.split(nameOf[id]).join("an unseen enemy");
+    }
+  }
+  for (const entry of v.log) delete entry.refs;
+  // Opponents' army lists stay private until the battle shows them.
+  for (const p of v.players) if (p.id !== pid) p.army = [];
+  // Swap private tokens for public seat ids everywhere they appear.
+  for (const p of v.players) p.id = pub[p.id];
+  for (const u of v.units) u.owner = pub[u.owner];
+  if (v.pending) v.pending.pid = pub[v.pending.pid];
+  if (v.winner) v.winner = pub[v.winner];
+  v.you = seated ? pub[pid] : null;
   return v;
 }
