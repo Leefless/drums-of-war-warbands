@@ -5,7 +5,7 @@ import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, planMove, stanceBonus, strained, zoneFor } from "/shared/engine.js";
-import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
+import { healthColor, playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
@@ -1099,7 +1099,7 @@ function renderRoster() {
     const { buffs, debuffs } = unitStatus(u);
     return `<button class="rchip ${L.cardFor === u.id ? "on" : ""}" data-card="${u.id}" title="${esc(u.name)}" style="--fc:${playerColor(S, u.owner)}">
       <span class="portrait small">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span>
-      <span class="hp"><i style="width:${Math.round((100 * u.wounds) / u.maxWounds)}%"></i></span>
+      <span class="hp"><i style="width:${Math.round((100 * u.wounds) / u.maxWounds)}%;background:${healthColor(u.wounds / u.maxWounds)}"></i></span>
       ${buffs.length ? `<span class="dot buff">${buffs.length}</span>` : ""}${debuffs.length ? `<span class="dot debuff">${debuffs.length}</span>` : ""}
     </button>`;
   }).join("");

@@ -1076,33 +1076,44 @@ function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   if (alpha >= 1) drawStatus(ctx, u, pose, BASE_SIZE[u.base]);
 }
 
+/** Health colour: green when whole, through amber, to deep red near death (f = wounds left / max). */
+export function healthColor(f) {
+  const t = Math.max(0, Math.min(1, f));
+  const hue = 115 * t; // 115 green -> 0 red
+  const light = 30 + 16 * t; // deeper as it drops
+  return `hsl(${hue.toFixed(0)}, 70%, ${light.toFixed(0)}%)`;
+}
+
 function drawStatus(ctx, u, pose, size) {
   const reach = size * 0.72; // clears the base at any rotation
   ctx.save();
-  // Wounds: a row of pips under the base.
-  const n = u.maxWounds;
-  const pw = n > 8 ? Math.max(2.5, 40 / n) : 5;
-  const gap = 1.5;
-  let x = pose.x - (n * pw + (n - 1) * gap) / 2;
+  // Health: an upright bar across the bottom of the picture, green to deep red as wounds mount.
+  const f = u.maxWounds ? u.wounds / u.maxWounds : 0;
+  const bw = size * 0.78;
+  const bh = Math.max(4, size * 0.09);
+  const bx = pose.x - bw / 2;
+  const by = pose.y + size * 0.26;
+  ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+  roundRect(ctx, bx - 1.2, by - 1.2, bw + 2.4, bh + 2.4, 2);
+  ctx.fill();
+  ctx.fillStyle = "#2A1712"; // the health already lost
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.fillStyle = healthColor(f);
+  ctx.fillRect(bx, by, bw * f, bh);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.18)"; // a little sheen so it reads as a bar on any art
+  ctx.fillRect(bx, by, bw * f, bh * 0.4);
   const y = pose.y + reach + 3;
-  for (let i = 0; i < n; i++) {
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(x - 0.8, y - 0.8, pw + 1.6, 5.6);
-    ctx.fillStyle = i < u.wounds ? "#8DBF6A" : "#3A2F24";
-    ctx.fillRect(x, y, pw, 4);
-    x += pw + gap;
-  }
-  // Ward: blue diamonds under the wounds.
+  // Ward: blue diamonds under the base.
   for (let i = 0; i < u.maxWard; i++) {
     const dx = pose.x - ((u.maxWard - 1) * 8) / 2 + i * 8;
     ctx.fillStyle = i < u.ward ? "#8FC1F0" : "rgba(30, 40, 55, 0.7)";
     ctx.strokeStyle = "rgba(0,0,0,0.6)";
     ctx.lineWidth = 0.8;
     ctx.beginPath();
-    ctx.moveTo(dx, y + 7);
-    ctx.lineTo(dx + 3.2, y + 10.5);
-    ctx.lineTo(dx, y + 14);
-    ctx.lineTo(dx - 3.2, y + 10.5);
+    ctx.moveTo(dx, y);
+    ctx.lineTo(dx + 3.2, y + 3.5);
+    ctx.lineTo(dx, y + 7);
+    ctx.lineTo(dx - 3.2, y + 3.5);
     ctx.closePath();
     ctx.fill();
     ctx.stroke();
