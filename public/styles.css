@@ -179,6 +179,7 @@ canvas { display: block; cursor: crosshair; touch-action: none; border: 1px soli
 
 .ulist { display: grid; gap: 4px; }
 .ulist button { display: flex; justify-content: space-between; text-align: left; }
+.ulist .inline-dial { padding: 6px 0 8px; }
 .ulist .set { color: var(--good); font: 600 12px var(--display); letter-spacing: 0.06em; }
 
 /* Dice: carved bone cubes (attack) and green-tinted stone (defence) */

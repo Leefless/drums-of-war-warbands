@@ -480,6 +480,10 @@ function renderBattle(app) {
   $("#card").innerHTML = cardHTML();
   $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
   wirePrompt();
+  // Bring a newly opened dial into view once, so it sits under its unit without manual scrolling.
+  const dialEl = $("#seldial");
+  if (dialEl && L.dialFor !== L.selected) dialEl.scrollIntoView({ block: "nearest" });
+  L.dialFor = dialEl ? L.selected : null;
   drawBoard();
 }
 
@@ -577,8 +581,8 @@ function promptHTML() {
       const sel = unitById(L.selected);
       const allSet = units.every((u) => S.dials[u.id]);
       html = `<div class="label">Planning · secret</div><h3>Set a maneuver for every unit</h3>
-        <div class="ulist" style="margin:8px 0">${units.map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)} <span class="muted">i${u.init}${strained(u) ? " · strained" : ""}</span></span><span class="set">${S.dials[u.id] ? esc(S.dials[u.id].replace(":", " ")) : ""}</span></button>`).join("")}</div>
-        ${sel && sel.owner === S.you ? `<div class="label">${esc(sel.name)} dial (hover to preview)</div>${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}` : `<p class="muted">Select a unit to open its dial.</p>`}
+        <div class="ulist" style="margin:8px 0">${units.map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)} <span class="muted">i${u.init}${strained(u) ? " · strained" : ""}</span></span><span class="set">${S.dials[u.id] ? esc(S.dials[u.id].replace(":", " ")) : ""}</span></button>${u === sel ? `<div class="inline-dial" id="seldial"><div class="label">Dial (hover to preview)</div>${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}</div>` : ""}`).join("")}</div>
+        ${sel && sel.owner === S.you ? "" : `<p class="muted">Select a unit to open its dial.</p>`}
         <div class="btns" style="margin-top:10px">${mine.ready ? `<span class="muted">Orders locked. Waiting for the others.</span><button id="unready">Change orders</button>` : `<button class="cta" id="ready" ${allSet ? "" : "disabled"}>Lock in orders</button>`}</div>`;
     }
   } else if (S.phase === "over") {
