@@ -3,7 +3,7 @@
 // shared/presets/<faction>.js. Check them with:
 //   node scripts/check-presets.mjs [faction]          legality and cost (every budget)
 //   node scripts/sim-presets.mjs [games] [faction] [budget]   computer-vs-computer win rates
-import { FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, categoryOf, upgradesFor } from "./factions.js";
+import { FACTIONS, UPGRADES, armyLimits, categoryOf, upgradesFor } from "./factions.js";
 import { presets as calamity } from "./presets/calamity.js";
 import { presets as concord } from "./presets/concord.js";
 import { presets as greenskin } from "./presets/greenskin.js";
@@ -26,6 +26,7 @@ export function presetList(fid, preset, budget) {
   const f = FACTIONS[fid];
   const def = (id) => f.units.find((u) => u.id === id);
   const scale = budget / PRESET_BUDGET;
+  const { units: MAX_UNITS, copies: MAX_COPIES } = armyLimits(budget);
   const baseCount = new Map();
   for (const e of preset.list) baseCount.set(e.unit, (baseCount.get(e.unit) || 0) + 1);
   const list = [];

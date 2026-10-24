@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as E from "../shared/engine.js";
-import { concealed, lineOfSight, visibleTo } from "../shared/terrain.js";
+import { concealed, layTerrain, lineOfSight, terrainCount, visibleTo } from "../shared/terrain.js";
 
 // Two armies on an empty board; tests then place terrain and units by hand.
 function battle(a = ["ironbreakers"], b = ["boyz"], fa = "holds", fb = "greenskin") {
@@ -164,9 +164,11 @@ test("default deployment: 12 large bases per player start inside their zones wit
     for (const p of ids) E.submitArmy(s, p, list);
     for (const p of ids) E.ready(s, p);
     E.run(s);
-    assert.equal(s.obstacles.length, 10);
+    assert.equal(s.board, 1600, "the largest battlefield");
+    assert.equal(s.obstacles.length, terrainCount(s.board), "every terrain piece fits, and there are more on a bigger board");
+    assert.ok(terrainCount(s.board) > 10);
     for (const p of s.players) {
-      const z = E.zoneFor(p.seat);
+      const z = E.zoneFor(p.seat, s.board);
       const units = s.units.filter((u) => u.owner === p.id);
       for (const u of units) for (const v of E.poly(u)) assert.ok(v.x >= z.x0 - 1e-6 && v.x <= z.x1 + 1e-6 && v.y >= z.y0 - 1e-6 && v.y <= z.y1 + 1e-6, `${u.name} outside zone`);
       for (const o of s.obstacles) assert.ok(o.x + o.r < z.x0 || o.x - o.r > z.x1 || o.y + o.r < z.y0 || o.y - o.r > z.y1, "terrain inside a zone");
@@ -175,4 +177,32 @@ test("default deployment: 12 large bases per player start inside their zones wit
     E.run(s);
     assert.equal(s.phase, "plan");
   }
+});
+
+test("bigger budgets: more units and a bigger board, and a full 300 point horde deploys cleanly", async () => {
+  const { presetList, PRESETS } = await import("../shared/presets.js");
+  const { armyLimits } = await import("../shared/factions.js");
+  assert.deepEqual([60, 100, 150, 200, 300].map((b) => E.createGame({ budget: b }).board), [900, 900, 1100, 1300, 1600]);
+  assert.deepEqual(armyLimits(100), { units: 12, copies: 3 });
+  assert.deepEqual(armyLimits(300), { units: 36, copies: 9 });
+  const s = E.createGame({ seed: 9, budget: 300 });
+  for (const p of ["a", "b"]) {
+    E.addPlayer(s, p, p);
+    E.setFaction(s, p, "greenskin");
+  }
+  const tide = presetList("greenskin", PRESETS.greenskin.find((x) => x.id === "greenskin-big-green-tide"), 300);
+  assert.ok(tide.length > 12, "the horde grows past 12 units");
+  for (const p of ["a", "b"]) E.submitArmy(s, p, tide);
+  for (const p of ["a", "b"]) E.ready(s, p);
+  E.run(s);
+  assert.equal(s.phase, "deploy");
+  for (const p of s.players) {
+    const z = E.zoneFor(p.seat, s.board);
+    const units = s.units.filter((u) => u.owner === p.id);
+    assert.equal(units.length, tide.length);
+    for (const u of units) for (const v of E.poly(u)) assert.ok(v.x >= z.x0 - 1e-6 && v.x <= z.x1 + 1e-6 && v.y >= z.y0 - 1e-6 && v.y <= z.y1 + 1e-6, `${u.name} outside zone`);
+  }
+  for (const p of ["a", "b"]) E.ready(s, p);
+  E.run(s);
+  assert.equal(s.phase, "plan", "no overlaps: deployment is accepted");
 });

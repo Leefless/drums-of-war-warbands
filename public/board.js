@@ -8,6 +8,9 @@ import { zoneFor } from "/shared/engine.js";
 import { TERRAIN, visionOf } from "/shared/terrain.js";
 import { EMBLEMS, ICONS, UNIT_ICON, artImage, artList, path2d } from "/art.js";
 
+// Battlefield side for the battle being drawn (bigger budgets play on bigger boards).
+let SIZE = BOARD;
+
 const DISPLAY = '"Cinzel", "Trajan Pro", Georgia, serif';
 const PARCHMENT = "#EFE3C6";
 const GOLD = "#C9A227";
@@ -76,7 +79,7 @@ export function sizeCanvas(canvas) {
 
 export function toBoard(canvas, ev) {
   const r = canvas.getBoundingClientRect();
-  return { x: ((ev.clientX - r.left) / r.width) * BOARD, y: ((ev.clientY - r.top) / r.height) * BOARD };
+  return { x: ((ev.clientX - r.left) / r.width) * SIZE, y: ((ev.clientY - r.top) / r.height) * SIZE };
 }
 
 export function unitAt(state, pt) {
@@ -104,26 +107,26 @@ function paintTerrain(state, px) {
   const c = document.createElement("canvas");
   c.width = c.height = px;
   const g = c.getContext("2d");
-  g.setTransform(px / BOARD, 0, 0, px / BOARD, 0, 0);
+  g.setTransform(px / SIZE, 0, 0, px / SIZE, 0, 0);
   const R = rng(seedOf(state));
 
   // Ground: a painted battlefield map (one per battle, chosen by seed), else the
   // tiling texture, else procedural meadow. Mottling is layered on top either way.
   g.fillStyle = "#566F3A";
-  g.fillRect(0, 0, BOARD, BOARD);
+  g.fillRect(0, 0, SIZE, SIZE);
   const map = pickArt(state, "ground/", 0);
   const ground = map ? null : artImage("ground.jpg");
   if (map) {
-    g.drawImage(map, 0, 0, BOARD, BOARD);
+    g.drawImage(map, 0, 0, SIZE, SIZE);
   } else if (ground) {
     const pat = g.createPattern(ground, "repeat");
     pat.setTransform(new DOMMatrix().scale(320 / ground.width));
     g.fillStyle = pat;
-    g.fillRect(0, 0, BOARD, BOARD);
+    g.fillRect(0, 0, SIZE, SIZE);
   }
   const greens = ["#4A6331", "#5D7840", "#6A8347", "#43592B", "#768A4C", "#52693A"];
-  for (let i = 0; i < (map ? 30 : ground ? 90 : 420); i++) blob(g, R() * BOARD, R() * BOARD, 15 + R() * 85, greens[(R() * greens.length) | 0], "55");
-  for (let i = 0; i < 9; i++) blob(g, R() * BOARD, R() * BOARD, 40 + R() * 70, "#7B6643", "40");
+  for (let i = 0; i < (map ? 30 : ground ? 90 : 420); i++) blob(g, R() * SIZE, R() * SIZE, 15 + R() * 85, greens[(R() * greens.length) | 0], "55");
+  for (let i = 0; i < 9; i++) blob(g, R() * SIZE, R() * SIZE, 40 + R() * 70, "#7B6643", "40");
 
   // Winding dirt roads (painted maps bring their own character, so one faint track there).
   g.lineCap = "round";
@@ -132,7 +135,7 @@ function paintTerrain(state, px) {
     const a = R() * 600 + 150;
     const b = R() * 600 + 150;
     const p0 = vertical ? [a, -20] : [-20, a];
-    const p3 = vertical ? [b, BOARD + 20] : [BOARD + 20, b];
+    const p3 = vertical ? [b, SIZE + 20] : [SIZE + 20, b];
     const c1 = [150 + R() * 600, 150 + R() * 600];
     const c2 = [150 + R() * 600, 150 + R() * 600];
     for (const [w, col] of [[40, "#6E5A3B55"], [28, "#8A7550"], [12, "#9A865E99"]]) {
@@ -149,8 +152,8 @@ function paintTerrain(state, px) {
   const tuft = ["#3E5428", "#7D9450", "#8FA35A", "#4F6A33"];
   g.lineWidth = 1;
   for (let i = 0; i < (map ? 600 : 3200); i++) {
-    const x = R() * BOARD;
-    const y = R() * BOARD;
+    const x = R() * SIZE;
+    const y = R() * SIZE;
     const a = -Math.PI / 2 + (R() - 0.5) * 0.9;
     const L = 3 + R() * 4;
     g.strokeStyle = tuft[(R() * tuft.length) | 0];
@@ -163,13 +166,13 @@ function paintTerrain(state, px) {
   for (let i = 0; i < 170; i++) {
     g.fillStyle = petals[(R() * 3) | 0];
     g.beginPath();
-    g.arc(R() * BOARD, R() * BOARD, 1.1, 0, Math.PI * 2);
+    g.arc(R() * SIZE, R() * SIZE, 1.1, 0, Math.PI * 2);
     g.fill();
   }
   for (let i = 0; i < 220; i++) {
     g.fillStyle = "#8A8577AA";
     g.beginPath();
-    g.ellipse(R() * BOARD, R() * BOARD, 1 + R() * 1.6, 0.8 + R(), R() * 3, 0, Math.PI * 2);
+    g.ellipse(R() * SIZE, R() * SIZE, 1 + R() * 1.6, 0.8 + R(), R() * 3, 0, Math.PI * 2);
     g.fill();
   }
 
@@ -193,29 +196,29 @@ function paintTerrain(state, px) {
   // Faint range grid, edge vignette, and the table frame.
   g.strokeStyle = "rgba(20, 30, 10, 0.16)";
   g.lineWidth = 1;
-  for (let i = 100; i < BOARD; i += 100) {
+  for (let i = 100; i < SIZE; i += 100) {
     g.beginPath();
     g.moveTo(i, 0);
-    g.lineTo(i, BOARD);
+    g.lineTo(i, SIZE);
     g.moveTo(0, i);
-    g.lineTo(BOARD, i);
+    g.lineTo(SIZE, i);
     g.stroke();
   }
   // Warm key light from the upper left, cool falloff to the lower right.
-  const light = g.createLinearGradient(0, 0, BOARD, BOARD);
+  const light = g.createLinearGradient(0, 0, SIZE, SIZE);
   light.addColorStop(0, "rgba(255, 220, 160, 0.14)");
   light.addColorStop(0.55, "rgba(255, 220, 160, 0)");
   light.addColorStop(1, "rgba(20, 30, 60, 0.18)");
   g.fillStyle = light;
-  g.fillRect(0, 0, BOARD, BOARD);
-  const v = g.createRadialGradient(BOARD / 2, BOARD / 2, BOARD * 0.35, BOARD / 2, BOARD / 2, BOARD * 0.75);
+  g.fillRect(0, 0, SIZE, SIZE);
+  const v = g.createRadialGradient(SIZE / 2, SIZE / 2, SIZE * 0.35, SIZE / 2, SIZE / 2, SIZE * 0.75);
   v.addColorStop(0, "rgba(0,0,0,0)");
   v.addColorStop(1, "rgba(0,0,0,0.42)");
   g.fillStyle = v;
-  g.fillRect(0, 0, BOARD, BOARD);
+  g.fillRect(0, 0, SIZE, SIZE);
   g.strokeStyle = "#2A1F12";
   g.lineWidth = 6;
-  g.strokeRect(3, 3, BOARD - 6, BOARD - 6);
+  g.strokeRect(3, 3, SIZE - 6, SIZE - 6);
   return { canvas: c, rifts };
 }
 
@@ -259,9 +262,9 @@ function drawSprite(g, img, x, y, size, rot, px) {
   g.translate(x, y);
   g.rotate(rot);
   g.shadowColor = "rgba(0, 0, 0, 0.5)";
-  g.shadowBlur = 14 * (px / BOARD);
-  g.shadowOffsetX = 5 * (px / BOARD);
-  g.shadowOffsetY = 7 * (px / BOARD);
+  g.shadowBlur = 14 * (px / SIZE);
+  g.shadowOffsetX = 5 * (px / SIZE);
+  g.shadowOffsetY = 7 * (px / SIZE);
   g.drawImage(img, -full * t.cx, -full * t.cy, full, full);
   g.restore();
 }
@@ -271,8 +274,8 @@ function paintDecor(g, state, R, px) {
   const list = artList("decor/");
   if (!list.length) return;
   for (let i = 0, placed = 0; i < 60 && placed < 14; i++) {
-    const x = 60 + R() * (BOARD - 120);
-    const y = 60 + R() * (BOARD - 120);
+    const x = 60 + R() * (SIZE - 120);
+    const y = 60 + R() * (SIZE - 120);
     if (state.obstacles.some((o) => Math.hypot(o.x - x, o.y - y) < o.r + 45)) continue;
     const img = artImage(list[(R() * list.length) | 0]);
     if (!img) continue;
@@ -389,9 +392,9 @@ function paintMarsh(g, o, R) {
 function paintBlock(g, o, R, px) {
   g.save();
   g.shadowColor = "rgba(0,0,0,0.55)";
-  g.shadowBlur = 12 * (px / BOARD);
-  g.shadowOffsetX = 5 * (px / BOARD);
-  g.shadowOffsetY = 7 * (px / BOARD);
+  g.shadowBlur = 12 * (px / SIZE);
+  g.shadowOffsetX = 5 * (px / SIZE);
+  g.shadowOffsetY = 7 * (px / SIZE);
   g.fillStyle = "#77736A";
   g.beginPath();
   for (let i = 0; i < 9; i++) {
@@ -479,7 +482,7 @@ function paintRift(g, o, R) {
 function ensureTerrain(state, px) {
   const paths = ["ground.jpg", "terrain/ruins.png", "terrain/thicket.png", "terrain/rift.png", ...artList("ground/"), ...artList("terrain/"), ...artList("decor/")];
   const art = paths.map((p) => (artImage(p) ? 1 : 0)).join("");
-  const key = `${seedOf(state)}|${px}|${art}`;
+  const key = `${seedOf(state)}|${px}|${SIZE}|${art}`;
   if (terrain?.key !== key) terrain = { key, ...paintTerrain(state, px) };
   return terrain;
 }
@@ -615,6 +618,7 @@ export function resetBoard() {
  * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, zones: bool }
  */
 export function updateBoard(canvas, state, opts = {}) {
+  SIZE = state.board || BOARD;
   if (state !== current.state) diffState(state);
   current = { canvas, state, opts };
 }
@@ -632,7 +636,7 @@ requestAnimationFrame(frame);
 
 function render(canvas, state, opts, now) {
   const ctx = canvas.getContext("2d");
-  const k = canvas.width / BOARD;
+  const k = canvas.width / SIZE;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.drawImage(ensureTerrain(state, canvas.width).canvas, 0, 0);
   ctx.setTransform(k, 0, 0, k, 0, 0);
@@ -740,7 +744,7 @@ function drawFog(ctx, canvas, state) {
     fogLayer = document.createElement("canvas");
     fogLayer.width = fogLayer.height = canvas.width;
   }
-  const k = canvas.width / BOARD;
+  const k = canvas.width / SIZE;
   const g = fogLayer.getContext("2d");
   g.setTransform(1, 0, 0, 1, 0, 0);
   g.globalCompositeOperation = "source-over";
@@ -796,7 +800,7 @@ function drawFootprint(ctx, o) {
 
 function drawZones(ctx, state) {
   for (const p of state.players) {
-    const z = zoneFor(p.seat);
+    const z = zoneFor(p.seat, SIZE);
     const col = playerColor(state, p.id);
     ctx.fillStyle = `${col}26`;
     ctx.fillRect(z.x0, z.y0, z.x1 - z.x0, z.y1 - z.y0);

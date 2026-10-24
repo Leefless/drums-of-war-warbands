@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { unitCost } from "../shared/cost.js";
 import { DIALS } from "../shared/dials.js";
-import { FACTIONS, MAX_COPIES, validateArmy } from "../shared/factions.js";
+import { FACTIONS, MAX_COPIES, armyLimits, validateArmy } from "../shared/factions.js";
 import { checkRoster, MIN_CHAMPIONS, MIN_UNITS } from "../shared/roster-check.js";
 import * as E from "../shared/engine.js";
 
@@ -45,7 +45,8 @@ test("army rules: one optional champion, at most 3 copies, champion counts again
   const line = FACTIONS.holds.units.find((u) => !u.champion);
   assert.ok(validateArmy("holds", [{ unit: line.id }], 999).ok, "no champion is fine");
   assert.ok(!validateArmy("holds", [{ unit: champs[0].id }, { unit: champs[1].id }], 999).ok, "two champions rejected");
-  assert.ok(!validateArmy("holds", Array(MAX_COPIES + 1).fill({ unit: line.id }), 999).ok, "fourth copy rejected");
+  assert.ok(!validateArmy("holds", Array(MAX_COPIES + 1).fill({ unit: line.id }), 100).ok, "fourth copy rejected at 100 points");
+  assert.ok(validateArmy("holds", Array(armyLimits(200).copies).fill({ unit: line.id }), 200).ok, "bigger games allow more copies");
   const v = validateArmy("holds", [{ unit: champs[0].id }, { unit: line.id }], 999);
   assert.equal(v.cost, champs[0].cost + line.cost);
 });

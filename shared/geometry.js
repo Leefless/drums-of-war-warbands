@@ -3,7 +3,15 @@
 // x grows right, y grows down. Heading h is in degrees, 0 = facing north (-y),
 // positive = clockwise. A unit is an oriented square base centred on (x, y).
 
-export const BOARD = 900;
+export const BOARD = 900; // a standard (100 point) battlefield; bigger budgets play on a bigger one
+
+/** Battlefield side for a budget: 900 up to 100 points, then growing so the area keeps pace with the points. */
+export function boardSize(budget) {
+  const b = Math.min(300, Number(budget) || 100); // 300 is the largest game the host can set
+  return b <= 100 ? BOARD : Math.round((BOARD * Math.sqrt(b / 100)) / 100) * 100;
+}
+/** Deployment zone depth on a battlefield of this size (180 on the standard one). */
+export const zoneDepth = (size) => Math.round((180 * size) / BOARD);
 export const RANGE_STEP = 100; // one range band
 export const SPEED_STEP = 40; // length of a speed-1 straight template
 export const BASE_SIZE = { small: 40, medium: 60, large: 80 };
@@ -198,8 +206,8 @@ export function segmentHitsCircle(a, b, c) {
   return pointSegDist(c, a, b) < c.r;
 }
 
-export function insideBoard(poly) {
-  return poly.every((v) => v.x >= 0 && v.x <= BOARD && v.y >= 0 && v.y <= BOARD);
+export function insideBoard(poly, size = BOARD) {
+  return poly.every((v) => v.x >= 0 && v.x <= size && v.y >= 0 && v.y <= size);
 }
 
 export function rangeBand(dist) {

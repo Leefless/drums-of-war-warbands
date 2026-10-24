@@ -60,6 +60,20 @@ Champions cost 15% more than their computed value: one unique, optional slot of
 concentrated power. The coefficients were tuned on 1,440-game bot simulations so
 that each army wins roughly 47 to 55% of random 100-point battles.
 
+
+### Bigger games
+
+Larger budgets field larger armies on a larger battlefield, so space per point stays about the same.
+
+| Budget | Units (plus a champion) | Copies of one unit | Battlefield | Terrain pieces |
+| --- | --- | --- | --- | --- |
+| 100 or less | 12 | 3 | 900 x 900 | 10 |
+| 150 | 18 | 5 | 1100 x 1100 | 12 |
+| 200 | 24 | 6 | 1300 x 1300 | 17 |
+| 300 | 36 | 9 | 1600 x 1600 | 26 |
+
+Deployment zones deepen with the battlefield. Prebuilt warbands scale to the budget in the same proportions.
+
 ## 3. Unit profile
 
 | Stat | Meaning |

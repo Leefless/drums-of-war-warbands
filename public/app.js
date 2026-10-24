@@ -1,9 +1,9 @@
 // Browser client. Holds no game logic beyond previews: the server is
 // authoritative and sends a fresh filtered state after every change.
-import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, MAX_COPIES, MAX_UNITS, UPGRADES, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
+import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, UPGRADES, armyLimits, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
-import { BASE_SIZE, BOARD, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
+import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, parseAction, planMove, stanceBonus, strained, zoneFor } from "/shared/engine.js";
 import { playerColor, resetBoard, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
@@ -291,7 +291,7 @@ function presetsHTML(f, locked) {
         <h4>${esc(pr.name)}</h4>
         <p class="pblurb">${esc(pr.blurb)}</p>
         <p class="pcomp">${champ ? `<b>${esc(champ.name)}</b> leads ` : ""}${troops}</p>
-        ${capped ? `<p class="pcomp">At the ${MAX_UNITS} unit limit: fills ${v.cost} of ${budget} points.</p>` : ""}
+        ${capped ? `<p class="pcomp">At the ${armyLimits(budget).units} unit limit: fills ${v.cost} of ${budget} points.</p>` : ""}
         <button class="small ${on ? "" : "cta"}" data-preset="${esc(pr.id)}" ${locked || !v.ok || on ? "disabled" : ""}>${on ? "Loaded" : "Use this army"}</button>
       </div>`;
     }).join("")}</div></div>`;
@@ -352,7 +352,7 @@ function detailsHTML(u) {
 
 function rowHTML(f, u, locked, counts, champ) {
   const n = counts[u.id] || 0;
-  const full = !u.champion && n >= MAX_COPIES;
+  const full = !u.champion && n >= armyLimits(S.settings.budget).copies;
   const label = u.champion ? (champ?.unit === u.id ? "Chosen" : champ ? "Swap in" : "Take") : n ? `Add (${n})` : "Add";
   return `<div class="urow ${L.open === u.id ? "open" : ""}" style="--fc:${f.color}">
     <button class="urow-main" data-open="${u.id}" aria-expanded="${L.open === u.id}">
@@ -445,7 +445,7 @@ function renderMuster(app) {
         <div class="budget ${v.cost > S.settings.budget ? "over" : ""}"><i style="width:${pct}%"></i></div>
         <div class="label">Champion (optional)</div>
         ${champ ? entryHTML(f, champ, L.draft.indexOf(champ), locked) : `<div class="slot muted">No champion. Open the Champions tab to take one.</div>`}
-        <div class="label">Units <span class="num">${regs.length} / ${MAX_UNITS}</span></div>
+        <div class="label">Units <span class="num">${regs.length} / ${armyLimits(S.settings.budget).units}</span>${S.settings.budget > 100 ? ` <span class="muted">· up to ${armyLimits(S.settings.budget).copies} of each · ${S.board} battlefield</span>` : ""}</div>
         ${regs.length ? regs.map((x) => entryHTML(f, x.e, x.i, locked)).join("") : `<div class="slot muted">Add units from the roster.</div>`}
         ${v.errors.length && L.draft.length ? `<p style="margin:0;color:var(--crit)">${esc(v.errors.join(" "))}</p>` : ""}
         ${locked
@@ -600,7 +600,7 @@ function renderBattle(app) {
     canvas.onpointermove = (ev) => {
       const pt = toBoard(canvas, ev);
       if (L.dragging) {
-        L.chargeAt = { x: Math.max(20, Math.min(BOARD - 20, pt.x)), y: Math.max(20, Math.min(BOARD - 20, pt.y)) };
+        L.chargeAt = { x: Math.max(20, Math.min(S.board - 20, pt.x)), y: Math.max(20, Math.min(S.board - 20, pt.y)) };
         canvas.style.cursor = "grabbing";
         return drawBoard();
       }
@@ -957,8 +957,8 @@ function enemyFocus() {
     const core = foes.reduce((a, f) => (near(f).length > near(a).length ? f : a));
     return centroid(near(core));
   }
-  const zones = S.players.filter((p) => p.id !== S.you && !p.eliminated).map((p) => zoneFor(p.seat)).filter(Boolean);
-  return zones.length ? centroid(zones.map((z) => ({ x: (z.x0 + z.x1) / 2, y: (z.y0 + z.y1) / 2 }))) : { x: BOARD / 2, y: BOARD / 2 };
+  const zones = S.players.filter((p) => p.id !== S.you && !p.eliminated).map((p) => zoneFor(p.seat, S.board)).filter(Boolean);
+  return zones.length ? centroid(zones.map((z) => ({ x: (z.x0 + z.x1) / 2, y: (z.y0 + z.y1) / 2 }))) : { x: S.board / 2, y: S.board / 2 };
 }
 
 /** The best nearby ground to hold: cover or high ground close to the warband and away from the enemy. */
@@ -1004,7 +1004,7 @@ function issueOrder(mode, keepManual = false) {
       if (mode === "charge") {
         sc += -gap(end, target) - facingOff(end, target) / 4;
       } else if (mode === "scatter") {
-        const edge = Math.min(end.x, end.y, BOARD - end.x, BOARD - end.y);
+        const edge = Math.min(end.x, end.y, S.board - end.x, S.board - end.y);
         const spread = Math.min(150, ...ends.map((o) => gap(end, o.pose)), 150);
         sc += gap(end, focus) + 0.5 * spread - Math.max(0, 90 - edge) * 3;
       } else {
@@ -1060,6 +1060,7 @@ function renderRoster() {
   const el = $("#roster");
   if (!el) return;
   const units = S.phase === "muster" ? [] : myUnits();
+  el.classList.toggle("many", units.length > 14); // big armies get compact icons so the board keeps its room
   el.innerHTML = units.map((u) => {
     const { buffs, debuffs } = unitStatus(u);
     return `<button class="rchip ${L.cardFor === u.id ? "on" : ""}" data-card="${u.id}" title="${esc(u.name)}" style="--fc:${playerColor(S, u.owner)}">

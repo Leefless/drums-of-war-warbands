@@ -169,6 +169,9 @@ main { flex: 1; min-height: 0; }
 .boardcol .boardwrap { flex: 1; }
 .unitbar { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; padding: 8px 12px; border-top: 1px solid var(--line); background: var(--texture), var(--panel); }
 .unitbar:empty { display: none; }
+.unitbar.many { gap: 3px; padding: 6px 10px; }
+.unitbar.many .portrait.small { width: 28px; height: 28px; }
+.unitbar.many .rchip .dot { min-width: 13px; height: 13px; font-size: 9px; line-height: 13px; top: -5px; }
 .rchip { position: relative; padding: 2px; border: 2px solid var(--fc); border-radius: 3px; background: var(--raise); display: flex; flex-direction: column; gap: 2px; }
 .rchip.on { outline: 2px solid var(--accent); outline-offset: 1px; }
 .rchip .portrait { border: 0; }

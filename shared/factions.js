@@ -91,6 +91,11 @@ export const FACTIONS = {
 // their library key and every cost is computed from the profile.
 export const MAX_UNITS = 12; // not counting the champion
 export const MAX_COPIES = 3;
+/** Army size limits for a budget: 12 units and 3 copies at 100 points or less, scaling up with bigger games. */
+export function armyLimits(budget) {
+  const k = Math.max(1, Math.min(300, Number(budget) || 100) / 100);
+  return { units: Math.round(MAX_UNITS * k), copies: Math.round(MAX_COPIES * k) };
+}
 export const CHAMPION_PREMIUM = 1.15;
 for (const [fid, roster] of Object.entries(ROSTERS)) {
   // Champions carry a 15% premium over their computed cost: a unique, optional slot of
@@ -211,6 +216,7 @@ export function validateArmy(factionId, list, budget) {
   const f = typeof factionId === "string" && Object.hasOwn(FACTIONS, factionId) ? FACTIONS[factionId] : null;
   if (!f) return { ok: false, cost: 0, errors: ["Pick a faction first."] };
   if (!Array.isArray(list) || list.length === 0) errors.push("Muster at least one unit.");
+  const limits = armyLimits(budget);
   let cost = 0;
   let relics = 0;
   let champions = 0;
@@ -224,7 +230,7 @@ export function validateArmy(factionId, list, budget) {
     if (u.champion) champions++;
     else regulars++;
     copies[u.id] = (copies[u.id] || 0) + 1;
-    if (!u.champion && copies[u.id] === MAX_COPIES + 1) errors.push(`At most ${MAX_COPIES} of ${u.name}.`);
+    if (!u.champion && copies[u.id] === limits.copies + 1) errors.push(`At most ${limits.copies} of ${u.name}.`);
     if (entry.upgrade) {
       const g = Object.hasOwn(UPGRADES, entry.upgrade) ? UPGRADES[entry.upgrade] : null;
       if (!g || !upgradesFor(factionId, u).includes(g)) { errors.push(`${u.name} cannot take that upgrade.`); continue; }
@@ -233,7 +239,7 @@ export function validateArmy(factionId, list, budget) {
     }
   }
   if (champions > 1) errors.push("Only one champion per army.");
-  if (regulars > MAX_UNITS) errors.push(`No more than ${MAX_UNITS} units plus a champion.`);
+  if (regulars > limits.units) errors.push(`No more than ${limits.units} units plus a champion.`);
   if (relics > 1) errors.push("Only one relic per army.");
   if (cost > budget) errors.push(`Over budget: ${cost} / ${budget}.`);
   return { ok: errors.length === 0, cost, errors };

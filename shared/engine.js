@@ -10,8 +10,8 @@
 //   end         tokens clear, regeneration, victory check
 
 import {
-  BASE_SIZE, BOARD, corners, inArc, insideBoard, isAim, isHold, isStance, maneuverPose, maneuverSegments, parseManeuver, polyCircleOverlap,
-  polyDistance, polysOverlap, rangeBand, right,
+  BASE_SIZE, BOARD, boardSize, corners, inArc, insideBoard, isAim, isHold, isStance, maneuverPose, maneuverSegments, parseManeuver, polyCircleOverlap,
+  polyDistance, polysOverlap, rangeBand, right, zoneDepth,
 } from "./geometry.js";
 import { AIM_ROW, STANCE_ROW } from "./dials.js";
 import { FACTION_TAGS, FACTIONS, UPGRADES, unitDef, validateArmy } from "./factions.js";
@@ -32,6 +32,7 @@ export const OBSTACLE_KINDS = ["hill", "thicket", "ruins", "lava", "marsh", "rif
 // ── State ────────────────────────────────────────────────────────────────────
 export function createGame({ budget = 100, maxRounds = 12, seed = Date.now() } = {}) {
   return {
+    board: boardSize(budget),
     phase: "muster",
     round: 0,
     settings: { budget, maxRounds, openSpectators: false },
@@ -111,7 +112,10 @@ export function setSettings(state, pid, msg) {
   const { budget, maxRounds, openSpectators } = msg && typeof msg === "object" ? msg : {};
   if (state.phase !== "muster") fail("Settings are locked once deployment begins.");
   if (state.players[0]?.id !== pid) fail("Only the host (first seat) can change settings.");
-  if (budget != null) state.settings.budget = Math.max(40, Math.min(300, Number(budget) || 100));
+  if (budget != null) {
+    state.settings.budget = Math.max(40, Math.min(300, Number(budget) || 100));
+    state.board = boardSize(state.settings.budget);
+  }
   if (maxRounds != null) state.settings.maxRounds = Math.max(3, Math.min(20, Number(maxRounds) || 12));
   if (openSpectators != null) state.settings.openSpectators = !!openSpectators;
   for (const p of state.players) p.ready = false;
@@ -142,15 +146,15 @@ export function unready(state, pid) {
 }
 
 // ── Deployment ───────────────────────────────────────────────────────────────
-export function zoneFor(seat) {
-  const D = 180; // deep enough for two ranks of large bases
+export function zoneFor(seat, size = BOARD) {
+  const D = zoneDepth(size); // deep enough for two ranks of large bases (more on bigger boards)
   const lo = 110;
-  const hi = BOARD - 110;
+  const hi = size - 110;
   return [
-    { x0: lo, x1: hi, y0: BOARD - D, y1: BOARD, h: 0, edge: "south" },
+    { x0: lo, x1: hi, y0: size - D, y1: size, h: 0, edge: "south" },
     { x0: lo, x1: hi, y0: 0, y1: D, h: 180, edge: "north" },
     { x0: 0, x1: D, y0: lo, y1: hi, h: 90, edge: "west" },
-    { x0: BOARD - D, x1: BOARD, y0: lo, y1: hi, h: 270, edge: "east" },
+    { x0: size - D, x1: size, y0: lo, y1: hi, h: 270, edge: "east" },
   ][seat];
 }
 
@@ -204,7 +208,7 @@ function buildUnit(state, p, entry) {
 }
 
 function placeObstacles(state) {
-  state.obstacles = layTerrain(() => rand(state));
+  state.obstacles = layTerrain(() => rand(state), state.board);
 }
 
 /** Default placement: ranks of evenly spaced bases from the zone's back edge, never overlapping. */
@@ -246,7 +250,7 @@ function startDeploy(state) {
   placeObstacles(state);
   for (const p of state.players) {
     p.ready = false;
-    const z = zoneFor(p.seat);
+    const z = zoneFor(p.seat, state.board);
     const units = p.army.map((e) => buildUnit(state, p, e));
     layoutZone(units, z);
     state.units.push(...units);
@@ -264,7 +268,7 @@ export function deployUnit(state, pid, uid, x, y, h) {
   if (!u || u.owner !== pid) fail("That is not your unit.");
   const p = player(state, pid);
   const moved = { ...u, x: Number(x), y: Number(y), h: ((Number(h) % 360) + 360) % 360 };
-  if (!inZone(moved, zoneFor(p.seat))) fail("Units must deploy fully inside your zone.");
+  if (!inZone(moved, zoneFor(p.seat, state.board))) fail("Units must deploy fully inside your zone.");
   if (state.units.some((o) => o.id !== uid && polysOverlap(poly(moved), poly(o)))) fail("Bases cannot overlap.");
   if (blocksAt(state, u, moved)) fail("Units cannot stand on rocks.");
   Object.assign(u, { x: moved.x, y: moved.y, h: moved.h });
@@ -463,7 +467,7 @@ export function planMove(state, u, code) {
   const path = [];
   for (let s = 0; s <= t + 1e-9; s += 0.05) path.push(maneuverPose(start, man, size, Math.min(s, t)));
   path.push(pose);
-  return { man, pose, t, bumped, path, slowedBy, blockedBy, fled: !insideBoard(corners(pose, size)) };
+  return { man, pose, t, bumped, path, slowedBy, blockedBy, fled: !insideBoard(corners(pose, size), state.board) };
 }
 
 /** Dice a stance (or Aim) is worth: the movement given up, so faster units gain more (top speed 1 to 3: 1, 4 to 5: 2). */
@@ -540,7 +544,7 @@ function actionMovePose(state, u, a, dir) {
     const d = (size + 40) * (dir === "R" ? 1 : -1);
     pose = { x: u.x + r.x * d, y: u.y + r.y * d, h: u.h };
   }
-  if (!insideBoard(corners(pose, size))) return null;
+  if (!insideBoard(corners(pose, size), state.board)) return null;
   if (overlapsAny(state, u, pose).length) return null;
   if (blocksAt(state, u, pose)) return null;
   return pose;

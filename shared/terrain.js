@@ -1,7 +1,7 @@
 // Terrain and vision. Every terrain piece is a circle on the board. Each kind has
 // an upside and a downside; this module holds the rules data (shared with the
 // browser for tooltips) and the line-of-sight and fog-of-war geometry.
-import { BASE_SIZE, BOARD, corners, polyCircleOverlap, polyDistance, rangeBand, segmentHitsCircle } from "./geometry.js";
+import { BASE_SIZE, BOARD, corners, polyCircleOverlap, polyDistance, rangeBand, segmentHitsCircle, zoneDepth } from "./geometry.js";
 
 export const TERRAIN = {
   hill: {
@@ -116,25 +116,39 @@ export function visibleTo(state, pid) {
 }
 
 /** Terrain placement for a new battle (deterministic from the game's RNG). */
-export function layTerrain(rand) {
+/**
+ * Terrain pieces for a battlefield: 10 on the standard board. Bigger boards scale with the open
+ * ground between the deployment zones (kept a little sparser so every piece fits).
+ */
+export function terrainCount(size) {
+  if (size <= BOARD) return LAYOUT.length;
+  const open = (s) => (s - 2 * (zoneDepth(s) + 10)) ** 2;
+  return Math.round(LAYOUT.length * (open(size) / open(BOARD)) * 0.8);
+}
+
+export function layTerrain(rand, size = BOARD) {
+  // The standard ten, then extras led by the smaller pieces so crowded boards still fit them all.
+  const EXTRA = ["thicket", "ruins", "block", "marsh", "hill", "lava", "block", "thicket", "rift", "ruins", "hill", "marsh", "block", "thicket", "hill", "lava"];
+  const count = terrainCount(size);
+  const layout = [...LAYOUT, ...Array.from({ length: Math.max(0, count - LAYOUT.length) }, (_, i) => EXTRA[i % EXTRA.length])].slice(0, count);
   // Retry whole layouts until every piece fits (keeps the best attempt otherwise).
   let best = [];
-  for (let attempt = 0; attempt < 12 && best.length < LAYOUT.length; attempt++) {
-    const pieces = layOnce(rand);
+  for (let attempt = 0; attempt < 25 && best.length < layout.length; attempt++) {
+    const pieces = layOnce(rand, size, layout);
     if (pieces.length > best.length) best = pieces;
   }
   return best;
 }
 
-function layOnce(rand) {
+function layOnce(rand, size, layout) {
   const pieces = [];
-  for (const kind of LAYOUT) {
+  for (const kind of layout) {
     const [lo, hi] = RADIUS[kind];
     for (let tries = 0; tries < 300; tries++) {
       const r = lo + Math.floor(rand() * (hi - lo + 1));
-      // Whole piece stays clear of every deployment zone (180 deep on each edge).
-      const edge = 190 + r;
-      const span = BOARD - 2 * edge;
+      // Whole piece stays clear of every deployment zone (180 deep on the standard board).
+      const edge = zoneDepth(size) + 10 + r;
+      const span = size - 2 * edge;
       const o = { id: `o${pieces.length + 1}`, kind, r, x: edge + rand() * span, y: edge + rand() * span };
       if (pieces.every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 30)) {
         pieces.push(o);

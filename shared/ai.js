@@ -4,8 +4,8 @@
 //   aiStep(state, pid) makes at most one decision for that seat and returns true
 //   if it did something; the server calls it on a timer so moves stay watchable.
 import * as E from "./engine.js";
-import { FACTIONS, MAX_COPIES, MAX_UNITS, upgradesFor, validateArmy } from "./factions.js";
-import { BOARD, isAim, isStance, parseManeuver } from "./geometry.js";
+import { FACTIONS, armyLimits, upgradesFor, validateArmy } from "./factions.js";
+import { isAim, isStance, parseManeuver } from "./geometry.js";
 import { visibleTo } from "./terrain.js";
 
 export const AI_NAMES = {
@@ -31,8 +31,9 @@ export function randomArmy(fid, budget) {
       list.push({ unit: c.id, upgrade: null });
       cost += c.cost;
     }
-    for (let g = 0; g < 200 && list.filter((e) => !us.find((u) => u.id === e.unit).champion).length < MAX_UNITS; g++) {
-      const ok = regs.filter((u) => u.cost <= budget - cost && (copies[u.id] || 0) < MAX_COPIES);
+    const lim = armyLimits(budget);
+    for (let g = 0; g < 400 && list.filter((e) => !us.find((u) => u.id === e.unit).champion).length < lim.units; g++) {
+      const ok = regs.filter((u) => u.cost <= budget - cost && (copies[u.id] || 0) < lim.copies);
       if (!ok.length) break;
       const u = pick(ok);
       list.push({ unit: u.id, upgrade: null });
@@ -64,7 +65,7 @@ function planDials(state, pid) {
   const seen = visibleTo(state, pid);
   const foes = state.units.filter((x) => !x.dead && x.owner !== pid && seen.has(x.id));
   for (const u of state.units.filter((x) => !x.dead && x.owner === pid)) {
-    const target = nearest(u, foes) || { x: BOARD / 2, y: BOARD / 2 };
+    const target = nearest(u, foes) || { x: state.board / 2, y: state.board / 2 };
     const want = foes.length ? preferredRange(u) : 0;
     let best = null;
     let bestScore = -Infinity;
