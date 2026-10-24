@@ -3,7 +3,7 @@
 import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, UPGRADES, armyLimits, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, PRESET_BUDGET, presetList } from "/shared/presets.js";
-import { itemById, itemCost, itemsFor } from "/shared/items.js";
+import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, boughtRadius, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
@@ -404,14 +404,12 @@ function entryHTML(f, e, i, locked) {
   const u = unitIn(f.id, e.unit);
   const ups = upgradesFor(f.id, u);
   // Magic items this unit may carry; ones already carried elsewhere in the warband are greyed out.
-  const taken = new Set(L.draft.filter((x, j) => j !== i && x.item).map((x) => x.item));
   const its = itemsFor(f.id, u.id);
   const it = e.item && itemById(f.id, e.item);
   return `<div class="lrow entry"><span class="portrait tiny">${iconSVG(unitIcon(u), "emblem")}${artTag(`units/${u.id}.png`, "")}</span>
     <span style="flex:1">${esc(u.name)} <span class="muted num">${u.cost}${UPGRADES[e.upgrade] ? ` +${UPGRADES[e.upgrade].cost}` : ""}${it ? ` +${itemCost(f.id, it, u.id)}` : ""}</span></span>
     <select data-up="${i}" ${locked ? "disabled" : ""} aria-label="Upgrade"><option value="">No upgrade</option>${ups.map((g) => `<option value="${g.id}" ${e.upgrade === g.id ? "selected" : ""}>${esc(g.name)} +${g.cost}</option>`).join("")}</select>
-    ${its.length ? `<select data-item="${i}" ${locked ? "disabled" : ""} aria-label="Magic item" class="itemsel"><option value="">No magic item (${its.length} fit)</option>${its.map((x) => `<option value="${x.id}" ${e.item === x.id ? "selected" : ""} ${taken.has(x.id) ? "disabled" : ""}>${esc(x.name)} +${itemCost(f.id, x, u.id)}: ${esc(x.text)}</option>`).join("")}</select>` : ""}
-    ${it ? `<span class="itemnote"><b>${esc(it.kind)}.</b> ${esc(it.text)} <i>${esc(it.flavor)}</i></span>` : ""}
+    ${it ? `<span class="itemnote"><b>${esc(it.name)}</b> (${esc(it.kind)}): ${esc(it.text)} <button class="linkbtn" data-unitem="${i}" ${locked ? "disabled" : ""} aria-label="Remove ${esc(it.name)}">remove</button></span>` : its.length ? `<span class="itemnote muted">${its.length} magic item${its.length === 1 ? "" : "s"} fit this unit: see the Magic Items tab.</span>` : ""}
     <button class="small ghost" data-rm="${i}" ${locked ? "disabled" : ""} aria-label="Remove">✕</button></div>`;
 }
 
@@ -425,19 +423,45 @@ function armyEdgesHTML(f) {
 }
 
 /** The terrain shop: buy pieces in the muster, place them during deployment. */
-function terrainShopHTML(locked) {
+function terrainRowsHTML(locked) {
   const buys = L.buys || [];
   const lim = terrainLimit(S.settings.budget);
-  const name = { hill: "Hill", thicket: "Forest", ruins: "Ruins", marsh: "Marsh", lava: "Lava", rift: "Rift", block: "Rocks" };
-  return `<div class="label">Terrain to place <span class="num">${buys.length} / ${lim}</span></div>
-    <p class="muted" style="margin:0;font-size:14px">Buy pieces now and place them on the battlefield during deployment.</p>
-    <div class="shop">${Object.entries(TERRAIN_SHOP).map(([k, c]) => {
-      const n = buys.filter((x) => x === k).length;
-      return `<div class="lrow"><span style="flex:1" title="${esc(TERRAIN[k]?.up || "")}">${name[k]} <span class="muted num">${c} pts</span></span>
-        <button class="small ghost" data-buyless="${k}" ${locked || !n ? "disabled" : ""} aria-label="One fewer ${name[k]}">−</button>
-        <span class="num" style="min-width:16px;text-align:center">${n}</span>
-        <button class="small ghost" data-buy="${k}" ${locked || buys.length >= lim ? "disabled" : ""} aria-label="Buy a ${name[k]}">+</button></div>`;
-    }).join("")}</div>`;
+  return Object.entries(TERRAIN_SHOP).map(([k, c]) => {
+    const n = buys.filter((x) => x === k).length;
+    const t = TERRAIN[k] || {};
+    return `<div class="urow shoprow" style="--fc:var(--accent)">
+      <div class="urow-main static"><span class="urow-text"><b>${TERRAIN_NAME[k]}</b> <span class="label">${n ? `${n} bought` : "terrain"}</span><br>
+        <span class="shopfx good">+ ${esc(t.up || "")}</span>${t.down ? `<br><span class="shopfx bad">- ${esc(t.down)}</span>` : ""}</span>
+        <span class="urow-cost num">${c}</span></div>
+      <div class="btns shopbtns"><button class="small ghost" data-buyless="${k}" ${locked || !n ? "disabled" : ""} aria-label="One fewer ${TERRAIN_NAME[k]}">−</button>
+        <span class="num">${n}</span>
+        <button class="small" data-buy="${k}" ${locked || buys.length >= lim ? "disabled" : ""} aria-label="Buy a ${TERRAIN_NAME[k]}">Buy</button></div>
+    </div>`;
+  }).join("");
+}
+
+/** The Magic Items tab: every item, who may carry it and what it costs on each, and where it is assigned. */
+function itemRowsHTML(f, locked) {
+  const q = (L.search || "").trim().toLowerCase();
+  const kind = L.itemKind || "all";
+  const unitName = (id) => unitIn(f.id, id)?.name ?? id;
+  return (ITEMS[f.id] || [])
+    .filter((it) => kind === "all" || it.kind === kind)
+    .filter((it) => !q || [it.name, it.kind, it.text, it.flavor, ...it.units.map(unitName)].join(" ").toLowerCase().includes(q))
+    .map((it) => {
+      const holder = L.draft.findIndex((e) => e.item === it.id);
+      const fits = L.draft.map((e, i) => ({ e, i })).filter(({ e }) => it.units.includes(e.unit));
+      const prices = it.units.map((id) => `${esc(unitName(id))} <b>${itemCost(f.id, it, id)}</b>`).join(" · ");
+      return `<div class="urow itemrow ${holder >= 0 ? "held" : ""}" style="--fc:${f.color}">
+        <div class="urow-main static"><span class="urow-text"><b>${esc(it.name)}</b> <span class="label">${esc(it.kind)}</span><br>
+          <span class="itemrules">${esc(it.text)}</span><br><i class="muted" style="font-size:14px">${esc(it.flavor)}</i><br>
+          <span class="muted" style="font-size:13px">Carried by: ${prices}</span></span></div>
+        <select data-assign="${it.id}" ${locked || !fits.length ? "disabled" : ""} aria-label="Assign ${esc(it.name)}">
+          <option value="">${fits.length ? "Assign to..." : "No unit in your warband can carry it"}</option>
+          ${fits.map(({ e, i }) => `<option value="${i}" ${holder === i ? "selected" : ""}>${esc(unitIn(f.id, e.unit).name)}${L.draft.filter((x) => x.unit === e.unit).length > 1 ? ` (${L.draft.slice(0, i + 1).filter((x) => x.unit === e.unit).length})` : ""}${e.item && e.item !== it.id ? ` (replaces ${esc(itemById(f.id, e.item)?.name ?? "")})` : ""} +${itemCost(f.id, it, e.unit)}</option>`).join("")}
+        </select>
+      </div>`;
+    }).join("");
 }
 
 function renderMuster(app) {
@@ -504,14 +528,21 @@ function renderMuster(app) {
         ${presetsHTML(f, locked)}
         <div class="rtabs" role="tablist">
           <button role="tab" data-tab="champions" class="${L.tab === "champions" ? "on" : ""}">Champions <span class="muted">${f.units.filter((u) => u.champion).length}</span></button>
-          <button role="tab" data-tab="units" class="${L.tab !== "champions" ? "on" : ""}">Units <span class="muted">${f.units.filter((u) => !u.champion).length}</span></button>
+          <button role="tab" data-tab="units" class="${!["champions", "items", "terrain"].includes(L.tab) ? "on" : ""}">Units <span class="muted">${f.units.filter((u) => !u.champion).length}</span></button>
+          <button role="tab" data-tab="items" class="${L.tab === "items" ? "on" : ""}">Magic Items <span class="muted">${(ITEMS[f.id] || []).length}</span></button>
+          <button role="tab" data-tab="terrain" class="${L.tab === "terrain" ? "on" : ""}">Terrain <span class="muted">${(L.buys || []).length}/${terrainLimit(S.settings.budget)}</span></button>
         </div>
-        <div class="rfilters">
-          <input id="search" type="search" placeholder="Search names, roles, abilities" value="${esc(L.search)}" aria-label="Search the roster">
-          <select id="sort" aria-label="Sort">${[["cost", "Cheapest first"], ["costDesc", "Priciest first"], ["init", "Initiative"], ["name", "Name"]].map(([k, t]) => `<option value="${k}" ${(L.sort || "cost") === k ? "selected" : ""}>${t}</option>`).join("")}</select>
-        </div>
-        ${L.tab !== "champions" ? `<div class="chips">${["all", ...roles].map((r) => `<button class="small ${L.role === r ? "on" : ""}" data-role="${esc(r)}">${r === "all" ? "All" : `${esc(r)} <span class="muted">${catCount[r]}</span>`}</button>`).join("")}</div>` : `<p class="muted" style="margin:0">One champion per army, optional. A champion leads: Inspire, Warcry, Master or Command.</p>`}
-        <div class="rlist">${rosterRows(f).map((u) => rowHTML(f, u, locked, counts, champ)).join("") || `<p class="muted">Nothing matches.</p>`}</div>
+        ${L.tab === "terrain" ? "" : `<div class="rfilters">
+          <input id="search" type="search" placeholder="${L.tab === "items" ? "Search items, rules, units" : "Search names, roles, abilities"}" value="${esc(L.search)}" aria-label="Search">
+          ${L.tab === "items" ? "" : `<select id="sort" aria-label="Sort">${[["cost", "Cheapest first"], ["costDesc", "Priciest first"], ["init", "Initiative"], ["name", "Name"]].map(([k, t]) => `<option value="${k}" ${(L.sort || "cost") === k ? "selected" : ""}>${t}</option>`).join("")}</select>`}
+        </div>`}
+        ${L.tab === "items" ? `<div class="chips">${["all", ...ITEM_KINDS].filter((k) => k === "all" || (ITEMS[f.id] || []).some((x) => x.kind === k)).map((k) => `<button class="small ${(L.itemKind || "all") === k ? "on" : ""}" data-kind="${k}">${k === "all" ? "All" : `${k} <span class="muted">${(ITEMS[f.id] || []).filter((x) => x.kind === k).length}</span>`}</button>`).join("")}</div>
+          <p class="muted" style="margin:0">One magic item per unit; each item once per army. Add the unit first, then assign the item to it.</p>
+          <div class="rlist">${itemRowsHTML(f, locked) || `<p class="muted">Nothing matches.</p>`}</div>`
+        : L.tab === "terrain" ? `<p class="muted" style="margin:0">Buy terrain now and place it on the battlefield during deployment, anywhere clear of the deployment zones. Up to ${terrainLimit(S.settings.budget)} pieces.</p>
+          <div class="rlist">${terrainRowsHTML(locked)}</div>`
+        : `${L.tab !== "champions" ? `<div class="chips">${["all", ...roles].map((r) => `<button class="small ${L.role === r ? "on" : ""}" data-role="${esc(r)}">${r === "all" ? "All" : `${esc(r)} <span class="muted">${catCount[r]}</span>`}</button>`).join("")}</div>` : `<p class="muted" style="margin:0">One champion per army, optional. A champion leads: Inspire, Warcry, Master or Command.</p>`}
+        <div class="rlist">${rosterRows(f).map((u) => rowHTML(f, u, locked, counts, champ)).join("") || `<p class="muted">Nothing matches.</p>`}</div>`}
       </div>
       <aside class="list">
         <div class="lrow"><span class="label">Your warband</span><span class="num">${v.cost} / ${S.settings.budget}</span></div>
@@ -531,7 +562,8 @@ function renderMuster(app) {
         ${saved.length ? saved.map((a) => `<div class="lrow saved"><span style="flex:1">${esc(a.name)} <span class="muted num">${a.cost} pts · ${esc(a.author)}</span></span>
           <button class="small" data-load="${esc(a.id)}" ${locked ? "disabled" : ""}>Load</button>
           ${a.mine || host ? `<button class="small ghost" data-del="${esc(a.id)}">${L.confirmDel === a.id ? "Confirm" : "Delete"}</button>` : ""}</div>`).join("") : `<p class="muted" style="margin:0">No saved ${esc(f.name)} armies yet.</p>`}
-        <hr>${terrainShopHTML(locked)}
+        <hr><div class="label">Terrain to place <span class="num">${(L.buys || []).length} / ${terrainLimit(S.settings.budget)}</span></div>
+        ${(L.buys || []).length ? `<p style="margin:0;font-size:14px">${Object.entries((L.buys || []).reduce((a, k) => ((a[k] = (a[k] || 0) + 1), a), {})).map(([k, n]) => `${TERRAIN_NAME[k]}${n > 1 ? ` ×${n}` : ""} <span class="muted num">${TERRAIN_SHOP[k] * n}</span>`).join(", ")}</p>` : `<p class="muted" style="margin:0;font-size:14px">None. Buy pieces in the Terrain tab.</p>`}
         <hr><div class="label">Upgrades</div>
         ${upgradesFor(f.id, { abilities: [], actions: [] }).map((g) => `<div style="font-size:14px"><b>${esc(g.name)}</b> <span class="muted">+${g.cost}${g.relic ? ", relic" : ""}</span>: ${esc(g.text)}</div>`).join("")}
       </aside>
@@ -558,7 +590,14 @@ function wireMuster(app, f) {
   });
   on("[data-rm]", "onclick", (b) => { L.draft.splice(Number(b.dataset.rm), 1); changed(); });
   on("[data-up]", "onchange", (s) => { L.draft[Number(s.dataset.up)].upgrade = s.value || null; changed(); });
-  on("[data-item]", "onchange", (s) => { L.draft[Number(s.dataset.item)].item = s.value || null; changed(); });
+  on("[data-assign]", "onchange", (s) => {
+    // Move the item: off whoever carried it, onto the chosen unit (replacing that unit's item).
+    for (const e of L.draft) if (e.item === s.dataset.assign) e.item = null;
+    if (s.value !== "") L.draft[Number(s.value)].item = s.dataset.assign;
+    changed();
+  });
+  on("[data-unitem]", "onclick", (b) => { L.draft[Number(b.dataset.unitem)].item = null; changed(); });
+  on("[data-kind]", "onclick", (b) => { L.itemKind = b.dataset.kind; render(); });
   on("[data-buy]", "onclick", (b) => { L.buys = [...(L.buys || []), b.dataset.buy]; changed(); });
   on("[data-buyless]", "onclick", (b) => { const i = (L.buys || []).lastIndexOf(b.dataset.buyless); if (i >= 0) L.buys.splice(i, 1); changed(); });
   on("[data-preset]", "onclick", (b) => {
