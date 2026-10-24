@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Warbands Status Report</title>
+<style>
+/* Layout: one reading column, summary first, then detail sections with hairline-ruled tables. */
+:root {
+  --bg: #091517;
+  --surface: #0F1E20;
+  --ink: #F0F5F1;
+  --ink-2: #D1D5D4;
+  --ink-3: #8E9591;
+  --line: #333E3C;
+  --accent: #FF9100;
+  --on-accent: #091517;
+  --good: #7FAF8E;
+  --warn: #D9B45A;
+  --crit: #C9705F;
+  --sans: "Untitled Sans", "Helvetica Neue", Arial, sans-serif;
+  --mono: "GT America Mono", "SF Mono", "Courier New", monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #F0F5F1; --surface: #FFFFFF; --ink: #091517; --ink-2: #333E3C; --ink-3: #5A635F;
+    --line: #D1D5D4; --good: #3F7A52; --warn: #8F6A12; --crit: #A2432F; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #F0F5F1; --surface: #FFFFFF; --ink: #091517; --ink-2: #333E3C; --ink-3: #5A635F;
+  --line: #D1D5D4; --good: #3F7A52; --warn: #8F6A12; --crit: #A2432F; color-scheme: light;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink); font: 16px/1.55 var(--sans);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 40px 64px;
+}
+main { max-width: 900px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-weight: 600; line-height: 1.15; margin: 0; text-wrap: balance; }
+h1 { font-size: 40px; }
+h2 { font-size: 24px; }
+h3 { font-size: 17px; }
+p { margin: 0; max-width: 68ch; color: var(--ink-2); }
+.label { font: 12px/1.5 var(--mono); text-transform: uppercase; letter-spacing: 0.07em; color: var(--ink-3); }
+.mark { display: inline-block; width: 10px; height: 10px; background: var(--accent); margin-right: 10px; vertical-align: 1px; }
+section { display: grid; gap: 14px; }
+header { display: grid; gap: 12px; border-bottom: 1px solid var(--line); padding-bottom: 24px; }
+.lede { font-size: 18px; color: var(--ink); }
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.figures div { background: var(--bg); padding: 14px 16px; display: grid; gap: 2px; }
+.figures b { font-size: 26px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.figures .key b { color: var(--accent); }
+.scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th { text-align: left; font: 12px/1.4 var(--mono); text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); padding: 8px 10px; border-bottom: 1px solid var(--line); }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; color: var(--ink-2); }
+td:first-child { color: var(--ink); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.bar { display: inline-block; height: 6px; background: var(--ink-3); vertical-align: middle; margin-left: 8px; }
+.bar.after { background: var(--accent); }
+ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: var(--ink-2); max-width: 72ch; }
+li b { color: var(--ink); font-weight: 600; }
+.pill { display: inline-block; font: 11px/1.6 var(--mono); text-transform: uppercase; letter-spacing: 0.05em; padding: 0 7px; border: 1px solid currentColor; border-radius: 2px; white-space: nowrap; }
+.done { color: var(--good); }
+.todo { color: var(--warn); }
+.risk { color: var(--crit); }
+.decisions li { padding-left: 2px; }
+code { font: 14px var(--mono); color: var(--ink); background: var(--surface); padding: 1px 5px; border-radius: 2px; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+.cols > div { display: grid; gap: 10px; align-content: start; min-width: 0; }
+footer { border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 520px) { h1 { font-size: 30px; } .figures b { font-size: 22px; } }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="label"><span class="mark"></span>Drums of War: Warbands · unattended run · 24 Oct 2026</div>
+  <h1>Warbands Status Report</h1>
+  <p class="lede">Everything you asked for while you were away is built, committed and tested. Terrain now has real tactical upsides and downsides, fog of war is in, the terrain art was upgraded, and an adversarial review across five areas raised 58 findings; all but four were fixed, including a critical seat-hijacking hole. Below is what is done, the calls I made for you to review, and what is left.</p>
+</header>
+
+<section aria-label="At a glance">
+  <div class="figures">
+    <div class="key"><b>26 / 26</b><span class="label">Tests passing</span></div>
+    <div><b>247</b><span class="label">Units, all with portraits</span></div>
+    <div><b>7</b><span class="label">Terrain kinds</span></div>
+    <div><b>48 to 54%</b><span class="label">Faction win rates</span></div>
+    <div><b>13</b><span class="label">Commits on main</span></div>
+  </div>
+</section>
+
+<section>
+  <div class="label">How to play right now</div>
+  <p>Double-click <code>Start Game.command</code> in the TTRPG folder. Other players open the Same Wi-Fi address it prints. Open <code>docs/RULES.md</code> for the full rules (terrain is section 8, fog of war section 9).</p>
+</section>
+
+<section>
+  <h2>Completed this session</h2>
+  <div class="cols">
+    <div>
+      <h3>Terrain with tactical effects</h3>
+      <ul>
+        <li><b>Hill:</b> +1 weapon range, sees farther and over forests, +1 defence vs attackers below. Climbing costs strain; never hidden.</li>
+        <li><b>Forest:</b> cover, blocks sight, hides units. Strain to enter, -1 die firing out.</li>
+        <li><b>Ruins:</b> cover and blocks sight; rubble damage on entry.</li>
+        <li><b>Lava:</b> burns and stops movement; heat haze protects units behind it. Calamity is immune and draws power.</li>
+        <li><b>Marsh:</b> stops movement, -1 defence inside; mist protects units behind it.</li>
+        <li><b>Rocks:</b> impassable and fully block sight.</li>
+        <li><b>Rift:</b> unchanged risk and reward.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Fog of war and stealth</h3>
+      <ul>
+        <li>Each player sees only enemies their units can spot: 3 range bands, 4 from a hill, line of sight required.</li>
+        <li>Stealthy units and units in forests are only spotted from range 1.</li>
+        <li><b>Ambush:</b> attacking from out of sight adds a die. Firing reveals you for the round.</li>
+        <li>Unseen units are stripped from your screen, your log and every data field the server sends, not just hidden visually.</li>
+        <li>The board darkens outside your units' sight; hovering terrain explains its effects.</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Better terrain art</h3>
+      <ul>
+        <li>Three painted battlefields (meadow, autumn moor, ash scar), one chosen per battle.</li>
+        <li>Six painted variants of every terrain kind (42 sprites) with cast shadows, auto-trimmed to their rules footprint.</li>
+        <li>Scattered ground decor and warm directional light.</li>
+        <li>All generated in your ChatGPT chat and delivered to the game through a localhost-only handoff, so no manual file moves were needed while you were away.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>Adversarial review</h2>
+  <p>Five Sonnet reviewers attacked the game in parallel, each proving findings with repro scripts. I verified every finding against the code, fixed the real ones, then re-ran the reviewers' own repros against the fixed code.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Area</th><th>Worst finding</th><th class="num">Findings</th><th>Result</th></tr></thead>
+    <tbody>
+      <tr><td>Server and security</td><td>Anyone could take over another player's seat: private session tokens were broadcast as player ids.</td><td class="num">12</td><td><span class="pill done">Fixed</span> public seat ids, origin checks, upload lock, army ownership</td></tr>
+      <tr><td>Rules engine</td><td>Changing the budget after readying let an over-budget army into battle.</td><td class="num">9</td><td><span class="pill done">Fixed</span> plus deployment layout and rocks edge cases</td></tr>
+      <tr><td>Client UI</td><td>Marking an enemy hidden by fog froze the prompt panel until reload.</td><td class="num">14</td><td><span class="pill done">12 fixed</span> 2 deferred (see below)</td></tr>
+      <tr><td>Rules text vs code</td><td>Bleeding kills left zombie units in play and scored nothing.</td><td class="num">17</td><td><span class="pill done">Fixed</span> code where the rule was right, text where the code was</td></tr>
+      <tr><td>Balance (3,600 bot games)</td><td>Calamity won 66%, Umbral 40%; Warcry champions won 71%.</td><td class="num">6</td><td><span class="pill done">Rebalanced</span> verified in 4 more simulation passes</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Balance before and after</h2>
+  <p>Random legal 100-point armies, 50% with a champion, all faction pairings. Before: 3,600 games. After: 1,440 games (margin about ±4.4 points per faction). Every army now sits inside the noise band.</p>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Army</th><th class="num">Before</th><th class="num">After</th><th>Shift</th></tr></thead>
+    <tbody>
+      <tr><td>Calamity Host</td><td class="num">66.1%</td><td class="num">51.9%</td><td><span class="bar" style="width:66px"></span><span class="bar after" style="width:52px"></span></td></tr>
+      <tr><td>Dawnward Concord</td><td class="num">44.5%</td><td class="num">54.2%</td><td><span class="bar" style="width:45px"></span><span class="bar after" style="width:54px"></span></td></tr>
+      <tr><td>Sylvan Courts</td><td class="num">52.1%</td><td class="num">49.0%</td><td><span class="bar" style="width:52px"></span><span class="bar after" style="width:49px"></span></td></tr>
+      <tr><td>Umbral Covenant</td><td class="num">39.8%</td><td class="num">48.8%</td><td><span class="bar" style="width:40px"></span><span class="bar after" style="width:49px"></span></td></tr>
+      <tr><td>Greenskin Warhorde</td><td class="num">49.0%</td><td class="num">48.5%</td><td><span class="bar" style="width:49px"></span><span class="bar after" style="width:49px"></span></td></tr>
+      <tr><td>Iron Holds</td><td class="num">48.5%</td><td class="num">47.7%</td><td><span class="bar" style="width:49px"></span><span class="bar after" style="width:48px"></span></td></tr>
+      <tr><td>Armies with a champion</td><td class="num">57.4%</td><td class="num">56.4%</td><td><span class="bar" style="width:57px"></span><span class="bar after" style="width:56px"></span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section class="decisions">
+  <h2>Decisions I made for you to review</h2>
+  <p>You asked me to go with my recommendations. These are the calls that change how the game plays or works; each is easy to reverse.</p>
+  <ul>
+    <li><b>Spectators are fogged by default.</b> A player could otherwise open a Watch only tab and see everything. The host can tick "Spectators see all" in muster for a table TV.</li>
+    <li><b>Concord gained a new rule, Discipline:</b> +1 defence die while another friendly unit is at range 1. This was the cleanest fix for the weakest army and fits its "nobody fights alone" identity.</li>
+    <li><b>Champions cost 15% more</b> than their computed value; with the other price changes, champion armies dropped from about 60% to 56% wins.</li>
+    <li><b>Cost formula retuned:</b> Steel, Channel, Warcry and Inspire priced up; Master, Thrall, Rally and Command priced down.</li>
+    <li><b>Terrain triggers on entering, not every round</b> a unit stands in it. Standing effects (cover, high ground) still apply continuously.</li>
+    <li><b>Masters can Command twice</b> (two different units), matching the Puppet Strings description.</li>
+    <li><b>At the round limit, only warbands still on the field can win.</b> An eliminated player with high VP no longer takes the game.</li>
+    <li><b>Duplicate units get numbered names</b> ("Ork Boyz (2)"), which also makes fog-of-war log scrubbing exact.</li>
+    <li><b>Deployment zones are 180 deep</b> (were 110) so a full army of large bases fits in two ranks; terrain keeps clear of every zone.</li>
+    <li><b>Two Umbral units lost Rally,</b> which they could never use (Deathless units never gain strain), and got Guard and Steel instead.</li>
+    <li><b>Two Calamity portrait sheets used plainer descriptions</b> after ChatGPT's violence filter refused the originals; the art matches the units.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>What is left</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Item</th><th>Why it matters</th><th>Priority</th></tr></thead>
+    <tbody>
+      <tr><td>Playtest with real players</td><td>Balance is tuned against one bot policy that never uses red actions, upgrades or relics. Human play is the real test, especially fog and ambush.</td><td><span class="pill risk">First</span></td></tr>
+      <tr><td>Keyboard unit selection on the board</td><td>Arrow keys move a selected unit during deployment, but selecting one still needs a click. A unit list in the deploy panel would finish keyboard-only play.</td><td><span class="pill todo">Soon</span></td></tr>
+      <tr><td>Per-connection rate limiting</td><td>Message size and saved-army counts are capped, but one client can still send many small messages quickly. Low risk on a home LAN.</td><td><span class="pill todo">Soon</span></td></tr>
+      <tr><td>Resize performance</td><td>The painted battlefield repaints on every window size change. Debouncing it would smooth phone rotation.</td><td><span class="pill todo">Later</span></td></tr>
+      <tr><td>Rules for upgrades and relics in play</td><td>The bot never used them, so their prices are untested by simulation.</td><td><span class="pill todo">Later</span></td></tr>
+      <tr><td>Solo play against an AI</td><td>The simulation bot is a good base for a "play against the computer" mode.</td><td><span class="pill todo">Idea</span></td></tr>
+      <tr><td>Campaign layer</td><td>Persistent warbands and veteran champions between battles, which would tie back to the DoW character sheets.</td><td><span class="pill todo">Idea</span></td></tr>
+      <tr><td>Push to a remote</td><td>The repo has no remote, so all 13 commits exist only on this Mac.</td><td><span class="pill risk">Back up</span></td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<section>
+  <h2>Commits this session</h2>
+  <div class="scroll">
+  <table>
+    <thead><tr><th>Commit</th><th>Change</th></tr></thead>
+    <tbody>
+      <tr><td><code>87f5e5a</code></td><td>Deployment zones 180 deep, terrain layout retries until all ten fit</td></tr>
+      <tr><td><code>4d0ca1f</code></td><td>Review fixes: client robustness, rules text matches code</td></tr>
+      <tr><td><code>ee929b6</code></td><td>Adversarial review fixes: security, hidden info, engine, balance</td></tr>
+      <tr><td><code>6e217a1</code></td><td>Terrain with tactical effects, fog of war, painted battlefields</td></tr>
+      <tr><td><code>8fdc5ea</code></td><td>Commit 213 portraits (fix to the Art folder ignore rule)</td></tr>
+      <tr><td><code>92a2268</code></td><td>Portraits for all 213 new units; <code>npm run install-art</code></td></tr>
+      <tr><td><code>b55a264</code></td><td>Double-click launcher</td></tr>
+      <tr><td><code>0d87371</code></td><td>Full army builder: 247 units, computed costs, champions, saved armies</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<footer>
+  <p class="label">Report file: docs/STATUS.html · regenerate on request</p>
+</footer>
+</main>
+</body>
+</html>
