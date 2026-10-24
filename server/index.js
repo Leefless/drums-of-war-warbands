@@ -252,7 +252,8 @@ function handle(ws, info, m) {
       for (const p of old.players) {
         const np = E.addPlayer(game, p.id, p.name);
         np.ai = !!p.ai;
-        if (p.faction) E.setFaction(game, p.id, p.faction);
+        // A new battle is a blank slate for people; computer opponents keep the army they were given.
+        if (p.faction && p.ai) E.setFaction(game, p.id, p.faction);
       }
       break;
     }

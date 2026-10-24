@@ -50,7 +50,13 @@ function connect() {
     const m = JSON.parse(ev.data);
     if (m.t === "state") {
       const prevPending = S?.pending && JSON.stringify(S.pending);
+      const wasPhase = S?.phase;
       S = m.state;
+      // Back to the muster after a battle: start the new one from a blank warband.
+      if (S.phase === "muster" && wasPhase && wasPhase !== "muster") {
+        for (const fid of Object.keys(FACTIONS)) store.set(draftKey(fid), "[]");
+        Object.assign(L, { draft: [], draftFaction: null, armyName: "", loadedId: null });
+      }
       // The page or the server was updated: reload so this tab runs the same code (the battle lives on the server).
       if (L.build && S.build && S.build !== L.build) return location.reload();
       L.build ||= S.build;
