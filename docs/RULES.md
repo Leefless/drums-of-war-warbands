@@ -19,7 +19,7 @@ For the world and its armies, see [LORE.md](LORE.md).
   forests, ruins, lava, marsh, a rift and rocks (see section 8). The ground is
   one of several painted battlefields, chosen per battle.
 - Each player deploys from one table edge (south, north, west, east, in seat
-  order), in a zone 150 deep. Units start in neat ranks; move them by clicking
+  order), in a zone 180 deep. Units start in neat ranks; move them by clicking
   inside the zone (or with the arrow keys) and rotate with Q and E. Bases may
   not overlap when you press Ready.
 

@@ -142,7 +142,7 @@ export function unready(state, pid) {
 
 // ── Deployment ───────────────────────────────────────────────────────────────
 export function zoneFor(seat) {
-  const D = 150; // deep enough for two ranks of large bases
+  const D = 180; // deep enough for two ranks of large bases
   const lo = 110;
   const hi = BOARD - 110;
   return [

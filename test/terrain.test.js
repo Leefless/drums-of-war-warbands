@@ -150,3 +150,29 @@ test("a Master can Command twice in one activation, on different units", () => {
   assert.ok(cmd(), "second Command offered");
   assert.equal(cmd().targets.length, 1, "on the other unit only");
 });
+
+test("default deployment: 12 large bases per player start inside their zones without overlapping, terrain stays clear", () => {
+  for (const seats of [2, 4]) {
+    const s = E.createGame({ seed: 5, budget: 9999 });
+    const ids = ["a", "b", "c", "d"].slice(0, seats);
+    for (const p of ids) {
+      E.addPlayer(s, p, p);
+      E.setFaction(s, p, "holds");
+    }
+    const big = ["grudgecannon", "hurlers", "holdGiantWarden", "holdGiantBreaker"];
+    const list = big.flatMap((u) => [u, u, u]).map((unit) => ({ unit }));
+    for (const p of ids) E.submitArmy(s, p, list);
+    for (const p of ids) E.ready(s, p);
+    E.run(s);
+    assert.equal(s.obstacles.length, 10);
+    for (const p of s.players) {
+      const z = E.zoneFor(p.seat);
+      const units = s.units.filter((u) => u.owner === p.id);
+      for (const u of units) for (const v of E.poly(u)) assert.ok(v.x >= z.x0 - 1e-6 && v.x <= z.x1 + 1e-6 && v.y >= z.y0 - 1e-6 && v.y <= z.y1 + 1e-6, `${u.name} outside zone`);
+      for (const o of s.obstacles) assert.ok(o.x + o.r < z.x0 || o.x - o.r > z.x1 || o.y + o.r < z.y0 || o.y - o.r > z.y1, "terrain inside a zone");
+    }
+    for (const p of ids) E.ready(s, p);
+    E.run(s);
+    assert.equal(s.phase, "plan");
+  }
+});

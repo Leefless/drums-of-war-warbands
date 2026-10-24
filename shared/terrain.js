@@ -117,13 +117,23 @@ export function visibleTo(state, pid) {
 
 /** Terrain placement for a new battle (deterministic from the game's RNG). */
 export function layTerrain(rand) {
+  // Retry whole layouts until every piece fits (keeps the best attempt otherwise).
+  let best = [];
+  for (let attempt = 0; attempt < 12 && best.length < LAYOUT.length; attempt++) {
+    const pieces = layOnce(rand);
+    if (pieces.length > best.length) best = pieces;
+  }
+  return best;
+}
+
+function layOnce(rand) {
   const pieces = [];
   for (const kind of LAYOUT) {
     const [lo, hi] = RADIUS[kind];
     for (let tries = 0; tries < 300; tries++) {
       const r = lo + Math.floor(rand() * (hi - lo + 1));
-      // Whole piece stays clear of every deployment zone (150 deep on each edge).
-      const edge = 160 + r;
+      // Whole piece stays clear of every deployment zone (180 deep on each edge).
+      const edge = 190 + r;
       const span = BOARD - 2 * edge;
       const o = { id: `o${pieces.length + 1}`, kind, r, x: edge + rand() * span, y: edge + rand() * span };
       if (pieces.every((q) => Math.hypot(q.x - o.x, q.y - o.y) > q.r + o.r + 30)) {
