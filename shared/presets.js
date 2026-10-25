@@ -24,7 +24,8 @@ export const PRESETS = { holds, sylvan, greenskin, umbral, calamity, concord };
  *      share, within the copy and unit limits); the champion stays if it fits in 40% of the DP.
  *   4. Items are assigned: the preset's preferred items (preset.items) first, then the best
  *      affordable ones for the units on the list, up to about two per 100 DP.
- *   5. Leftover points buy upgrades, then any extra units of the same kind.
+ *   5. The preset's own upgrades go on, where they fit.
+ *   6. Leftover points buy extra units of the same kind, then upgrades.
  */
 export function presetBuild(fid, preset, budget) {
   const f = FACTIONS[fid];
@@ -107,7 +108,18 @@ export function presetBuild(fid, preset, budget) {
     cost += best.c;
   }
 
-  // 5. Leftovers: more of the same kind of unit while there is room, then upgrades.
+  // 5. The preset's own upgrades (unit:upgrade in its list), one per authored entry, where they fit.
+  for (const pe of preset.list) {
+    const g = pe.upgrade && UPGRADES[pe.upgrade];
+    if (!g || cost + g.cost > budget) continue;
+    if (g.relic && list.some((e) => UPGRADES[e.upgrade]?.relic)) continue;
+    const e = list.find((x) => x.unit === pe.unit && !x.upgrade && upgradesFor(fid, def(x.unit)).some((u) => u.id === g.id));
+    if (!e) continue;
+    e.upgrade = g.id;
+    cost += g.cost;
+  }
+
+  // 6. Leftovers: more of the same kind of unit while there is room, then upgrades.
   const roles = new Set(core.map((u) => u.role));
   const cats = new Set(core.map(categoryOf));
   for (const inPool of [(u) => baseCount.has(u.id), (u) => roles.has(u.role), (u) => cats.has(categoryOf(u))]) {

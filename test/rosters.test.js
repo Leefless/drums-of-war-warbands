@@ -172,5 +172,5 @@ test("fuzz: every one of the 247 units plays a full battle without breaking", ()
       played += mine.length;
     }
   }
-  assert.equal(played, 247);
+  assert.equal(played, Object.values(FACTIONS).reduce((a, f) => a + f.units.length, 0)); // every unit in every roster
 });

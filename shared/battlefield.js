@@ -66,7 +66,7 @@ export function mapEffect(mapId, faction) {
 
 /** Who hunts whom: each army gains +1 attack die against the next one in the ring. */
 // Ring order chosen from a measured army-against-army table so no hunter is already dominant
-// against its prey (every hunter wins 51 to 70% there, instead of up to 88%).
+// against its prey (every hunter wins 59 to 72% there, instead of up to 88%).
 export const HUNT_RING = ["holds", "sylvan", "calamity", "concord", "greenskin", "umbral"];
 export const HUNT_REASON = {
   holds: "The oldest feud: dwarf axes against the old forests. The Iron Holds hunt the Sylvan Courts.",

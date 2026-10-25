@@ -55,7 +55,7 @@ export function applyItem(u, item) {
   };
 }
 
-/** Points an item costs on one unit: the cost model's price difference (champion premium included), at least 2. */
+/** Points an item costs on one unit: the cost model's price difference (champion premium included), at least ITEM_MIN_PRICE. */
 export function itemCost(fid, itemOrId, unitId) {
   const item = typeof itemOrId === "string" ? itemById(fid, itemOrId) : itemOrId;
   const u = FACTIONS[fid]?.units.find((x) => x.id === unitId);

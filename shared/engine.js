@@ -175,6 +175,8 @@ function buildUnit(state, p, entry) {
     ...u, item: it.id, cost: u.cost + itemCost(p.faction, it, u.type),
     init: x.init, def: x.def, wounds: x.wounds, maxWounds: x.wounds, ward: x.ward, maxWard: x.ward,
     weapons: x.weapons, abilities: x.abilities, actions: x.actions,
+    // An item that gives a weapon range 2 or more brings the Aim row with it.
+    dial: !u.dial.includes(AIM_ROW[0]) && x.weapons.some((w) => w.range[1] >= 2) ? [...u.dial, ...AIM_ROW] : u.dial,
   };
 }
 
@@ -401,17 +403,17 @@ export function ready(state, pid) {
   const p = player(state, pid) || fail("Join the table first.");
   if (state.phase === "muster") {
     if (!p.army.length) fail("Submit a valid army first.");
-    const v = validateArmy(p.faction, p.army, state.settings.budget);
+    const v = validateArmy(p.faction, p.army, state.settings.budget, p.buys || []);
     if (!v.ok) fail(v.errors.join(" "));
   } else if (state.phase === "plan") {
     const mine = alive(state).filter((u) => u.owner === pid);
     if (mine.some((u) => !state.dials[u.id])) fail("Set a maneuver for every unit first.");
   } else if (state.phase === "deploy") {
-    if (p.toPlace?.length) autoPlaceTerrain(state, p); // unplaced terrain goes somewhere sensible
     const mine = alive(state).filter((u) => u.owner === pid);
     for (let i = 0; i < mine.length; i++) for (let j = i + 1; j < mine.length; j++) {
       if (polysOverlap(poly(mine[i]), poly(mine[j]))) fail(`${mine[i].name} and ${mine[j].name} overlap; move one before readying.`);
     }
+    if (p.toPlace?.length) autoPlaceTerrain(state, p); // unplaced terrain goes somewhere sensible
   } else {
     fail("Nothing to ready for right now.");
   }
@@ -642,6 +644,7 @@ function executeManeuver(state, u, code) {
   // Only pieces the unit was not already touching trigger (entering, crossing).
   const touched = obstaclesOnPath(state, u, ignorePath ? [mv.pose] : mv.path).filter((o) => !startTouch.has(o.id));
   if (!ignoresObstacles(u)) for (const o of touched) obstacleEffect(state, u, o);
+  if (u.dead) return mv;
   if (climbed && !flies(u)) {
     log(state, `${u.name} climbs to the high ground.`);
     gainStrain(state, u);
@@ -992,7 +995,7 @@ export function attackDice(state, u, t, w, r) {
   if (has(u, "berserk") && u.wounds < u.maxWounds) n += 1;
   if (onKind(state, u, "thicket") && !rule(u, "wildwood")) n -= 1;
   if (!visibleTo(state, t.owner).has(u.id)) n += 1; // ambush from out of sight
-  // Matchups: +1 die against the army you hunt, -1 against the one that hunts you.
+  // Matchups: +1 die against the army you hunt.
   n += matchupDice(u.faction, t.faction);
   // Battlefield: Fury / Blunted change dice at range 1.
   const me = mapEffect(state.map, u.faction);
@@ -1250,9 +1253,11 @@ function startEngagement(state) {
 }
 
 function endPhase(state) {
+  const fighting = activePlayers(state); // a mutual wipe is decided among these
   flushDying(state);
   state.phase = "end"; // deaths from here on are immediate, not simultaneous-fire
   for (const u of alive(state)) {
+    if (u.dead) continue; // fell earlier in this loop (an Unstable burst)
     if (u.cond.bleeding) {
       const by = u.cond.bleedingBy || null;
       delete u.cond.bleeding;
@@ -1297,7 +1302,7 @@ function endPhase(state) {
   }
   const standing = activePlayers(state);
   if (standing.length <= 1 || state.round >= state.settings.maxRounds) {
-    endBattle(state);
+    endBattle(state, fighting);
     return;
   }
   const seats = activePlayers(state).map((p) => p.seat).sort((a, b) => a - b);
@@ -1305,18 +1310,23 @@ function endPhase(state) {
   startRound(state);
 }
 
-/** Close the battle and name the winner: the last warband standing, else the best score still on the field. */
-function endBattle(state) {
+/**
+ * Close the battle and name the winner: the last warband standing, else the best score still on
+ * the field. When every warband falls at once, only those still fighting that round can win
+ * (never one that surrendered or broke earlier). An exact tie at the top is a draw.
+ */
+function endBattle(state, fighting = []) {
   const standing = activePlayers(state);
   state.phase = "over";
   state.pending = null;
   state.attack = null;
   const score = (p) => p.vp * 1000 + alive(state).filter((u) => u.owner === p.id).reduce((a, u) => a + u.cost, 0);
-  // At the round limit, only warbands still on the field can win.
-  const pool = standing.length ? standing : state.players;
-  const ranked = [...pool].sort((a, b) => score(b) - score(a));
-  state.winner = standing.length === 1 ? standing[0].id : ranked[0]?.id ?? null;
-  log(state, `The drums fall silent. ${player(state, state.winner)?.name ?? "Nobody"} holds the field.`);
+  const pool = standing.length ? standing : fighting.filter((p) => !p.surrendered);
+  const ranked = [...pool].sort((a, b) => score(b) - score(a) || a.seat - b.seat);
+  const draw = standing.length !== 1 && ranked.length > 1 && score(ranked[0]) === score(ranked[1]);
+  state.winner = standing.length === 1 ? standing[0].id : draw ? null : ranked[0]?.id ?? null;
+  state.draw = draw;
+  log(state, draw ? "The drums fall silent. The battle is a draw." : `The drums fall silent. ${player(state, state.winner)?.name ?? "Nobody"} holds the field.`);
 }
 
 /**
@@ -1347,7 +1357,7 @@ export function run(state) {
   for (let guard = 0; guard < 2000; guard++) {
     if (state.pending || state.phase === "over") return;
     if (state.phase === "muster") {
-      const fits = (p) => validateArmy(p.faction, p.army, state.settings.budget).ok;
+      const fits = (p) => validateArmy(p.faction, p.army, state.settings.budget, p.buys || []).ok;
       // state.hold: a computer-only table waits for a watcher to start it (or someone to sit down).
       if (!state.hold && state.players.length >= 2 && state.players.every((p) => p.ready && fits(p))) startDeploy(state);
       else return;
@@ -1425,12 +1435,21 @@ export function viewFor(state, pid) {
     for (const k of ["attack", "lastAttack"]) if (v[k] && (!known(v[k].attacker) || !known(v[k].target))) v[k] = null;
     const nameOf = Object.fromEntries(hiddenUnits.map((u) => [u.id, u.name]));
     for (const entry of v.log) {
-      for (const id of entry.refs || []) if (nameOf[id]) entry.msg = entry.msg.split(nameOf[id]).join("an unseen enemy");
+      // A line about what an unseen enemy did (its maneuver, actions) says only that it acted.
+      const actor = (entry.refs || []).find((id) => nameOf[id] && entry.msg.startsWith(nameOf[id]));
+      if (actor) entry.msg = "An unseen enemy acts.";
+      else for (const id of entry.refs || []) if (nameOf[id]) entry.msg = entry.msg.split(nameOf[id]).join("an unseen enemy");
     }
   }
   for (const entry of v.log) delete entry.refs;
-  // Opponents' army lists stay private until the battle shows them.
-  for (const p of v.players) if (p.id !== pid) p.army = [];
+  // Opponents' army lists and terrain purchases stay private until the battle shows them.
+  for (const p of v.players) if (p.id !== pid) {
+    p.army = [];
+    delete p.buys;
+    delete p.toPlace;
+  }
+  // Who a Bleeding was inflicted by is a private token: keep it on the server.
+  for (const u of v.units) delete u.cond?.bleedingBy;
   // Swap private tokens for public seat ids everywhere they appear.
   for (const p of v.players) p.id = pub[p.id];
   for (const u of v.units) u.owner = pub[u.owner];

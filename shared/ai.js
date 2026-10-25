@@ -126,7 +126,7 @@ function chooseAction(state, p) {
     for (const want of ["steel", "guard", "mark"]) {
       for (const t of cmd.targets) {
         const sub = t.subs.find((x) => x.a === want);
-        if (sub && !(want === "steel" && E.unit(state, t.id).tokens.steel)) {
+        if (sub && !(want !== "mark" && E.unit(state, t.id).tokens[want])) {
           const subParams = sub.targets ? { target: sub.targets[0] } : sub.dirs ? { dir: sub.dirs[0] } : {};
           return E.act(state, p.pid, { a: "command", params: { target: t.id, sub: want, subParams } });
         }
@@ -193,6 +193,13 @@ export function aiStep(state, pid) {
   if (!p || p.pid !== pid) return false;
   if (p.type === "action") chooseAction(state, p);
   else if (p.type === "attack") chooseAttack(state, p);
-  else E.modify(state, pid, { op: p.options[0].op, dice: [] });
+  else {
+    // Rerolls only help with blanks or omens to reroll; otherwise keep the token and move on.
+    const A = state.attack;
+    const wasted = (op) => ["mark", "frenzy", "inspire"].includes(op) && !A.atk.some((f, i) => (f === "blank" || f === "omen") && !A.rerolled.includes(i));
+    const o = p.options.find((x) => !wasted(x.op));
+    if (o) E.modify(state, pid, { op: o.op, dice: [] });
+    else E.pass(state, pid);
+  }
   return true;
 }

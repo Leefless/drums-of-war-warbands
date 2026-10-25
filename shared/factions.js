@@ -164,7 +164,7 @@ export const ABILITIES = {
   flying: "Flying: ignores obstacles when moving.",
   healer: "Healer: in the End phase, heal 1 wound on the friendly unit at range 1 with the lowest share of its wounds left.",
   berserk: "Berserk: +1 attack die while wounded.",
-  stealthy: "Stealthy: cannot be attacked from range 3 or more.",
+  stealthy: "Stealthy: only spotted from range 1 (unless on a hill or it has fired this round), and never attacked from range 3 or more.",
   guardian: "Guardian: other friendly units at range 1 roll 1 extra defence die.",
   vampiric: "Vampiric: heals 1 wound whenever its attack deals damage.",
   poison: "Poison: an attack that deals damage also inflicts Bleeding.",

@@ -124,9 +124,16 @@ function header() {
   if (!canQuit) L.confirmQuit = false;
   btn.textContent = L.confirmQuit ? "Confirm surrender" : "Surrender";
   btn.classList.toggle("armed", !!L.confirmQuit);
-  // Watching a computer-only battle: any watcher may end it and go back to the muster.
+  // End battle: any watcher of a computer-only battle, or the host (for example when a player has dropped out).
   const aiOnly = !!S && S.players.length > 0 && S.players.every((p) => p.ai) && !me();
-  $("#endBattle").hidden = !(aiOnly && ["deploy", "plan", "activation", "engagement"].includes(S.phase));
+  const isHost = !!S && !!S.you && S.host === S.you;
+  const canEnd = (aiOnly || isHost) && ["deploy", "plan", "activation", "engagement"].includes(S?.phase);
+  const end = $("#endBattle");
+  end.hidden = !canEnd;
+  if (!canEnd) L.confirmEnd = false;
+  end.textContent = L.confirmEnd ? "Confirm end battle" : "End battle";
+  end.title = aiOnly ? "End this computer-only battle and return to the muster" : "End the battle for everyone and return to the muster";
+  end.classList.toggle("armed", !!L.confirmEnd);
 }
 
 /** A watcher takes a seat for the next battle (only during the muster). */
@@ -215,7 +222,18 @@ async function openRules() {
   }
 }
 $("#rulesBtn").onclick = openRules;
-$("#endBattle").onclick = () => send("reset");
+$("#endBattle").onclick = () => {
+  // The host ends a battle for everyone, so it takes a second click (like Surrender).
+  const aiOnly = S?.players.every((p) => p.ai) && !me();
+  if (!aiOnly && !L.confirmEnd) {
+    L.confirmEnd = true;
+    clearTimeout(L.endTimer);
+    L.endTimer = setTimeout(() => { L.confirmEnd = false; header(); }, 4000);
+    return header();
+  }
+  L.confirmEnd = false;
+  send("reset");
+};
 $("#restartNow").onclick = () => {
   send("restart");
   $("#restartNow").disabled = true;
@@ -508,7 +526,7 @@ function renderMuster(app) {
         <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
-      </div>` : `<div class="label">Budget ${S.settings.budget} · ${S.settings.maxRounds} rounds</div>`}
+      </div>` : `<div class="label">${S.settings.budget} DP · ${S.settings.maxRounds} rounds</div>`}
     </div>
     ${host ? `<div class="btns" style="margin-top:10px;align-items:center">
       <span class="label">Computer opponent</span>
@@ -615,7 +633,7 @@ function wireMuster(app, f) {
   on("[data-load]", "onclick", (b) => {
     const a = S.armies.find((x) => x.id === b.dataset.load);
     if (!a) return;
-    Object.assign(L, { draft: cleanList(f.id, a.list), armyName: a.name, loadedId: a.id });
+    Object.assign(L, { draft: cleanList(f.id, a.list), buys: [...(a.buys || [])], armyName: a.name, loadedId: a.id });
     changed();
   });
   on("[data-del]", "onclick", (b) => {
@@ -644,7 +662,7 @@ function wireMuster(app, f) {
   $("#saveArmy") && ($("#saveArmy").onclick = () => {
     const name = (L.armyName || "").trim() || `${f.name} ${new Date().toLocaleDateString()}`;
     const same = (S.armies || []).find((a) => a.id === L.loadedId && a.name === name);
-    send("saveArmy", { id: same?.id, name, faction: f.id, list: L.draft });
+    send("saveArmy", { id: same?.id, name, faction: f.id, list: L.draft, buys: L.buys || [] });
     L.armyName = name;
     toast(`Saved "${name}".`, "ok");
   });
@@ -713,6 +731,7 @@ function renderBattle(app) {
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
     canvas.onpointerdown = (ev) => {
+      if (ev.button !== 0) return; // right or middle buttons neither pan nor drag
       const pt = toBoard(canvas, ev);
       if (L.order?.mode === "charge" && L.chargeAt && Math.hypot(pt.x - L.chargeAt.x, pt.y - L.chargeAt.y) < 34) {
         L.dragging = true;
@@ -734,7 +753,15 @@ function renderBattle(app) {
       L.dragged = true; // the click that follows a drag is not a selection
       issueOrder("charge", true);
     };
-    // Scroll (or pinch) to zoom toward the pointer.
+    // A press the browser takes away (a context menu, switching windows) ends any pan or drag.
+    canvas.onpointercancel = canvas.onlostpointercapture = () => {
+      if (L.pan) {
+        L.pan = null;
+        canvas.style.cursor = "";
+      }
+      L.dragging = false;
+    };
+    // Scroll (or trackpad pinch) to zoom toward the pointer.
     canvas.addEventListener("wheel", (ev) => {
       ev.preventDefault();
       zoomAt(canvas, ev, Math.exp(-ev.deltaY * (ev.ctrlKey ? 0.01 : 0.0015)));
@@ -786,10 +813,15 @@ function renderBattle(app) {
       const nudge = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] }[ev.key];
       if (nudge) {
         ev.preventDefault();
+        // Held keys repeat fast: send at most ten nudges a second to stay under the server's rate limit.
+        if (ev.repeat && Date.now() - (L.lastNudge || 0) < 100) return;
+        L.lastNudge = Date.now();
         send("deploy", { uid: u.id, x: u.x + nudge[0], y: u.y + nudge[1], h: u.h });
       }
     };
   }
+  // A quick order belongs to one planning round: clear it before the prompt shows it.
+  if (L.order && (S.phase !== "plan" || L.order.round !== S.round)) Object.assign(L, { order: null, chargeAt: null, manual: new Set() });
   try {
     $("#prompt").innerHTML = promptHTML();
   } catch (err) {
@@ -798,7 +830,6 @@ function renderBattle(app) {
     $("#prompt").innerHTML = `<p class="muted">Something in this prompt could not be shown.</p>${S.pending?.pid === S.you ? `<button class="cta" id="pass">Done</button>` : ""}`;
   }
   $("#prompt").className = `scroll ${S.pending?.pid === S.you ? "prompt" : ""}`;
-  if (L.order && (S.phase !== "plan" || L.order.round !== S.round)) Object.assign(L, { order: null, chargeAt: null, manual: new Set() });
   $("#card").innerHTML = cardHTML();
   renderRoster();
   $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
@@ -928,8 +959,8 @@ function promptHTML() {
     }
   } else if (S.phase === "over") {
     const winner = S.players.find((x) => x.id === S.winner);
-    html = `<div class="label">Victory</div><div class="big">${esc(winner?.name ?? "Nobody")}</div>
-      <p class="muted">${winner ? `Victory for ${esc(FACTIONS[winner.faction].name)}.` : ""}</p>
+    html = `<div class="label">${S.draw ? "Draw" : "Victory"}</div><div class="big">${S.draw ? "No victor" : esc(winner?.name ?? "Nobody")}</div>
+      <p class="muted">${S.draw ? "The warbands are exactly level." : winner ? `Victory for ${esc(FACTIONS[winner.faction].name)}.` : ""}</p>
       <table class="victory num" style="width:100%">${S.players.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.vp} VP</td><td class="muted">${((n) => `${n} unit${n === 1 ? "" : "s"} left`)(S.units.filter((u) => u.owner === x.id && !u.dead).length)}</td></tr>`).join("")}</table>
       <div class="btns" style="margin-top:10px"><button class="cta" id="reset">New battle</button></div>`;
   } else if (p && p.pid === S.you) {

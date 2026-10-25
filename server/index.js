@@ -1,7 +1,7 @@
 // LAN server: one process = one table. Serves the browser client and keeps the
 // authoritative game state. Every connected browser gets its own filtered view
 // (other players' dials stay secret) after every change.
-import { mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rename, stat, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { networkInterfaces } from "node:os";
 import { extname, join, normalize } from "node:path";
@@ -13,7 +13,14 @@ import { FACTIONS, validateArmy } from "../shared/factions.js";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const PORT = Number(process.env.PORT) || 3000;
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".md": "text/markdown" };
+const TYPES = {
+  ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".md": "text/markdown",
+  ".json": "application/json", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
+};
+
+// A bug must never take the table down: log it and keep serving.
+process.on("uncaughtException", (err) => console.error("Unexpected error:", err));
+process.on("unhandledRejection", (err) => console.error("Unexpected error:", err));
 
 let game = E.createGame();
 
@@ -21,7 +28,7 @@ let game = E.createGame();
 // The browser reloads the newest files from disk, but the rules this process
 // runs were loaded at start-up. When server or shared code changes on disk,
 // every screen is told to restart the game server instead of failing oddly.
-const CODE_DIRS = ["server", "shared", "shared/rosters", "shared/presets"];
+const CODE_DIRS = ["server", "shared", "shared/rosters", "shared/presets", "shared/items"];
 async function codeStamp() {
   let newest = 0;
   for (const d of CODE_DIRS) {
@@ -68,32 +75,48 @@ const ARMIES = join(DATA, "armies.json");
 let armies = [];
 try {
   armies = JSON.parse(await readFile(ARMIES, "utf8"));
-} catch {
+  if (!Array.isArray(armies)) throw new Error("not a list");
+} catch (err) {
   armies = [];
+  // Keep an unreadable file for recovery instead of overwriting it on the next save.
+  if (err.code !== "ENOENT") {
+    await rename(ARMIES, `${ARMIES}.bad`).catch(() => {});
+    console.error(`data/armies.json could not be read (${err.message}); kept as armies.json.bad.`);
+  }
 }
-async function persistArmies() {
-  await mkdir(DATA, { recursive: true });
-  await writeFile(ARMIES, JSON.stringify(armies, null, 2));
+// One write at a time, each to a temporary file renamed into place, so a crash never leaves half a file.
+let writing = Promise.resolve();
+function persistArmies() {
+  writing = writing.catch(() => {}).then(async () => {
+    await mkdir(DATA, { recursive: true });
+    await writeFile(`${ARMIES}.tmp`, JSON.stringify(armies, null, 2));
+    await rename(`${ARMIES}.tmp`, ARMIES);
+  });
+  return writing;
 }
 
 const MAX_ARMIES = 300;
 const MAX_ARMIES_EACH = 40;
+const MAX_ENTRIES = 40; // a 300 DP army: 36 units plus a champion
 
-function saveArmy(owner, author, { id, name, faction, list }) {
+function saveArmy(owner, author, { id, name, faction, list, buys }) {
   if (!owner) throw new Error("Take a seat to save armies.");
   if (!FACTIONS[faction]) throw new Error("Unknown faction.");
-  if (!Array.isArray(list) || list.length > 20) throw new Error("Bad army list.");
+  if (!Array.isArray(list) || list.length > MAX_ENTRIES) throw new Error("Bad army list.");
+  const shop = Array.isArray(buys) ? buys : [];
   const title = String(name || "").trim().slice(0, 40);
   if (!title) throw new Error("Give the army a name.");
   // Structure only: a saved list may be built for any budget.
-  const v = validateArmy(faction, list, Infinity);
+  const v = validateArmy(faction, list, Infinity, shop);
   if (!v.ok) throw new Error(v.errors.join(" "));
   // Ids are always server-made; a client id only selects one of its own armies to update.
   const existing = armies.findIndex((a) => a.id === id && a.owner === owner);
   if (existing < 0 && (armies.length >= MAX_ARMIES || armies.filter((a) => a.owner === owner).length >= MAX_ARMIES_EACH)) throw new Error("Too many saved armies; delete some first.");
   const entry = {
     id: existing >= 0 ? armies[existing].id : `a${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`,
-    name: title, faction, list: list.map((e) => ({ unit: String(e.unit), upgrade: e.upgrade ? String(e.upgrade) : null })),
+    name: title, faction,
+    list: list.map((e) => ({ unit: String(e.unit), upgrade: e.upgrade ? String(e.upgrade) : null, item: e.item ? String(e.item) : null })),
+    buys: shop.map(String),
     cost: v.cost, author: String(author).slice(0, 24), owner, savedAt: new Date().toISOString(),
   };
   if (existing >= 0) armies[existing] = entry;
@@ -102,6 +125,7 @@ function saveArmy(owner, author, { id, name, faction, list }) {
 }
 
 function deleteArmy(pid, id) {
+  if (!pid) throw new Error("Take a seat to manage saved armies.");
   const a = armies.find((x) => x.id === id);
   if (!a) return;
   if (a.owner !== pid && hostId() !== pid) throw new Error("Only the army's author or the host can delete it.");
@@ -113,7 +137,15 @@ function deleteArmy(pid, id) {
 const publicArmies = (pid) => armies.map(({ owner, ...a }) => ({ ...a, mine: !!pid && owner === pid }));
 const sockets = new Map(); // ws -> { token, spectator }
 
-const http = createServer(async (req, res) => {
+const http = createServer((req, res) => {
+  serve(req, res).catch((err) => {
+    console.error("Request failed:", err.message);
+    if (!res.headersSent) res.writeHead(400);
+    res.end();
+  });
+});
+
+async function serve(req, res) {
   const url = new URL(req.url, "http://x");
   if (url.pathname === "/api/art-upload" && req.method === "POST") {
     // Art handoff from a browser on THIS computer only (the ChatGPT art pipeline).
@@ -153,12 +185,13 @@ const http = createServer(async (req, res) => {
   if (!file.startsWith(ROOT)) return res.writeHead(403).end();
   try {
     const body = await readFile(file);
-    res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream", "cache-control": "no-store" });
+    // No framing by other sites (the art receiver and the game act on the host's behalf).
+    res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream", "cache-control": "no-store", "x-frame-options": "DENY" });
     res.end(body);
   } catch {
     res.writeHead(404).end("not found");
   }
-});
+}
 
 // Same-origin browsers only (stops other web pages from driving the game), small frames.
 const wss = new WebSocketServer({
@@ -175,7 +208,18 @@ const wss = new WebSocketServer({
   },
 });
 
+// Many changes in one tick send one update to each screen.
+let broadcastQueued = false;
 function broadcast() {
+  if (broadcastQueued) return;
+  broadcastQueued = true;
+  setImmediate(() => {
+    broadcastQueued = false;
+    sendStates();
+  });
+}
+
+function sendStates() {
   const online = new Set([...sockets.values()].map((s) => s.token));
   // Views carry public seat ids, so map connection status by seat (computer seats are always here).
   const here = new Set(game.players.filter((p) => p.ai || online.has(p.id)).map((p) => `p${p.seat}`));
@@ -188,7 +232,11 @@ function broadcast() {
     view.build = build;
     view.host = E.player(game, hostId()) ? `p${E.player(game, hostId()).seat}` : null;
     view.canRestart = SUPERVISED;
-    ws.send(JSON.stringify({ t: "state", state: view }));
+    try {
+      ws.send(JSON.stringify({ t: "state", state: view }));
+    } catch (err) {
+      console.error("Could not update a screen:", err.message);
+    }
   }
 }
 
@@ -197,9 +245,11 @@ function handle(ws, info, m) {
   switch (m.t) {
     case "hello":
       if (typeof m.token !== "string" || !/^[A-Za-z0-9]{8,64}$/.test(m.token)) throw new Error("Bad session token; reload the page.");
+      if (game.players.some((p) => p.ai && p.id === m.token)) throw new Error("Bad session token; reload the page.");
       info.token = m.token;
       info.spectator = !!m.spectate;
-      if (!info.spectator && !E.player(game, info.token) && game.phase === "muster") {
+      if (!info.spectator && !E.player(game, info.token)) {
+        if (game.phase !== "muster") throw new Error("The battle has already started, so you are watching. You can take a seat when the next battle is set up.");
         E.addPlayer(game, info.token, m.name);
         game.hold = false; // a human is seated again: they decide when to start
       }
@@ -285,7 +335,11 @@ function aiTick() {
       }
     }
     if (acted) {
-      E.run(game);
+      try {
+        E.run(game);
+      } catch (err) {
+        console.error("Rules error after a computer move:", err.message);
+      }
       broadcast();
       return scheduleAI(game.pending?.type === "action" || game.pending?.type === "attack" ? 600 : 350);
     }
@@ -308,9 +362,13 @@ function removeAI(pid, seatId) {
   if (p) E.removePlayer(game, p.id);
 }
 
+const MAX_SOCKETS = 32; // a full table plus plenty of watching screens
+
 wss.on("connection", (ws) => {
+  if (sockets.size >= MAX_SOCKETS) return ws.close(1013, "Too many screens are connected.");
   const info = { token: null, spectator: true, bucket: 40, last: Date.now() };
   sockets.set(ws, info);
+  broadcast(); // a new screen sees the table (seats taken, battle running) before it joins
   ws.on("message", async (raw) => {
     // Rate limit: 40-message burst, refilling at 20 per second.
     const now = Date.now();
@@ -332,6 +390,14 @@ wss.on("connection", (ws) => {
   });
 });
 
+// Start-up failures (the port is taken) must still stop the process, so Start Game can report them.
+// The WebSocket server re-emits the HTTP server's errors, so both get the handler.
+const startFailed = (err) => {
+  console.error(err.code === "EADDRINUSE" ? `Port ${PORT} is already in use: is the game already running?` : `Server error: ${err.message}`);
+  process.exit(1);
+};
+http.on("error", startFailed);
+wss.on("error", startFailed);
 http.listen(PORT, "0.0.0.0", () => {
   const ips = Object.values(networkInterfaces()).flat().filter((i) => i && i.family === "IPv4" && !i.internal).map((i) => i.address);
   console.log("Drums of War: Warbands is running.");

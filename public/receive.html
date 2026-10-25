@@ -8,14 +8,17 @@
 <p id="count">0 received</p>
 <script>
 // Accepts { name, data } messages from the art pipeline tab and saves them via the local server.
+// Only the ChatGPT tab that runs the art pipeline (or this server itself) may hand over files.
+const ALLOWED = ["https://chatgpt.com", "https://chat.openai.com", location.origin];
 let n = 0;
 window.addEventListener("message", async (ev) => {
+  if (!ALLOWED.includes(ev.origin)) return;
   const { name, data, id } = ev.data || {};
   if (!name || !data) return;
   const res = await fetch("/api/art-upload", { method: "POST", headers: { "content-type": "application/json", "x-dow-art": "1" }, body: JSON.stringify({ name, data }) });
   const ok = res.ok;
   if (ok) document.getElementById("count").textContent = `${++n} received`;
-  ev.source?.postMessage({ ack: id, ok, status: res.status }, "*");
+  ev.source?.postMessage({ ack: id, ok, status: res.status }, ev.origin);
 });
 </script>
 </body>
