@@ -147,3 +147,31 @@ automated access).
 - **Campaign layer.** Linked battles with persistent warbands, an idea from earlier.
 - **The computer opponent buys no terrain** and only picks items at random within a reserve;
   it could use the preset shortlists.
+
+## 4. Left over from the 2026-10-24 review
+
+Found by the adversarial review and deliberately not changed, because each one changes prices,
+balance or how the game feels. Re-run the sims after any of the pricing items.
+
+- **Dead item and upgrade pairings.** 74 of 1065 item/unit pairings include an effect the unit
+  cannot use (an ability it already has, initiative past 6, range past 4, an arc already full,
+  an action it already has), and Veteran is offered on 16 units already at initiative 6. Banner
+  or Keen Eyes plus an item that grants the same action is charged twice. Fix in `itemsFor`,
+  `checkItems`, `upgradesFor` and `validateArmy`, then re-price. Medium.
+- **Item price rounding.** Item prices are the difference of two rounded unit costs, then
+  multiplied, so 26 prices are off by 2 DP or more. Price from unrounded costs. Small, but
+  every item price moves.
+- **Small-DP presets.** Between 40 and 51 DP some prebuilt warbands spend only about 82 to 87%;
+  checks run only at 60, 100, 150, 200 and 300. `holds-unbroken-wall` (gear 0.01) always takes
+  exactly 1 item.
+- **One-click attacks.** During your attack step, clicking an enemy that only one weapon can hit
+  declares the attack at once. Fast, but a click meant to read the unit's card fires. A
+  confirm step is an option.
+- **Dial-set markers.** Opponents see only a player's Ready marker in planning. Showing a
+  "dial set" marker on each enemy unit (as in X-Wing) would need a small view and UI change.
+- **Touch pinch zoom.** Zoom works with the scroll wheel, trackpad pinch and the buttons; touch
+  screens have no pinch.
+- **Log names.** Fog-of-war scrubbing matches unit names by substring, so in a mirror match with
+  10 or more copies, "X (1)" also matches "X (10)". Rare.
+- **Ability tests.** 23 abilities and most item and battlefield effects have no focused test;
+  only the random-battle fuzz runs them.
