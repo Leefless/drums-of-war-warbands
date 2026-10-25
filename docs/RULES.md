@@ -21,8 +21,10 @@ consideration, see [ROADMAP.md](ROADMAP.md).
 - Weapons fire in a **90 degree arc** (front or rear) or all round (full), out
   to the weapon's range band or bands.
 - **Melee weapons** (those whose longest reach is range 1) only strike a unit
-  whose base is **in contact**: touching, or within 10. A weapon that reaches
-  range 2 or more (bows, blowpipes, spells) strikes anywhere in range 1.
+  whose base is **in contact**: touching, or within 10. A weapon whose range
+  starts at 1 and reaches 2 or more (blowpipes, many spells) strikes anywhere in
+  range 1. A weapon with a minimum range of 2 or more (most bows and guns)
+  cannot fire at range 1 at all.
 - **Pile in.** At the start of each Engagement (before Fear and Warcry), every
   unit with a melee weapon that has a spotted enemy within range 1 inside that
   weapon's arc, but is not yet in contact, steps straight toward the nearest

@@ -1,7 +1,8 @@
 # Drums of War: Warbands, Roadmap
 
-Possible changes for the future. Nothing here is built yet; each entry says what it
-is, why it is worth doing, roughly how big it is, and what to watch out for. Balance
+Possible changes for the future. Each entry says what it is, why it is worth doing,
+roughly how big it is, and what to watch out for. Sections 1.4 and 4 also record
+review findings and what has already been tried. Balance
 numbers come from computer-vs-computer simulations (`scripts/sim-presets.mjs`), so
 treat them as "is anything far out of line", not exact strengths.
 
