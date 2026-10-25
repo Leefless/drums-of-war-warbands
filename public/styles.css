@@ -395,3 +395,72 @@ button.die { padding: 0; cursor: pointer; }
 @media (max-width: 900px) {
   .boardwrap { height: auto; aspect-ratio: 1 / 1; width: 100%; }
 }
+
+/* Turn and combat clarity: banner, initiative track, combat card, richer log */
+.turnhead { min-width: 0; background: var(--texture), var(--panel); border-bottom: 1px solid var(--line); }
+.turnbar { --tc: var(--line); display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 12px; border-left: 6px solid var(--tc); background: color-mix(in srgb, var(--tc) 14%, transparent); font: 600 16px/1.3 var(--sans); color: var(--ink); }
+.turnbar .turntext { min-width: 0; overflow-wrap: anywhere; }
+.turnbar button { flex: none; }
+.turnbar.mine { background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 17px; box-shadow: 0 0 0 1px var(--accent), 0 2px 8px var(--shade); animation: nudge 1.6s ease-out 1; }
+.turnbar.mine button { color: var(--on-accent); border-color: var(--on-accent); }
+.track { display: flex; align-items: center; gap: 4px; padding: 5px 12px; overflow-x: auto; overflow-y: hidden; white-space: nowrap; border-top: 1px solid var(--grid); scrollbar-width: thin; }
+.track[hidden] { display: none; }
+.track .tlabel { flex: none; margin-right: 4px; }
+.tchip { flex: none; display: inline-flex; align-items: center; gap: 6px; max-width: 170px; padding: 2px 8px 2px 6px; border: 1px solid var(--line); border-radius: 3px; background: var(--raise); color: var(--ink); font: 14px var(--sans); cursor: pointer; }
+.tchip .tsw { flex: none; width: 10px; height: 10px; background: var(--fc, var(--ink-3)); transform: rotate(45deg) scale(0.85); }
+.tchip .tn { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.tchip b { font: 700 13px var(--display); font-variant-numeric: tabular-nums; color: var(--ink-2); }
+.tchip.done { opacity: 0.45; }
+.tchip.next { border-color: var(--accent-text); outline: 1px solid var(--accent-text); outline-offset: -1px; }
+.tchip.active { background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; box-shadow: 0 0 0 2px var(--glow); }
+.tchip.active b { color: var(--on-accent); }
+.tchip.sel:not(.active) { background: var(--inset); border-color: var(--ink-2); }
+.tchip.unseen { cursor: default; color: var(--ink-3); border-style: dashed; background: transparent; }
+
+/* Pinned to the window, not the board, so it is never pushed below the fold on short screens. */
+.combat { position: fixed; left: 16px; bottom: 16px; width: min(440px, calc(100vw - 32px)); max-height: 45vh; overflow: auto; z-index: 3; padding: 8px 12px 10px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 3px; box-shadow: 0 4px 18px var(--shade); color: var(--ink); font-size: 15px; line-height: 1.35; cursor: pointer; transition: opacity 250ms ease; }
+.combat.out { opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 250ms ease, visibility 0s linear 250ms; }
+.cc-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font: 600 16px var(--display); letter-spacing: 0.03em; }
+.cc-side { border-left: 4px solid var(--tc, var(--line)); padding-left: 6px; }
+.cc-arrow { color: var(--ink-3); }
+.cc-tags { display: inline-flex; gap: 4px; margin-left: auto; }
+.cc-line { padding: 3px 0; border-top: 1px solid var(--grid); color: var(--ink-2); }
+.cc-line:first-of-type { margin-top: 6px; }
+.cc-line.fresh { animation: ccin 350ms ease-out 1; }
+.cc-result { color: var(--ink); font-weight: 600; }
+.cc-wait { color: var(--accent-text); font-style: italic; }
+.cc-dice { display: flex; gap: 3px; margin-top: 3px; }
+.die.mini { width: 24px; height: 24px; border-radius: 3px; }
+.die.mini .icon { width: 15px; height: 15px; }
+.cc-beat { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 8px; padding-top: 6px; border-top: 1px solid var(--line); }
+.cc-count { flex-basis: 100%; height: 4px; background: var(--raise); border: 1px solid var(--line); border-radius: 1px; overflow: hidden; }
+.cc-count i { display: block; height: 100%; background: var(--accent); transform-origin: left center; transform: scaleX(var(--from, 1)); animation: ccdrain linear forwards; }
+
+.loghead { margin-top: 8px; padding: 2px 0; border-bottom: 1px solid var(--line); color: var(--accent-text); }
+.loghead:first-child { margin-top: 0; }
+.logline { border-left: 3px solid transparent; padding-left: 6px; }
+.logline.has-who { border-left-color: var(--tc); }
+.logline.clk { cursor: pointer; }
+.logline.clk:hover, .logline.clk:focus-visible { background: var(--inset); }
+.logline.fresh { animation: logflash 1800ms ease-out 1; }
+.zoomctl button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+
+@keyframes ccin { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes ccdrain { to { transform: scaleX(0); } }
+@keyframes logflash { from { background: var(--glow); } to { background: transparent; } }
+@keyframes nudge { 0% { box-shadow: 0 0 0 0 var(--accent); } 100% { box-shadow: 0 0 0 10px transparent; } }
+@media (max-width: 600px) {
+  .turnbar { font-size: 15px; padding: 5px 10px; }
+  .turnbar.mine { font-size: 16px; }
+  .track { padding: 4px 10px; }
+  .combat { bottom: 8px; font-size: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .turnbar.mine, .cc-line.fresh, .logline.fresh { animation: none; }
+  .combat { transition: none; }
+  .cc-count i { animation: none; }
+}
+
+/* Clicking the unit whose turn it is pulses the panel holding its choices. */
+#prompt.flash { animation: promptflash 900ms ease-out 1; }
+@keyframes promptflash { 0% { box-shadow: inset 0 0 0 3px var(--accent); } 100% { box-shadow: inset 0 0 0 3px transparent; } }

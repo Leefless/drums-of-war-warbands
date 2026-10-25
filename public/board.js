@@ -89,6 +89,13 @@ export function sizeCanvas(canvas) {
 // view.z is the zoom (1 = the whole battlefield), view.cx / cy the board point at the centre.
 const MAX_ZOOM = 4;
 const view = { z: 1, cx: BOARD / 2, cy: BOARD / 2 };
+// Camera follow: a smooth pan toward a board point, started by diffState or focusUnit.
+// Never fights the user: panBy stamps lastUserPan and a follow is skipped for 1.5 s after.
+let followOn = true;
+let lastUserPan = -Infinity;
+let glide = null; // { x, y, t0, t1, from: {cx, cy} | null }
+const FOLLOW_MS = 400;
+const FOLLOW_IDLE = 1500;
 function clampView() {
   view.z = Math.max(1, Math.min(MAX_ZOOM, view.z));
   const half = SIZE / (2 * view.z);
@@ -108,6 +115,7 @@ const canvasPx = (canvas, ev) => {
 export const zoomLevel = () => view.z;
 /** Zoom by a factor, keeping the board point under the pointer (or the centre) where it is. */
 export function zoomAt(canvas, ev, factor) {
+  glide = null;
   const p = ev ? canvasPx(canvas, ev) : { x: canvas.width / 2, y: canvas.height / 2 };
   const before = camera(canvas);
   const bx = (p.x - before.ox) / before.s;
@@ -121,13 +129,46 @@ export function zoomAt(canvas, ev, factor) {
 }
 /** Pan by a pointer movement in CSS pixels. */
 export function panBy(canvas, dx, dy) {
+  lastUserPan = performance.now();
+  glide = null; // the user took the camera: drop any follow in flight
   const r = canvas.getBoundingClientRect();
   const s = (canvas.width / SIZE) * view.z;
   view.cx -= (dx * (canvas.width / r.width)) / s;
   view.cy -= (dy * (canvas.height / r.height)) / s;
   clampView();
 }
+/** Turn camera follow on or off (on by default). */
+export function setFollow(on) {
+  followOn = !!on;
+  if (!followOn) glide = null;
+}
+/** Ease the camera so board point (x, y) sits at the centre, starting at time t0. */
+function glideTo(x, y, t0) {
+  glide = { x, y, t0, t1: t0 + FOLLOW_MS, from: null };
+}
+/** Is a board point outside the central 70% of what the camera shows (at the pan's destination, if one is queued)? */
+function offCentre(x, y) {
+  const cx = glide ? glide.x : view.cx;
+  const cy = glide ? glide.y : view.cy;
+  const reach = 0.35 * (SIZE / view.z);
+  return Math.abs(x - cx) > reach || Math.abs(y - cy) > reach;
+}
+/** Follow a unit move or attack point when zoomed in, the point is off-centre and the user is not panning. */
+function followPoint(x, y, t0) {
+  if (!followOn || view.z <= 1.001 || glide) return;
+  if (performance.now() - lastUserPan < FOLLOW_IDLE) return;
+  if (offCentre(x, y)) glideTo(x, y, t0);
+}
+function stepGlide(now) {
+  if (!glide || now < glide.t0) return;
+  if (!glide.from) glide.from = { cx: view.cx, cy: view.cy };
+  const f = ease(clamp01((now - glide.t0) / (glide.t1 - glide.t0)));
+  view.cx = glide.from.cx + (glide.x - glide.from.cx) * f;
+  view.cy = glide.from.cy + (glide.y - glide.from.cy) * f;
+  if (f >= 1) glide = null;
+}
 export function resetView() {
+  glide = null;
   Object.assign(view, { z: 1, cx: SIZE / 2, cy: SIZE / 2 });
 }
 
@@ -544,7 +585,9 @@ function ensureTerrain(state, px) {
 }
 
 // ── Animation timeline ───────────────────────────────────────────────────────
-const anim = { moves: [], effects: [], floaters: [], deaths: [], busyUntil: 0 };
+const anim = { moves: [], effects: [], floaters: [], deaths: [], pings: [], busyUntil: 0 };
+// This round's resolved attacks, kept as faint lines until the round ends: { attacker, target, dmg, round, t0 }.
+let attacks = [];
 let prevUnits = null;
 let prevAttackKey = null;
 let current = { canvas: null, state: null, opts: {} };
@@ -595,6 +638,7 @@ function diffState(state) {
     for (const k of ["moves", "effects", "floaters", "deaths"]) anim[k] = [];
     anim.busyUntil = now;
   }
+  if (state.phase === "plan" || state.phase === "over" || (attacks.length && attacks[0].round !== state.round)) attacks = [];
   let t = Math.max(now, anim.busyUntil);
   const hpOf = (u) => u.wounds + u.ward;
   if (prevUnits) {
@@ -608,13 +652,14 @@ function diffState(state) {
     const dur = moved.length > 4 ? Math.max(280, 2800 / moved.length) : 700;
     for (const u of moved) {
       const p = prevUnits.get(u.id);
+      followPoint(u.x, u.y, t);
       anim.moves.push({ uid: u.id, path: buildPath(p, u), h0: p.h, h1: u.h, t0: t, t1: t + dur });
       t += dur * 0.9;
     }
   }
 
   const A = state.lastAttack;
-  const key = A ? JSON.stringify([state.round, A.attacker, A.target, A.atk, A.def]) : null;
+  const key = A ? JSON.stringify([state.round, A.n, A.attacker, A.target, A.atk, A.def]) : null;
   let attackTarget = null;
   if (prevUnits && key && key !== prevAttackKey) {
     const a = state.units.find((u) => u.id === A.attacker);
@@ -627,6 +672,8 @@ function diffState(state) {
       const dmg = A.result.strikes + A.result.rends;
       anim.floaters.push({ x: b.x, y: b.y, text: dmg ? `-${dmg}` : "Parried", color: dmg ? "#F08A6E" : PARCHMENT, t0: t + 550, t1: t + 1900 });
       if (dmg) anim.effects.push({ kind: "hit", to: { x: b.x, y: b.y }, size: BASE_SIZE[b.base], t0: t + 550, t1: t + 900 });
+      attacks.push({ attacker: a.id, target: b.id, dmg, round: state.round, t0: t + 300 });
+      followPoint(b.x, b.y, t);
       attackTarget = b.id;
       t += 800;
     }
@@ -667,12 +714,13 @@ export function resetBoard() {
   resetView();
   prevUnits = null;
   prevAttackKey = null;
-  for (const k of ["moves", "effects", "floaters", "deaths"]) anim[k] = [];
+  for (const k of ["moves", "effects", "floaters", "deaths", "pings"]) anim[k] = [];
+  attacks = [];
   anim.busyUntil = 0;
   current = { canvas: null, state: null, opts: {} };
 }
 /**
- * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, zones: bool }
+ * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, spent: Set<uid>, zones: bool }
  */
 export function updateBoard(canvas, state, opts = {}) {
   if ((state.board || BOARD) !== SIZE) {
@@ -681,6 +729,26 @@ export function updateBoard(canvas, state, opts = {}) {
   }
   if (state !== current.state) diffState(state);
   current = { canvas, state, opts };
+}
+
+/**
+ * Bring a unit to the player's attention (log and initiative track clicks): centre it
+ * when zoomed in, and ping it with two expanding rings either way.
+ */
+/** Bring a board point to the player's attention (the Charge banner): centre it when zoomed in, and ping it. */
+export function focusPoint(x, y) {
+  const now = performance.now();
+  if (view.z > 1.001) glideTo(x, y, now);
+  anim.pings.push({ at: { x, y }, color: "#E16E50", t0: now, t1: now + 1200 });
+}
+
+export function focusUnit(uid) {
+  const { state } = current;
+  const u = state?.units.find((x) => x.id === uid);
+  if (!u) return;
+  const now = performance.now();
+  if (view.z > 1.001) glideTo(u.x, u.y, now);
+  anim.pings.push({ uid, color: playerColor(state, u.owner), t0: now, t1: now + 1200 });
 }
 
 let lastFrame = 0;
@@ -697,6 +765,7 @@ requestAnimationFrame(frame);
 function render(canvas, state, opts, now) {
   const ctx = canvas.getContext("2d");
   const k = canvas.width / SIZE;
+  stepGlide(now);
   const cam = camera(canvas);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -736,6 +805,8 @@ function render(canvas, state, opts, now) {
     if (u) drawGhost(ctx, u, opts.ghost.code);
   }
 
+  drawAttackRecords(ctx, state, now);
+
   // A unit that died this update keeps drawing until its move and death play out.
   const dyingIds = new Set(anim.deaths.map((d) => d.uid));
   for (const u of state.units) {
@@ -746,7 +817,11 @@ function render(canvas, state, opts, now) {
       drawToken(ctx, k, u, u, {}, now, 1 - f, 1 - 0.4 * f);
       drawSmoke(ctx, u, f);
     } else {
+      // Units that have already moved or attacked this phase (or have their dial set) draw greyed out.
+      const spent = opts.spent?.has(u.id);
+      if (spent) ctx.filter = "grayscale(0.85) brightness(0.62)";
       drawToken(ctx, k, u, displayPose(u, now), opts, now, 1, 1);
+      if (spent) ctx.filter = "none";
     }
   }
 
@@ -768,6 +843,7 @@ function render(canvas, state, opts, now) {
   }
   if (opts.attackLine) drawAttackLine(ctx, state, opts.attackLine, now);
   drawEffects(ctx, k, now);
+  drawPings(ctx, state, now);
   drawFloaters(ctx, now);
 
   // Drop finished animations.
@@ -775,6 +851,7 @@ function render(canvas, state, opts, now) {
   anim.effects = anim.effects.filter((e) => e.t1 > now);
   anim.floaters = anim.floaters.filter((e) => e.t1 > now);
   anim.deaths = anim.deaths.filter((e) => e.t1 > now);
+  anim.pings = anim.pings.filter((e) => e.t1 > now);
 }
 
 // ── Layers ───────────────────────────────────────────────────────────────────
@@ -1324,6 +1401,75 @@ function drawEffects(ctx, k, now) {
       ctx.beginPath();
       ctx.arc(e.to.x, e.to.y, e.size * 0.75, 0, Math.PI * 2);
       ctx.fill();
+    }
+    ctx.restore();
+  }
+}
+
+/** This round's resolved attacks: faint lines between the units' drawn poses, with the damage at the midpoint. */
+function drawAttackRecords(ctx, state, now) {
+  for (const r of attacks) {
+    if (r.round !== state.round || now < r.t0) continue;
+    const a = state.units.find((u) => u.id === r.attacker);
+    const b = state.units.find((u) => u.id === r.target);
+    if (!a || !b) continue; // out of sight under fog of war
+    const pa = displayPose(a, now);
+    const pb = displayPose(b, now);
+    const len = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+    if (len < 1) continue;
+    const ux = (pb.x - pa.x) / len;
+    const uy = (pb.y - pa.y) / len;
+    // Stop at the token edges so the line and arrowhead stay readable.
+    const x0 = pa.x + ux * BASE_SIZE[a.base] * 0.5;
+    const y0 = pa.y + uy * BASE_SIZE[a.base] * 0.5;
+    const x1 = pb.x - ux * BASE_SIZE[b.base] * 0.5;
+    const y1 = pb.y - uy * BASE_SIZE[b.base] * 0.5;
+    if ((x1 - x0) * ux + (y1 - y0) * uy <= 0) continue;
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.strokeStyle = ctx.fillStyle = playerColor(state, a.owner);
+    ctx.lineWidth = 1.5;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x1 - ux * 9 + uy * 4.5, y1 - uy * 9 - ux * 4.5);
+    ctx.lineTo(x1 - ux * 9 - uy * 4.5, y1 - uy * 9 + ux * 4.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 0.85;
+    const text = r.dmg ? `-${r.dmg}` : "parried";
+    ctx.font = `700 ${r.dmg ? 11 : 9}px ${DISPLAY}`;
+    ctx.textAlign = "center";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(10, 8, 5, 0.85)";
+    ctx.strokeText(text, (x0 + x1) / 2, (y0 + y1) / 2 - 3);
+    ctx.fillStyle = r.dmg ? "#F08A6E" : PARCHMENT;
+    ctx.fillText(text, (x0 + x1) / 2, (y0 + y1) / 2 - 3);
+    ctx.restore();
+  }
+}
+
+/** Two expanding rings in the unit's colour (following it if it is mid-move), or at a board point. */
+function drawPings(ctx, state, now) {
+  for (const p of anim.pings) {
+    const u = p.at ? null : state.units.find((x) => x.id === p.uid);
+    if (!p.at && !u) continue;
+    const pose = p.at || displayPose(u, now);
+    const half = u ? BASE_SIZE[u.base] / 2 : 24;
+    ctx.save();
+    ctx.strokeStyle = p.color;
+    ctx.lineWidth = 3;
+    for (const delay of [0, 0.25]) {
+      const f = clamp01((((now - p.t0) / (p.t1 - p.t0)) - delay) / (1 - delay));
+      if (f <= 0 || f >= 1) continue;
+      ctx.globalAlpha = 0.9 * (1 - f);
+      ctx.beginPath();
+      ctx.arc(pose.x, pose.y, half + f * 70, 0, Math.PI * 2);
+      ctx.stroke();
     }
     ctx.restore();
   }

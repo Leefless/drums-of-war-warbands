@@ -32,12 +32,14 @@ export const CRIT_TEXT = {
 export const OBSTACLE_KINDS = ["hill", "thicket", "ruins", "lava", "marsh", "rift", "block"];
 
 // ── State ────────────────────────────────────────────────────────────────────
-export function createGame({ budget = 100, maxRounds = 12, seed = Date.now() } = {}) {
+export const AI_SPEEDS = ["fast", "normal", "slow"];
+
+export function createGame({ budget = 100, maxRounds = 12, seed = Date.now(), aiSpeed = "normal", pauseAttacks = false } = {}) {
   return {
     board: boardSize(budget),
     phase: "muster",
     round: 0,
-    settings: { budget, maxRounds },
+    settings: { budget, maxRounds, aiSpeed, pauseAttacks },
     players: [],
     units: [],
     obstacles: [],
@@ -47,6 +49,7 @@ export function createGame({ budget = 100, maxRounds = 12, seed = Date.now() } =
     pending: null,
     attack: null,
     lastAttack: null,
+    beat: null, // a pause after an attack so every screen can follow it (see clearBeat)
     firstSeat: 0,
     nextUid: 1,
     rng: seed >>> 0 || 1,
@@ -66,8 +69,11 @@ const roll = (state, faces) => faces[Math.floor(rand(state) * faces.length)];
 
 function log(state, msg) {
   // Record which units a line mentions, so fog of war can scrub it per viewer.
-  const refs = state.units.filter((u) => msg.includes(u.name)).map((u) => u.id);
-  state.log.push({ round: state.round, msg, refs });
+  const named = state.units.filter((u) => msg.includes(u.name));
+  const refs = named.map((u) => u.id);
+  // The acting unit is the one the line starts with (for colouring the line by army).
+  const actor = named.filter((u) => msg.startsWith(u.name)).sort((a, b) => b.name.length - a.name.length)[0];
+  state.log.push({ round: state.round, phase: state.phase, msg, refs, who: actor?.owner ?? null });
   if (state.log.length > 300) state.log.shift();
 }
 
@@ -111,7 +117,7 @@ export function removePlayer(state, pid) {
 }
 
 export function setSettings(state, pid, msg) {
-  const { budget, maxRounds } = msg && typeof msg === "object" ? msg : {};
+  const { budget, maxRounds, aiSpeed, pauseAttacks } = msg && typeof msg === "object" ? msg : {};
   if (state.phase !== "muster") fail("Settings are locked once deployment begins.");
   if (state.players.find((p) => !p.ai)?.id !== pid) fail("Only the host (the first player seated) can change settings.");
   if (budget != null) {
@@ -119,7 +125,10 @@ export function setSettings(state, pid, msg) {
     state.board = boardSize(state.settings.budget);
   }
   if (maxRounds != null) state.settings.maxRounds = Math.max(3, Math.min(20, Number(maxRounds) || 12));
-  for (const p of state.players) p.ready = false;
+  if (aiSpeed != null && AI_SPEEDS.includes(aiSpeed)) state.settings.aiSpeed = aiSpeed;
+  if (pauseAttacks != null) state.settings.pauseAttacks = !!pauseAttacks;
+  // Speed and pausing only change pacing; the army limits do, so only those unready everyone.
+  if (budget != null || maxRounds != null) for (const p of state.players) p.ready = false;
 }
 
 export function setFaction(state, pid, faction) {
@@ -932,6 +941,7 @@ function taint(state, u) {
 export function pass(state, pid) {
   const pend = state.pending;
   if (!pend || pend.pid !== pid) fail("Nothing to pass.");
+  if (pend.type === "pick") return takeTurn(state, pid, pend.options[0]); // no preference: the first in line goes
   state.pending = null;
   if (pend.type === "action") finishActivation(state, unit(state, pend.uid));
   else if (pend.type === "attack") log(state, `${unit(state, pend.uid).name} holds its attack.`);
@@ -1053,6 +1063,7 @@ export function declareAttack(state, pid, msg) {
     def: [], rerolled: [], used: [], brace: false, defDice: defenseDice(state, u, t, w, opt.range),
   };
   state.attack.ambush = ambush;
+  state.attack.steps = [{ side: "atk", op: "roll", faces: [...state.attack.atk] }];
   const side = rule(u, "riftAmbush") ? attackSide(u, t) : "front";
   const around = side === "rear" ? " from the rear (Rift Ambush)" : side === "flank" ? " from the flank (Rift Ambush)" : "";
   log(state, `${ambush ? "Ambush! " : ""}${u.name} attacks ${t.name}${around} with ${w.name} at range ${opt.range}: ${state.attack.atk.join(", ")}.`);
@@ -1104,6 +1115,7 @@ function offerDefenseMods(state) {
 function rollDefense(state) {
   const A = state.attack;
   A.def = Array.from({ length: A.defDice }, () => roll(state, DEFENSE_FACES));
+  A.steps.push({ side: "def", op: "roll", faces: [...A.def] });
   log(state, `${unit(state, A.target).name} defends: ${A.def.join(", ") || "no dice"}.`);
   state.pending = null;
   offerDefenseMods(state);
@@ -1145,6 +1157,7 @@ export function modify(state, pid, msg) {
       A.atk[j] = "rend";
     }
     A.used.push(op);
+    A.steps.push({ side: "atk", op, faces: [...A.atk] });
     log(state, `${u.name} uses ${op}: ${A.atk.join(", ")}.`);
   } else {
     if (op === "steel") {
@@ -1157,6 +1170,7 @@ export function modify(state, pid, msg) {
       u.tokens.brace -= 1;
       A.brace = true;
     }
+    A.steps.push({ side: "def", op, faces: [...A.def] });
     log(state, `${u.name} uses ${op}: ${A.def.join(", ") || "no dice"}.`);
   }
   state.pending = null;
@@ -1217,8 +1231,45 @@ function resolveAttack(state) {
       }
     }
   }
-  state.lastAttack = { ...A, result: { strikes, rends } };
+  state.lastAttack = { ...A, armored, result: { strikes, rends }, n: (state.lastAttack?.n || 0) + 1 };
   state.attack = null;
+  state.pending = null;
+  // Hold the battle here until every screen has followed the attack (the server ends the beat).
+  if (state.settings.pauseAttacks) state.beat = { n: state.lastAttack.n };
+}
+
+/** End the pause after an attack so the battle carries on. */
+export function clearBeat(state) {
+  state.beat = null;
+}
+
+// ── Choosing between tied units ─────────────────────────────────────────────
+/**
+ * X-Wing rule for ties: when a person has two or more units waiting at the initiative that acts
+ * next, they choose which goes first (computer opponents simply take them in order). In the
+ * Engagement only units with a target count. Returns true when the choice is now pending.
+ */
+function offerPick(state) {
+  const u = unit(state, state.queue[0]);
+  if (!u || u.dead || state.picked === u.id) return false;
+  const owner = player(state, u.owner);
+  if (!owner || owner.ai) return false;
+  const engage = state.phase === "engagement";
+  const tied = state.queue
+    .map((id) => unit(state, id))
+    .filter((x) => x && !x.dead && x.owner === u.owner && x.init === u.init && (!engage || attackOptions(state, x).length));
+  if (tied.length < 2) return false;
+  state.pending = { type: "pick", pid: u.owner, uid: null, options: tied.map((x) => x.id) };
+  return true;
+}
+
+/** The player picks which of their tied units takes its turn now. */
+export function takeTurn(state, pid, uid) {
+  const pend = state.pending;
+  if (!pend || pend.type !== "pick" || pend.pid !== pid) fail("You are not choosing a unit right now.");
+  if (!pend.options.includes(uid)) fail("That unit cannot go now.");
+  state.queue = [uid, ...state.queue.filter((id) => id !== uid)];
+  state.picked = uid;
   state.pending = null;
 }
 
@@ -1322,6 +1373,7 @@ function endBattle(state, fighting = []) {
   state.phase = "over";
   state.pending = null;
   state.attack = null;
+  state.beat = null;
   const score = (p) => p.vp * 1000 + alive(state).filter((u) => u.owner === p.id).reduce((a, u) => a + u.cost, 0);
   const pool = standing.length ? standing : fighting.filter((p) => !p.surrendered);
   const ranked = [...pool].sort((a, b) => score(b) - score(a) || a.seat - b.seat);
@@ -1357,7 +1409,7 @@ export function surrender(state, pid) {
 /** Advance the game until a player decision is needed. Idempotent when waiting. */
 export function run(state) {
   for (let guard = 0; guard < 2000; guard++) {
-    if (state.pending || state.phase === "over") return;
+    if (state.pending || state.beat || state.phase === "over") return;
     if (state.phase === "muster") {
       const fits = (p) => validateArmy(p.faction, p.army, state.settings.budget, p.buys || []).ok;
       // state.hold: a computer-only table waits for a watcher to start it (or someone to sit down).
@@ -1373,11 +1425,13 @@ export function run(state) {
       if (allReady(state)) startActivation(state);
       else return;
     } else if (state.phase === "activation") {
-      const uid = state.queue.shift();
-      if (!uid) {
+      if (!state.queue.length) {
         startEngagement(state);
         continue;
       }
+      if (offerPick(state)) return;
+      const uid = state.queue.shift();
+      state.picked = null;
       const u = unit(state, uid);
       if (!u || u.dead) continue;
       executeManeuver(state, u, state.dials[u.id] || u.dial.find((c) => c.startsWith("1S")) || u.dial[0]);
@@ -1395,7 +1449,9 @@ export function run(state) {
       }
       const u = unit(state, uid);
       if (state.group !== null && u && u.init !== state.group) flushDying(state);
+      if (offerPick(state)) return;
       state.queue.shift();
+      state.picked = null;
       if (!u || u.dead) continue;
       state.group = u.init;
       const opts = attackOptions(state, u);
@@ -1440,11 +1496,12 @@ export function viewFor(state, pid) {
     for (const entry of v.log) {
       // A line about what an unseen enemy did (its maneuver, actions) says only that it acted.
       const actor = (entry.refs || []).find((id) => nameOf[id] && entry.msg.startsWith(nameOf[id]));
-      if (actor) entry.msg = "An unseen enemy acts.";
+      if (actor) Object.assign(entry, { msg: "An unseen enemy acts.", who: null });
       else for (const id of entry.refs || []) if (nameOf[id]) entry.msg = entry.msg.split(nameOf[id]).join("an unseen enemy");
+      entry.refs = (entry.refs || []).filter(known);
     }
   }
-  for (const entry of v.log) delete entry.refs;
+  for (const entry of v.log) if (entry.who) entry.who = pub[entry.who] ?? null;
   // Opponents' army lists and terrain purchases stay private until the battle shows them.
   for (const p of v.players) if (p.id !== pid) {
     p.army = [];

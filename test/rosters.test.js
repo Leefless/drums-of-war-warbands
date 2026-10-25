@@ -161,6 +161,8 @@ test("fuzz: every one of the 247 units plays a full battle without breaking", ()
           } else if (p.type === "attack") {
             const o = any(p.options);
             E.declareAttack(s, p.pid, { target: o.target, weapon: o.weapon });
+          } else if (p.type === "pick") {
+            E.takeTurn(s, p.pid, any(p.options));
           } else {
             rnd() < 0.3 ? E.pass(s, p.pid) : E.modify(s, p.pid, { op: any(p.options).op, dice: [] });
           }

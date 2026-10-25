@@ -191,7 +191,8 @@ export function aiStep(state, pid) {
   }
   const p = state.pending;
   if (!p || p.pid !== pid) return false;
-  if (p.type === "action") chooseAction(state, p);
+  if (p.type === "pick") E.takeTurn(state, pid, p.options[0]);
+  else if (p.type === "action") chooseAction(state, p);
   else if (p.type === "attack") chooseAttack(state, p);
   else {
     // Rerolls only help with blanks or omens to reroll; otherwise keep the token and move on.

@@ -7,7 +7,7 @@ import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.j
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, boughtRadius, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
-import { healthColor, panBy, playerColor, resetBoard, resetView, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
+import { focusPoint, focusUnit, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
@@ -55,7 +55,9 @@ function connect() {
     if (m.t === "state") {
       const prevPending = S?.pending && JSON.stringify(S.pending);
       const wasPhase = S?.phase;
+      const hadState = !!S;
       S = m.state;
+      noteArrival(hadState);
       // Back to the muster after a battle: start the new one from a blank warband.
       if (S.phase === "muster" && wasPhase && wasPhase !== "muster") {
         for (const fid of Object.keys(FACTIONS)) store.set(draftKey(fid), "[]");
@@ -97,6 +99,7 @@ const unitById = (id) => S.units.find((u) => u.id === id);
 const unitName = (id) => unitById(id)?.name ?? "an unseen unit";
 const nameOf = (pid) => S.players.find((p) => p.id === pid)?.name ?? "?";
 const myUnits = () => S.units.filter((u) => u.owner === S.you && !u.dead);
+const AI_SPEED = { fast: "Fast", normal: "Normal", slow: "Slow" };
 const PHASES = { muster: "Muster", deploy: "Deployment", plan: "Planning", activation: "Activation", engagement: "Engagement", over: "Battle over" };
 const GLYPH = { TL: "↰", BL: "↖", S: "↑", BR: "↗", TR: "↱", A: "U", RF: "Rift", X: "■", DL: "←", DBL: "↖", D: "◆", DBR: "↗", DR: "→", DA: "↓", ML: "←", MBL: "↖", M: "◎", MBR: "↗", MR: "→", MA: "↓" };
 const STANCE_NAME = { D: "hold facing", DL: "turn left", DBL: "turn half left", DBR: "turn half right", DR: "turn right", DA: "face the rear" };
@@ -107,7 +110,9 @@ function header() {
   $("#players").innerHTML = (S?.players || []).map((p) => {
     const f = p.faction ? FACTIONS[p.faction] : null;
     const status = S.phase === "over" ? `${p.vp} VP` : p.surrendered ? "surrendered" : p.eliminated ? "broken" : p.ready && S.phase !== "activation" && S.phase !== "engagement" ? "ready" : "";
-    return `<span class="chip ${p.connected ? "" : "off"}" title="${p.surrendered ? "Surrendered" : ""}"><i class="sw" style="background:${f ? playerColor(S, p.id) : "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${status}</span></span>`;
+    // The host may free the seat of someone who has dropped out, so the table is never stuck waiting.
+    const drop = !p.connected && !p.ai && S.you && S.host === S.you && p.id !== S.you && S.phase !== "over" && !p.eliminated;
+    return `<span class="chip ${p.connected ? "" : "off"}" title="${p.surrendered ? "Surrendered" : p.connected ? "" : "Disconnected"}"><i class="sw" style="background:${f ? playerColor(S, p.id) : "var(--ink-3)"}"></i>${esc(p.name)}${p.id === S.you ? " (you)" : ""}<span class="ok">${p.connected || p.ai ? status : "away"}</span>${drop ? `<button class="small ghost" data-drop="${esc(p.id)}" title="${S.phase === "muster" ? `Free ${esc(p.name)}'s seat` : `Withdraw ${esc(p.name)}'s warband so the battle can go on`}">Remove</button>` : ""}</span>`;
   }).join("");
   $("#stale").hidden = !S?.serverStale;
   if (S?.serverStale) {
@@ -222,6 +227,10 @@ async function openRules() {
   }
 }
 $("#rulesBtn").onclick = openRules;
+$("#players").onclick = (ev) => {
+  const b = ev.target.closest("[data-drop]");
+  if (b) send("dropPlayer", { seat: b.dataset.drop });
+};
 $("#endBattle").onclick = () => {
   // The host ends a battle for everyone, so it takes a second click (like Surrender).
   const aiOnly = S?.players.every((p) => p.ai) && !me();
@@ -271,6 +280,7 @@ function renderInner() {
   }
   if (S.phase === "muster") {
     resetBoard(); // a new battle starts with a clean animation timeline
+    resetClarity();
     return renderMuster(app);
   }
   renderBattle(app);
@@ -526,7 +536,10 @@ function renderMuster(app) {
         <select id="budget">${[60, 100, 150, 200, 300].map((b) => `<option ${b === S.settings.budget ? "selected" : ""}>${b}</option>`).join("")}</select>
         <span class="label">Rounds</span>
         <select id="rounds">${[6, 8, 12, 16].map((b) => `<option ${b === S.settings.maxRounds ? "selected" : ""}>${b}</option>`).join("")}</select>
-      </div>` : `<div class="label">${S.settings.budget} DP · ${S.settings.maxRounds} rounds</div>`}
+        <span class="label" title="How fast computer opponents act">Computer speed</span>
+        <select id="aiSpeed">${Object.entries(AI_SPEED).map(([k, n]) => `<option value="${k}" ${k === (S.settings.aiSpeed || "normal") ? "selected" : ""}>${n}</option>`).join("")}</select>
+        <label class="label" style="display:inline-flex;align-items:center;gap:4px" title="Hold the battle after each attack until everyone presses Continue"><input type="checkbox" id="pauseAtk" ${S.settings.pauseAttacks ? "checked" : ""}> Pause after attacks</label>
+      </div>` : `<div class="label">${S.settings.budget} DP · ${S.settings.maxRounds} rounds · ${AI_SPEED[S.settings.aiSpeed || "normal"] || "Normal"} speed · Pauses ${S.settings.pauseAttacks ? "on" : "off"}</div>`}
     </div>
     ${host ? `<div class="btns" style="margin-top:10px;align-items:center">
       <span class="label">Computer opponent</span>
@@ -671,6 +684,8 @@ function wireMuster(app, f) {
   $("#edit") && ($("#edit").onclick = () => send("unready"));
   $("#budget") && ($("#budget").onchange = (e) => send("settings", { budget: Number(e.target.value) }));
   $("#rounds") && ($("#rounds").onchange = (e) => send("settings", { maxRounds: Number(e.target.value) }));
+  $("#aiSpeed") && ($("#aiSpeed").onchange = (e) => send("settings", { aiSpeed: e.target.value }));
+  $("#pauseAtk") && ($("#pauseAtk").onchange = (e) => send("settings", { pauseAttacks: e.target.checked }));
   $("#sitOut") && ($("#sitOut").onclick = () => {
     L.spectate = true;
     store.set("dow.spectate", "1");
@@ -725,8 +740,11 @@ function dialHTML(dial, current, mini = false, strainedNow = false) {
 function renderBattle(app) {
   if (L.mode !== "battle") {
     L.mode = "battle";
-    app.innerHTML = `<div class="battle"><div class="boardcol"><div class="boardwrap"><canvas id="board"></canvas>
-      <div class="zoomctl" aria-label="Map zoom"><button class="small" id="zoomIn" title="Zoom in (or scroll)">+</button><button class="small" id="zoomOut" title="Zoom out (or scroll)">−</button><button class="small" id="zoomFit" title="Show the whole battlefield">Fit</button><span id="zoomPct" class="label"></span></div></div><div class="unitbar" id="roster"></div></div>
+    app.innerHTML = `<div class="battle"><div class="boardcol">
+      <div class="turnhead"><div class="turnbar" id="turnbar"><span class="turntext" id="turnText"></span><button class="small ghost" id="muteBtn" aria-pressed="false" title="Mute or unmute the turn chime"></button></div><div class="track" id="track" hidden aria-label="Initiative order"></div></div>
+      <div class="boardwrap"><canvas id="board"></canvas>
+      <div class="combat out" id="combat" role="status" aria-live="polite" aria-hidden="true" title="Click to dismiss"></div>
+      <div class="zoomctl" aria-label="Map zoom"><button class="small ${T.follow ? "on" : ""}" id="follow" aria-pressed="${T.follow}" title="Camera follows the action when zoomed in">Follow</button><button class="small" id="zoomIn" title="Zoom in (or scroll)">+</button><button class="small" id="zoomOut" title="Zoom out (or scroll)">−</button><button class="small" id="zoomFit" title="Show the whole battlefield">Fit</button><span id="zoomPct" class="label"></span></div></div><div class="unitbar" id="roster"></div></div>
       <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div><div id="umodal"></div>`;
     const canvas = $("#board");
     canvas.onclick = onBoardClick;
@@ -770,6 +788,22 @@ function renderBattle(app) {
     $("#zoomIn").onclick = () => { zoomAt(canvas, null, 1.4); drawBoard(); };
     $("#zoomOut").onclick = () => { zoomAt(canvas, null, 1 / 1.4); drawBoard(); };
     $("#zoomFit").onclick = () => { resetView(); drawBoard(); };
+    setFollow(T.follow);
+    $("#follow").onclick = () => {
+      T.follow = !T.follow;
+      store.set("dow.follow", T.follow ? "1" : "0");
+      setFollow(T.follow);
+      $("#follow").classList.toggle("on", T.follow);
+      $("#follow").setAttribute("aria-pressed", String(T.follow));
+    };
+    $("#muteBtn").onclick = () => { T.mute = !T.mute; store.set("dow.mute", T.mute ? "1" : "0"); renderTurn(); };
+    $("#combat").onclick = (ev) => {
+      if (ev.target.closest("button") || !T.card || canContinue()) return; // never hide the Continue button
+      T.card.dismissed = true;
+      renderCombat();
+    };
+    $("#log").onclick = (ev) => logPick(ev.target.closest("[data-ref]"));
+    $("#log").onkeydown = (ev) => { if (ev.key === "Enter") logPick(ev.target.closest?.("[data-ref]")); };
     canvas.onpointermove = (ev) => {
       if (L.pan && !L.dragging) {
         const dx = ev.clientX - L.pan.x;
@@ -804,6 +838,10 @@ function renderBattle(app) {
       L.resizeTimer = setTimeout(drawBoard, 150); // repaint the battlefield once resizing settles
     };
     window.onkeydown = (ev) => {
+      if ((ev.key === " " || ev.key === "Enter") && canContinue() && !ev.repeat && !/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(ev.target?.tagName || "") && !ev.target?.isContentEditable) {
+        ev.preventDefault();
+        return pressContinue();
+      }
       if (ev.key === "Escape" && L.cardFor) { L.cardFor = null; return render(); }
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
@@ -832,13 +870,332 @@ function renderBattle(app) {
   $("#prompt").className = `scroll ${S.pending?.pid === S.you ? "prompt" : ""}`;
   $("#card").innerHTML = cardHTML();
   renderRoster();
-  $("#log").innerHTML = S.log.slice(-80).reverse().map((l) => `<div><span class="label">R${l.round}</span> ${esc(l.msg)}</div>`).join("");
+  renderTurn();
+  renderTrack();
+  renderCombat();
+  renderLog();
   wirePrompt();
   // Bring a newly opened dial into view once, so it sits under its unit without manual scrolling.
   const dialEl = $("#seldial");
   if (dialEl && L.dialFor !== L.selected) dialEl.scrollIntoView({ block: "nearest" });
   L.dialFor = dialEl ? L.selected : null;
   drawBoard();
+}
+
+// ── Turn and combat clarity ──────────────────────────────────────────────────
+// Banner (whose turn), initiative track, combat card with Continue, and a richer log.
+const BASE_TITLE = document.title;
+const T = {
+  follow: store.get("dow.follow") !== "0", // camera follows the action (default on)
+  mute: store.get("dow.mute") === "1",
+  gesture: false, // browsers only allow sound after a click or key press
+  ctx: null,
+  wasMine: false,
+  lastActive: null,
+  card: null, // the combat card: { A, done, doneAt, shown, dismissed, extra }
+  shownN: undefined, // n of the last resolved attack already shown (undefined until the first state)
+  beatRecv: null, // { n, ms, total, at } so the countdown can run locally
+  pressedN: null, // beat the local Continue press belongs to
+  hideTimer: null,
+  logTimes: null, // log line key -> when first seen
+};
+for (const ev of ["pointerdown", "keydown"]) window.addEventListener(ev, () => { T.gesture = true; }, { capture: true, passive: true });
+document.addEventListener("visibilitychange", () => updateTitle());
+
+function resetClarity() {
+  Object.assign(T, { card: null, shownN: undefined, beatRecv: null, pressedN: null, wasMine: false, lastActive: null, logTimes: null });
+  updateTitle();
+}
+
+/** A quiet two-tone chime, only after the page has had a user gesture and unless muted. */
+function beep() {
+  if (T.mute || !T.gesture) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    T.ctx ||= new AC();
+    if (T.ctx.state === "suspended") T.ctx.resume();
+    const t0 = T.ctx.currentTime;
+    for (const [freq, d] of [[660, 0], [880, 0.14]]) {
+      const o = T.ctx.createOscillator();
+      const g = T.ctx.createGain();
+      o.type = "sine";
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0 + d);
+      g.gain.exponentialRampToValueAtTime(0.06, t0 + d + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.16);
+      o.connect(g);
+      g.connect(T.ctx.destination);
+      o.start(t0 + d);
+      o.stop(t0 + d + 0.18);
+    }
+  } catch { /* no audio: fine */ }
+}
+
+function updateTitle() {
+  document.title = document.hidden && T.wasMine ? "● Your turn · Drums of War" : BASE_TITLE;
+}
+
+/** Called for every new server state, before render: beat timing and the turn-change chime. */
+function noteArrival(hadState) {
+  const b = S.beat;
+  if (b) {
+    const same = T.beatRecv && T.beatRecv.n === b.n;
+    T.beatRecv = { n: b.n, ms: b.ms, total: same ? Math.max(T.beatRecv.total, b.ms) : b.ms, at: performance.now() };
+  } else T.beatRecv = null;
+  const mineNow = ["deploy", "plan", "activation", "engagement"].includes(S.phase) && turnInfo().mine;
+  if (hadState && mineNow && !T.wasMine) beep();
+  T.wasMine = mineNow;
+  updateTitle();
+}
+
+/** Seated, still fighting, connected humans the battle waits on during a beat. */
+const beatHumans = () => S.players.filter((p) => !p.ai && !p.eliminated && !p.surrendered && p.connected);
+function canContinue() {
+  const p = me();
+  return !!(S?.beat && p && !p.ai && !p.eliminated && !p.surrendered && !(S.beat.acked || []).includes(S.you) && T.pressedN !== S.beat.n);
+}
+function pressContinue() {
+  if (!canContinue()) return;
+  T.pressedN = S.beat.n;
+  send("continue");
+  renderCombat();
+}
+
+// ── Banner ───────────────────────────────────────────────────────────────────
+/** What is happening and whose move it is: { text, pid (army colour), mine (a decision is mine) }. */
+function turnInfo() {
+  const p = me();
+  const live = S.players.filter((x) => !x.eliminated);
+  const ready = live.filter((x) => x.ready).length;
+  if (S.phase === "over") return { text: S.draw ? "The battle ends in a draw" : "Battle over", pid: null, mine: false };
+  if (S.phase === "deploy" || S.phase === "plan") {
+    if (p && !p.eliminated && !p.ready) return { text: S.phase === "plan" ? "Your turn: set your dials" : "Your turn: place your warband, then press Ready", pid: S.you, mine: true };
+    return { text: `${S.phase === "plan" ? "Planning" : "Deployment"}: ${ready} of ${live.length} ready`, pid: null, mine: false };
+  }
+  if (S.beat) {
+    const acked = (S.beat.acked || []).length;
+    const total = Math.max(beatHumans().length, acked);
+    return { text: total ? `Attack resolved: Continue when ready (${acked} of ${total})` : "Attack resolved", pid: null, mine: false };
+  }
+  const pd = S.pending;
+  if (pd) {
+    const u = pd.uid ? unitById(pd.uid) : null;
+    const ini = u && u.init != null ? ` (initiative ${u.init})` : "";
+    const mine = !!S.you && pd.pid === S.you;
+    if (mine) {
+      const nm = u?.name ?? "an unseen unit";
+      const what = { pick: "choose which of your units goes next (click it)", action: `take actions with ${nm}${ini}`, attack: `choose a target for ${nm}${ini}`, attackMods: "modify your attack dice", defenseMods: "modify your defence dice" }[pd.type] || "make your choice";
+      return { text: `Your turn: ${what}`, pid: pd.pid, mine: true };
+    }
+    const who = nameOf(pd.pid);
+    const unit = u ? `${u.name}${ini}` : "unseen unit";
+    if (pd.type === "pick") return { text: `${who} is choosing which unit goes next`, pid: pd.pid, mine: false };
+    const does = { action: "is taking actions", attack: "is choosing a target", attackMods: "is modifying attack dice", defenseMods: "is modifying defence dice" }[pd.type] || "is deciding";
+    return { text: `${who}'s ${unit} ${does}`, pid: pd.pid, mine: false };
+  }
+  return { text: S.phase === "end" ? "Round ends" : `${PHASES[S.phase] || "Battle"}: resolving`, pid: null, mine: false };
+}
+
+function renderTurn() {
+  const bar = $("#turnbar");
+  if (!bar || !S) return;
+  const info = turnInfo();
+  bar.classList.toggle("mine", info.mine);
+  bar.style.setProperty("--tc", info.pid ? playerColor(S, info.pid) : "var(--line)");
+  $("#turnText").textContent = info.text;
+  const m = $("#muteBtn");
+  m.textContent = T.mute ? "Sound off" : "Sound on";
+  m.setAttribute("aria-pressed", String(T.mute));
+}
+
+// ── Initiative track ─────────────────────────────────────────────────────────
+function renderTrack() {
+  const el = $("#track");
+  if (!el || !S) return;
+  const acting = ["activation", "engagement"].includes(S.phase);
+  if (!acting && S.phase !== "plan") { el.hidden = true; el.innerHTML = ""; return; }
+  const seats = S.players.filter((p) => !p.eliminated).map((p) => p.seat).sort((a, b) => a - b);
+  const i0 = Math.max(0, seats.findIndex((s) => s >= (S.firstSeat || 0)));
+  const order = [...seats.slice(i0), ...seats.slice(0, i0)];
+  const rank = (u) => { const r = order.indexOf(S.players.find((p) => p.id === u.owner)?.seat); return r < 0 ? 99 : r; };
+  const desc = S.phase === "engagement";
+  const units = S.units.filter((u) => !u.dead).sort((a, b) => (desc ? (b.init ?? 0) - (a.init ?? 0) : (a.init ?? 0) - (b.init ?? 0)) || rank(a) - rank(b));
+  const queue = acting ? S.queue || [] : [];
+  const act = acting ? S.pending?.uid || S.attack?.attacker || null : null;
+  const next = new Set(queue.slice(0, 2));
+  const prevScroll = el.scrollLeft;
+  el.hidden = false;
+  el.innerHTML = `<span class="label tlabel">${desc ? "Engagement order" : "Activation order"}</span>` + units.map((u) => {
+    const state = u.id === act ? "active" : acting && !queue.includes(u.id) ? "done" : next.has(u.id) ? "next" : "";
+    return `<button class="tchip ${state} ${L.selected === u.id ? "sel" : ""}" data-trk="${esc(u.id)}" ${state === "active" ? 'aria-current="true"' : ""} style="--fc:${playerColor(S, u.owner)}" title="${esc(u.name)} (${esc(nameOf(u.owner))}), initiative ${esc(u.init ?? "?")}${state ? `, ${state === "next" ? "up next" : state}` : ""}"><i class="tsw"></i><span class="tn">${esc(u.name)}</span><b>${esc(u.init ?? "?")}</b></button>`;
+  }).join("") + (S.hidden > 0 ? `<span class="tchip unseen" title="Enemy units you cannot see">+${S.hidden} unseen</span>` : "");
+  el.scrollLeft = prevScroll;
+  if (act !== T.lastActive) {
+    T.lastActive = act;
+    const chip = el.querySelector(".tchip.active");
+    if (chip) el.scrollLeft = chip.offsetLeft - (el.clientWidth - chip.offsetWidth) / 2;
+  }
+  el.querySelectorAll("[data-trk]").forEach((b) => (b.onclick = () => {
+    if (myPick()?.includes(b.dataset.trk)) return send("takeTurn", { uid: b.dataset.trk });
+    L.selected = b.dataset.trk;
+    L.hover = null;
+    focusUnit(b.dataset.trk);
+    render();
+  }));
+}
+
+// ── Combat card ──────────────────────────────────────────────────────────────
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const FACE_LIST = (faces) => faces.join(", ");
+const diceChips = (side, faces) => `<span class="dice cc-dice">${faces.map((f) => `<span class="die mini ${side} ${esc(f)}" title="${esc(f)}">${iconSVG(DIE_ICON[f] || "blank")}</span>`).join("")}</span>`;
+
+/** One step of the attack as a plain-language line (HTML). */
+function stepHTML(st, A) {
+  const faces = Array.isArray(st.faces) ? st.faces.map(String) : [];
+  const atkName = esc(unitName(A.attacker));
+  const defName = esc(unitName(A.target));
+  if (st.op === "roll") {
+    if (st.side === "def") return faces.length ? `${defName} defends with ${plural(faces.length, "die", "dice")}: ${esc(FACE_LIST(faces))}${diceChips("def", faces)}` : `${defName} defends with no dice`;
+    return `${atkName} rolls ${plural(faces.length, "attack die", "attack dice")}: ${esc(FACE_LIST(faces))}${diceChips("atk", faces)}`;
+  }
+  const text = {
+    steel: st.side === "def" ? "Steel: omens become parries" : "Steel: omens become strikes",
+    mark: "Mark: rerolls blanks and omens",
+    frenzy: "Frenzy: rerolls up to 2 dice",
+    inspire: "Inspire: rerolls 1 die",
+    channel: "Channel: a die becomes a Rend",
+    guard: "Guard: adds a parry",
+    brace: "Brace: cancels a Strike",
+  }[st.op] || `${esc(String(st.op || "Effect").replace(/^./, (c) => c.toUpperCase()))}`;
+  const known = faces.filter((f) => DIE_ICON[f]);
+  return `${text}${known.length && ["mark", "frenzy", "inspire", "channel"].includes(st.op) ? diceChips(st.side === "def" ? "def" : "atk", known) : ""}`;
+}
+
+function resultText(A) {
+  const r = A.result;
+  if (!r) return "";
+  const parts = [];
+  if (r.strikes) parts.push(plural(r.strikes, "Strike", "Strikes"));
+  if (r.rends) parts.push(plural(r.rends, "Rend", "Rends"));
+  const line = parts.length ? `${parts.join(" and ")} ${r.strikes + r.rends === 1 ? "lands" : "land"}` : "The blow is turned aside";
+  return A.armored ? `${line}. Armour turns one blow` : line;
+}
+
+/** Track the live or just-resolved attack so the card can tell it step by step. */
+function syncCombat() {
+  const A = S.attack;
+  const LA = S.lastAttack;
+  const now = Date.now();
+  if (T.shownN === undefined) T.shownN = LA && !(S.beat && S.beat.n === LA.n) ? LA.n : null; // an old attack from before this page loaded is not news
+  let c = T.card;
+  if (A) {
+    if (!c || c.done) c = T.card = { shown: 0, dismissed: false, done: false, extra: "" };
+    c.A = A;
+  } else if (LA && LA.n !== T.shownN) {
+    if (!c || c.done) c = T.card = { shown: 0, dismissed: false, done: false, extra: "" };
+    Object.assign(c, { A: LA, done: true, doneAt: now });
+    T.shownN = LA.n;
+  } else if (c && !c.done) Object.assign(c, { done: true, doneAt: now }); // the attack ended without a result
+}
+
+function renderCombat() {
+  const el = $("#combat");
+  if (!el || !S) return;
+  syncCombat();
+  clearTimeout(T.hideTimer);
+  const c = T.card;
+  const beat = S.beat;
+  const needAck = canContinue();
+  let visible = false;
+  if (c?.A) {
+    if (!c.done) visible = !c.dismissed;
+    else if (beat) visible = !c.dismissed || needAck;
+    else {
+      const left = 2500 - (Date.now() - c.doneAt);
+      visible = !c.dismissed && left > 0;
+      if (visible) T.hideTimer = setTimeout(renderCombat, left + 30);
+    }
+  }
+  el.classList.toggle("out", !visible);
+  el.setAttribute("aria-hidden", String(!visible));
+  if (!visible) return;
+  const A = c.A;
+  const at = unitById(A.attacker);
+  const df = unitById(A.target);
+  const col = (u) => (u ? playerColor(S, u.owner) : "var(--ink-3)");
+  const steps = Array.isArray(A.steps) ? A.steps : [];
+  const lines = steps.map((st, i) => `<div class="cc-line ${i >= c.shown ? "fresh" : ""}">${stepHTML(st, A)}</div>`);
+  c.shown = Math.max(c.shown, steps.length);
+  // Closing lines: what the live attack is waiting for, or the result.
+  let extra = "";
+  const pd = S.pending;
+  if (!c.done && pd && (pd.type === "attackMods" || pd.type === "defenseMods")) {
+    extra = pd.pid === S.you ? "Your choice: modify your dice in the panel" : `Waiting for ${esc(nameOf(pd.pid))} to modify dice`;
+  } else if (c.done && A.result) extra = esc(resultText(A));
+  if (extra) lines.push(`<div class="cc-line ${c.done ? "cc-result" : "cc-wait"} ${c.extra !== extra ? "fresh" : ""}">${extra}</div>`);
+  c.extra = extra;
+  let beatHTML = "";
+  if (c.done && beat) {
+    const acked = (beat.acked || []).length;
+    const total = Math.max(beatHumans().length, acked);
+    const seated = !!me() && !me().ai && !me().eliminated && !me().surrendered;
+    beatHTML = `<div class="cc-beat">${needAck ? `<button class="cta small" id="contBtn">Continue</button>` : seated ? `<span class="muted">Waiting for the others</span>` : ""}${seated && total ? `<span class="label">${acked} of ${total} ready</span>` : ""}<div class="cc-count" aria-hidden="true">__BAR__</div></div>`;
+  }
+  const html = `<div class="cc-head"><span class="cc-side" style="--tc:${col(at)}">${esc(unitName(A.attacker))}</span><span class="cc-arrow" aria-hidden="true">→</span><span class="cc-side" style="--tc:${col(df)}">${esc(unitName(A.target))}</span>
+    <span class="cc-tags">${A.range != null ? `<span class="tag">R${esc(A.range)}</span>` : ""}${A.ambush ? `<span class="tag">Ambush</span>` : ""}${A.obstructed ? `<span class="tag">Haze</span>` : ""}</span></div>${lines.join("")}${beatHTML}`;
+  if (el.dataset.sig !== html) {
+    el.dataset.sig = html;
+    let bar = "";
+    const r = T.beatRecv;
+    if (beatHTML && r) {
+      const left = Math.max(0, r.ms - (performance.now() - r.at));
+      bar = `<i style="--from:${(r.total ? Math.min(1, left / r.total) : 0).toFixed(3)};animation-duration:${Math.round(left)}ms"></i>`;
+    }
+    el.innerHTML = html.replace("__BAR__", bar);
+    const btn = $("#contBtn");
+    if (btn) btn.onclick = pressContinue;
+  }
+}
+
+// ── Battle log ───────────────────────────────────────────────────────────────
+function logPick(el) {
+  const id = el?.dataset.ref;
+  if (!id || !unitById(id)) return;
+  L.selected = id;
+  L.hover = null;
+  focusUnit(id);
+  render();
+}
+
+function renderLog() {
+  const now = Date.now();
+  const prev = T.logTimes;
+  const next = new Map();
+  const dup = new Map();
+  const rows = S.log.slice(-80).map((l) => {
+    const base = `${l.round}|${l.phase}|${l.msg}`;
+    const k = dup.get(base) || 0;
+    dup.set(base, k + 1);
+    const key = `${base}#${k}`;
+    let t = prev ? prev.get(key) : 0; // nothing is "new" on the first render
+    if (t === undefined) t = now;
+    next.set(key, t);
+    return { l, age: t ? now - t : Infinity };
+  });
+  T.logTimes = next;
+  // Newest first, but each run of one round and phase sits under its own header.
+  const groups = [];
+  for (const r of rows) {
+    const g = groups[groups.length - 1];
+    if (g && g.round === r.l.round && g.phase === r.l.phase) g.rows.push(r);
+    else groups.push({ round: r.l.round, phase: r.l.phase, rows: [r] });
+  }
+  $("#log").innerHTML = groups.reverse().map((g) => `<div class="loghead label">Round ${esc(g.round)} · ${esc(PHASES[g.phase] || g.phase)}</div>` + g.rows.reverse().map(({ l, age }) => {
+    const ref = (l.refs || []).find((id) => unitById(id));
+    const st = [l.who ? `--tc:${playerColor(S, l.who)}` : "", age < 1800 ? `animation-delay:-${Math.round(age)}ms` : ""].filter(Boolean).join(";");
+    return `<div class="logline ${l.who ? "has-who" : ""} ${age < 1800 ? "fresh" : ""} ${ref ? "clk" : ""}" ${st ? `style="${st}"` : ""} ${ref ? `data-ref="${esc(ref)}" tabindex="0" role="button"` : ""}><span class="label">R${esc(l.round)}</span> ${esc(l.msg)}</div>`;
+  }).join("")).join("");
 }
 
 function drawBoard() {
@@ -857,6 +1214,7 @@ function drawBoard() {
   const p = S.pending;
   if (p?.pid === S.you) {
     if (p.type === "attack") p.options.forEach((o) => highlight.add(o.target));
+    if (p.type === "pick") p.options.forEach((id) => highlight.add(id));
     for (const id of stepTargets().ids) highlight.add(id);
   }
   const A = S.attack || null;
@@ -868,10 +1226,43 @@ function drawBoard() {
     marker: L.order?.mode === "charge" && S.phase === "plan" ? L.chargeAt : null,
     preview: S.phase === "deploy" && L.placing ? L.preview : null,
     highlight,
+    spent: spentUnits(),
     zones: S.phase === "deploy",
     fog: !S.spectator && !!me() && S.phase !== "over",
     attackLine: A ? { from: A.attacker, to: A.target } : L.hoverTarget ? { from: p?.uid, to: L.hoverTarget } : null,
   });
+}
+
+/** My tied units waiting for me to pick which goes next, or null. */
+function myPick() {
+  return S?.pending?.type === "pick" && S.pending.pid === S.you ? S.pending.options : null;
+}
+
+/**
+ * Units that are finished for this phase, drawn greyed out: in Activation and Engagement every
+ * unit that has had its turn (not still in the queue and not acting now); in Planning my units
+ * whose dial is already set, so the ones still to plan stand out.
+ */
+function spentUnits() {
+  const out = new Set();
+  if (S.phase === "plan") {
+    for (const u of myUnits()) if (S.dials[u.id]) out.add(u.id);
+  } else if (S.phase === "activation" || S.phase === "engagement") {
+    const waiting = new Set(S.queue || []);
+    const now = S.pending?.uid || S.attack?.attacker;
+    for (const u of S.units) if (!u.dead && !waiting.has(u.id) && u.id !== now) out.add(u.id);
+  }
+  return out;
+}
+
+/** Draw the eye to my current choices when I click the unit they belong to. */
+function flashPrompt() {
+  const el = $("#prompt");
+  if (!el) return;
+  el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  el.classList.remove("flash");
+  void el.offsetWidth; // restart the animation
+  el.classList.add("flash");
 }
 
 function onBoardClick(ev) {
@@ -889,6 +1280,14 @@ function onBoardClick(ev) {
   if (S.phase === "deploy" && !u && L.selected) {
     const s = unitById(L.selected);
     if (s?.owner === S.you) return send("deploy", { uid: s.id, x: pt.x, y: pt.y, h: s.h });
+  }
+  // Tied units: clicking one of mine that may go next gives it the turn.
+  if (u && myPick()?.includes(u.id)) return send("takeTurn", { uid: u.id });
+  // Clicking my unit whose turn it is brings its choices forward.
+  if (u && S.pending?.pid === S.you && S.pending.uid === u.id && !L.sub) {
+    L.selected = u.id;
+    flashPrompt();
+    return render();
   }
   // During a targeted choice, clicking a highlighted unit picks it for the current step.
   const step = stepTargets();
@@ -926,6 +1325,7 @@ function waitingText(p) {
     attack: `${who} is choosing a target for ${esc(u?.name ?? "an unseen unit")}.`,
     attackMods: `${who} is modifying attack dice.`,
     defenseMods: `${who} is modifying defence dice.`,
+    pick: `${who} is choosing which unit goes next.`,
   }[p.type];
 }
 
@@ -981,6 +1381,12 @@ function optionLabel(o) {
 }
 
 function myPromptHTML(p) {
+  if (p.type === "pick") {
+    const units = p.options.map(unitById).filter(Boolean);
+    return `<div class="label">Your turn · initiative ${esc(units[0]?.init ?? "")}</div>
+      <p style="margin:6px 0">These units of yours act at the same initiative. Choose which goes next: click it on the map or here.</p>
+      <div class="ulist" style="margin:8px 0">${units.map((x) => `<button data-pick="${esc(x.id)}" data-hover="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted">initiative ${esc(x.init)}</span></button>`).join("")}</div>`;
+  }
   const u = unitById(p.uid);
   if (p.type === "action") {
     if (L.sub) return subChoiceHTML(u);
@@ -1111,6 +1517,7 @@ function wirePrompt() {
     else send("act", { a: o.a, params: { dir: el.dataset.dir } });
   });
   on("[data-tgt]", (el) => chooseTarget(el.dataset.tgt));
+  on("[data-pick]", (el) => send("takeTurn", { uid: el.dataset.pick }));
   on("[data-atk]", (el) => {
     const o = S.pending.options[Number(el.dataset.atk)];
     L.hoverTarget = null;
@@ -1217,7 +1624,19 @@ function issueOrder(mode, keepManual = false) {
   if (!units.length || S.phase !== "plan" || me()?.ready) return;
   if (!keepManual) L.manual = new Set();
   const focus = enemyFocus();
-  if (mode === "charge" && (!keepManual || !L.chargeAt)) L.chargeAt = L.chargeAt && L.order?.mode === "charge" ? L.chargeAt : focus;
+  if (mode === "charge" && (!keepManual || !L.chargeAt)) {
+    const kept = L.chargeAt && L.order?.mode === "charge";
+    // A new banner starts where the warband can see it: toward the enemy, but no further than
+    // about range 3 ahead (an unseen enemy zone is deep in the fog). Drag it anywhere after.
+    if (!kept) {
+      const home = centroid(units);
+      const d = gap(home, focus);
+      const reach = Math.min(d, 320);
+      const at = d > 1 ? { x: home.x + ((focus.x - home.x) * reach) / d, y: home.y + ((focus.y - home.y) * reach) / d } : focus;
+      L.chargeAt = { x: Math.max(20, Math.min(S.board - 20, at.x)), y: Math.max(20, Math.min(S.board - 20, at.y)) };
+      focusPoint(L.chargeAt.x, L.chargeAt.y);
+    }
+  }
   const target = mode === "charge" ? L.chargeAt : focus;
   const rally = mode === "defend" ? rallyPoint(units, focus) : null;
   L.order = { mode, round: S.round };

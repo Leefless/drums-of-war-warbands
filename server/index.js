@@ -22,7 +22,7 @@ const TYPES = {
 process.on("uncaughtException", (err) => console.error("Unexpected error:", err));
 process.on("unhandledRejection", (err) => console.error("Unexpected error:", err));
 
-let game = E.createGame();
+let game = E.createGame({ pauseAttacks: true }); // new tables pause after each attack (the host can turn it off)
 
 // ── Stale code check ─────────────────────────────────────────────────────────
 // The browser reloads the newest files from disk, but the rules this process
@@ -220,6 +220,7 @@ function broadcast() {
 }
 
 function sendStates() {
+  watchBeat();
   const online = new Set([...sockets.values()].map((s) => s.token));
   // Views carry public seat ids, so map connection status by seat (computer seats are always here).
   const here = new Set(game.players.filter((p) => p.ai || online.has(p.id)).map((p) => `p${p.seat}`));
@@ -232,6 +233,8 @@ function sendStates() {
     view.build = build;
     view.host = E.player(game, hostId()) ? `p${E.player(game, hostId()).seat}` : null;
     view.canRestart = SUPERVISED;
+    // The pause after an attack: who has pressed Continue, and how long until it ends anyway.
+    if (game.beat) view.beat = { n: game.beat.n, acked: [...beatAcks].map((id) => E.player(game, id)).filter(Boolean).map((p) => `p${p.seat}`), ms: Math.max(0, beatUntil - Date.now()) };
     try {
       ws.send(JSON.stringify({ t: "state", state: view }));
     } catch (err) {
@@ -268,6 +271,7 @@ function handle(ws, info, m) {
     case "dials": E.setDials(game, pid, m.dials); break;
     case "act": E.act(game, pid, m); break;
     case "pass": E.pass(game, pid); break;
+    case "takeTurn": E.takeTurn(game, pid, m.uid); break;
     case "attack": E.declareAttack(game, pid, m); break;
     case "mod": E.modify(game, pid, m); break;
     case "leave": E.removePlayer(game, pid); break;
@@ -279,6 +283,14 @@ function handle(ws, info, m) {
       setTimeout(() => process.exit(75), 300); // let this reply and the broadcast go out first
       return;
     }
+    case "continue": {
+      // Done looking at the last attack; the battle resumes once everyone has pressed it.
+      if (!game.beat || !E.player(game, pid)) return;
+      beatAcks.add(pid);
+      if (beatWaitsFor().every((p) => beatAcks.has(p.id))) endBeat();
+      return;
+    }
+    case "dropPlayer": dropPlayer(pid, m.seat); break;
     case "addAI": addAI(pid, m.faction); break;
     case "removeAI": removeAI(pid, m.seat); break;
     case "saveArmy": return saveArmy(E.player(game, pid) ? pid : null, E.player(game, pid)?.name || "Unknown", m);
@@ -318,10 +330,54 @@ function handle(ws, info, m) {
 }
 
 // ── Computer opponents: one decision per tick so their moves can be watched ──
+// Pacing by the host's speed setting: attacks get the longest look, then actions, then set-up.
+const PACE = { fast: 0.5, normal: 1, slow: 1.8 };
+function aiDelay() {
+  const t = game.pending?.type;
+  const base = t === "attack" || t === "attackMods" || t === "defenseMods" ? 1500 : t === "action" ? 800 : 350;
+  return Math.round(base * (PACE[game.settings.aiSpeed] ?? 1));
+}
 let aiTimer = null;
-function scheduleAI(delay = 400) {
+function scheduleAI(delay = aiDelay()) {
   clearTimeout(aiTimer);
   aiTimer = setTimeout(aiTick, delay);
+}
+
+// ── Pause after each attack: every seated person presses Continue, or the timer runs out ──
+const BEAT_MS = { fast: 1500, normal: 3000, slow: 5000 };
+let beatFor = null; // which attack the current timer belongs to
+let beatUntil = 0;
+let beatTimer = null;
+const beatAcks = new Set();
+function watchBeat() {
+  if (!game.beat) {
+    clearTimeout(beatTimer);
+    beatFor = null;
+    return;
+  }
+  if (beatFor === game.beat.n) return;
+  beatFor = game.beat.n;
+  beatAcks.clear();
+  const ms = BEAT_MS[game.settings.aiSpeed] ?? 3000;
+  beatUntil = Date.now() + ms;
+  clearTimeout(beatTimer);
+  beatTimer = setTimeout(endBeat, ms);
+}
+function endBeat() {
+  if (!game.beat) return;
+  E.clearBeat(game);
+  try {
+    E.run(game);
+  } catch (err) {
+    console.error("Rules error after a pause:", err.message);
+  }
+  broadcast();
+  scheduleAI();
+}
+/** Seated people who are connected and still fighting: the ones a pause waits for. */
+function beatWaitsFor() {
+  const online = new Set([...sockets.values()].filter((s) => !s.spectator).map((s) => s.token));
+  return game.players.filter((p) => !p.ai && !p.eliminated && online.has(p.id));
 }
 function aiTick() {
   for (const p of game.players.filter((x) => x.ai)) {
@@ -342,7 +398,7 @@ function aiTick() {
         console.error("Rules error after a computer move:", err.message);
       }
       broadcast();
-      return scheduleAI(game.pending?.type === "action" || game.pending?.type === "attack" ? 600 : 350);
+      return scheduleAI();
     }
   }
 }
@@ -355,6 +411,40 @@ function addAI(pid, faction) {
   const p = E.addPlayer(game, id, AI_NAMES[fid]);
   p.ai = true;
   E.setFaction(game, id, fid);
+}
+
+/** Is anyone at a browser holding this seat right now? */
+const online = (token) => [...sockets.values()].some((s) => s.token === token);
+
+/**
+ * The host frees the seat of a player who has disconnected: before the battle they leave the
+ * table; during it their warband withdraws (as a surrender) so the battle can carry on.
+ */
+function dropPlayer(pid, seatId) {
+  if (hostId() !== pid) throw new Error("Only the host can remove a player.");
+  const p = game.players.find((x) => !x.ai && `p${x.seat}` === seatId);
+  if (!p || p.id === pid) throw new Error("No such player.");
+  if (online(p.id)) throw new Error(`${p.name} is still connected.`);
+  if (game.phase === "muster") {
+    E.removePlayer(game, p.id);
+    console.log(`${p.name} was removed from the table by the host.`);
+  } else if (game.phase !== "over" && !p.eliminated) {
+    E.surrender(game, p.id);
+  }
+}
+
+// Before the battle, a seat whose player has been gone this long is freed so the rest can start.
+const SEAT_GRACE_MS = 30000;
+function freeSeatLater(token) {
+  setTimeout(() => {
+    const p = E.player(game, token);
+    if (!p || p.ai || game.phase !== "muster" || online(token)) return;
+    E.removePlayer(game, token);
+    console.log(`${p.name} left the table (disconnected).`);
+    E.run(game);
+    broadcast();
+    scheduleAI();
+  }, SEAT_GRACE_MS).unref();
 }
 
 function removeAI(pid, seatId) {
@@ -387,6 +477,7 @@ wss.on("connection", (ws) => {
   });
   ws.on("close", () => {
     sockets.delete(ws);
+    if (info.token && !info.spectator && game.phase === "muster") freeSeatLater(info.token);
     broadcast();
   });
 });

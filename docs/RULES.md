@@ -35,7 +35,22 @@ consideration, see [ROADMAP.md](ROADMAP.md).
   a touch screen is not supported). Drag to pan once zoomed, and use the + / - /
   Fit buttons in the corner. A click without dragging still selects as normal.
   During your attack step, clicking an enemy that only one of your weapons can
-  hit declares that attack straight away.
+  hit declares that attack straight away. Clicking your unit whose turn it is
+  brings its choices forward in the side panel. **Follow** (on by default) pans
+  the zoomed map to each move and attack.
+- **Following the battle.** A banner over the map says whose turn it is and
+  what they are doing; when the decision is yours it turns bright, plays a short
+  chime (the Sound button mutes it) and, if the tab is in the background, the
+  tab title changes to "Your turn". Under it, the order track lists every unit
+  you can see in the order it acts this phase: finished units are dimmed, the
+  acting unit is highlighted and the next two are outlined. On the map, units
+  that have already moved or attacked this phase are greyed out, and in
+  Planning your units whose dial is set are greyed out, so the ones still to go
+  stand out. Each attack plays out on a combat card in the corner (the dice,
+  every reroll and modifier in order, then the result), and a faint line from
+  attacker to target, with the damage, stays on the map until the round ends.
+  The battle log groups lines by round and phase, colours each line by army,
+  and clicking a line points to the unit it names.
 
 ## 2. Muster
 
@@ -276,14 +291,17 @@ chooses a stance.
 
 | Order | What it does |
 | --- | --- |
-| **Charge** | Each unit takes the maneuver that ends nearest the target, facing it, at the densest group of enemies you can see (or their deployment zone if none are in sight). Red maneuvers and bumps are penalised, so it is not always top speed. A banner marks the target: drag it on the map to redirect the charge. |
+| **Charge** | Each unit takes the maneuver that ends nearest the target, facing it. A banner marks the target: it starts toward the densest group of enemies you can see (or their deployment zone if none are in sight), but never more than about range 3 ahead of your warband, so it stays where you can see it; drag it on the map to redirect the charge, into the fog if you like. Red maneuvers and bumps are penalised, so it is not always top speed. |
 | **Scatter** | Every unit breaks away from the enemy mass and spreads out, keeping off the table edges. |
 | **Defend** | The warband closes ranks on the most defensible ground nearby (cover or high ground, away from the enemy) and units that have arrived take a defensive stance facing the enemy. |
 
 ### 4.2 Activation (lowest initiative first)
 
-Units activate one at a time from initiative 1 upward. Ties go in seat order,
-and the first seat rotates every round. When a unit activates:
+Units activate one at a time from initiative 1 upward. Ties between players go
+in seat order, and the first seat rotates every round. When one player has two
+or more units waiting at the same initiative, that player chooses which goes
+next: click it on the map, on the order track or in the side panel (computer
+opponents take theirs in order). When a unit activates:
 
 1. **Reveal and move.** It executes its maneuver (section 5).
 2. **Check difficulty.** Red: gain 1 strain. Blue: remove 1 strain.
@@ -296,7 +314,14 @@ At the start of Engagement, Fear and Warcry take effect (section 12). Then units
 attack from initiative 6 downward. Each unit may make **one attack** with one
 weapon against one enemy in that weapon's arc and range. Units with the **same
 initiative fire simultaneously**: a unit destroyed by an attacker of equal
-initiative still makes its own attack before it is removed.
+initiative still makes its own attack before it is removed. As in Activation,
+a player with two or more units able to attack at the same initiative chooses
+which attacks first.
+
+**Pause after attacks.** With the host's **Pause after attacks** setting on
+(the default), the battle holds after each attack until every seated player
+still fighting presses **Continue** (or Space), or a few seconds pass (1.5 on
+Fast, 3 on Normal, 5 on Slow computer speed).
 
 ### 4.4 End
 
@@ -624,6 +649,15 @@ Relics (section 2) carry their own abilities, which appear on a unit's card:
   **Watch instead of playing** in the muster) waits until a watcher presses
   **Start computer battle**. **Take a seat** brings you back before the next
   battle.
+- **Computer speed.** The host sets how quickly computer opponents act (Fast,
+  Normal or Slow) next to DP and Rounds. Slow gives the table time to follow
+  each move and attack. Speed and **Pause after attacks** can change without
+  anyone having to ready again.
+- **Players who leave.** Before the battle, a seat whose player has been
+  disconnected for 30 seconds is freed, so the others can start. At any time the
+  host can press **Remove** on a disconnected player's name in the top bar:
+  before the battle it frees the seat; during the battle that warband withdraws
+  (as a surrender) and the battle carries on.
 - **Rules button.** Opens this rulebook in the game.
 - **Surrender.** A seated player whose warband is still fighting can press
   Surrender (two clicks to confirm). Their units leave the field and nobody

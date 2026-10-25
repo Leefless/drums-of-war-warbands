@@ -273,6 +273,8 @@ function botStep(s, rnd) {
   } else if (p.type === "attack") {
     const o = any(p.options);
     E.declareAttack(s, p.pid, { target: o.target, weapon: o.weapon });
+  } else if (p.type === "pick") {
+    E.takeTurn(s, p.pid, any(p.options));
   } else {
     if (rnd() < 0.2) E.pass(s, p.pid);
     else E.modify(s, p.pid, { op: any(p.options).op, dice: [] });
