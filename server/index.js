@@ -293,6 +293,7 @@ function handle(ws, info, m) {
       if (game.phase !== "muster") throw new Error("You can only step out of your seat before the battle starts.");
       E.removePlayer(game, pid);
       info.spectator = true;
+      if (!game.players.some((p) => !p.ai)) game.hold = true; // computers alone wait for Start computer battle
       break;
     }
     case "reset": {
@@ -305,7 +306,7 @@ function handle(ws, info, m) {
       for (const p of old.players) {
         const np = E.addPlayer(game, p.id, p.name);
         np.ai = !!p.ai;
-        // A new battle is a blank slate for people; computer opponents keep the army they were given.
+        // A new battle is a blank slate for people; computer opponents keep their army and muster afresh.
         if (p.faction && p.ai) E.setFaction(game, p.id, p.faction);
       }
       break;

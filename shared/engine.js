@@ -1002,8 +1002,10 @@ export function attackDice(state, u, t, w, r) {
   if (r === 1 && me?.melee) n += me.melee;
   // Calamity Rift Ambush: +1 die from outside the target's front arc (flank or rear).
   if (rule(u, "riftAmbush") && attackSide(u, t) !== "front") n += 1;
-  // Aim only cancels a defensive stance: never more dice than the target's stance added.
-  if (u.aim && t.stance) n += Math.min(u.aim, t.stance);
+  // Aim only cancels a defensive stance: never more dice than the target's stance added, and
+  // nothing when Rift Ambush already strikes around the stance from the flank or rear.
+  const aroundStance = rule(u, "riftAmbush") && attackSide(u, t) !== "front";
+  if (u.aim && t.stance && !aroundStance) n += Math.min(u.aim, t.stance);
   if (has(u, "swarm")) {
     const buddy = friendsOf(state, u).some((f) => has(f, "swarm") && rangeBetween(f, t) <= 2 && inArc(f, "front", t, sizeOf(t)));
     if (buddy) n += 1;
@@ -1416,7 +1418,8 @@ export function viewFor(state, pid) {
   const pub = Object.fromEntries(state.players.map((p) => [p.id, `p${p.seat}`]));
   const v = JSON.parse(JSON.stringify(state));
   delete v.rng;
-  v.planned = Object.keys(state.dials);
+  // Which units have a dial set: only your own (opponents see just your Ready marker).
+  v.planned = Object.keys(state.dials).filter((id) => seated && unit(state, id)?.owner === pid);
   v.dials = {};
   for (const [uid, code] of Object.entries(state.dials)) if (seated && unit(state, uid)?.owner === pid) v.dials[uid] = code;
   v.hidden = 0;

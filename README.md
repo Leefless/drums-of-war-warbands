@@ -7,10 +7,16 @@ maneuver dials, templates, initiative order, and dice with token modifiers.
 
 Six armies of 25+ units and 10+ champions each, an army builder with saved
 lists, terrain with tactical upsides and downsides, and fog of war (you only see
-what your units can see).
+what your units can see). Armies can carry magic items and buy terrain in a
+terrain shop, and the battlefield (one of three, chosen by whoever keeps the
+most DP in reserve) favours some armies and hinders others. A matchup ring gives each army an edge against one rival.
+Prebuilt warbands get you playing fast, computer opponents fill empty seats,
+and quick orders speed up the dial phase. Games run from 60 to 300 DP, any
+player can surrender, and the rulebook is available in game.
 
 - **Rules:** [docs/RULES.md](docs/RULES.md)
 - **Lore:** [docs/LORE.md](docs/LORE.md)
+- **Roadmap:** [docs/ROADMAP.md](docs/ROADMAP.md)
 
 ## Play
 
@@ -62,7 +68,12 @@ and sprites through the OpenAI Images API instead, if a key is set in `.env`.
 | `server/index.js` | HTTP + WebSocket server; one process is one table. |
 | `public/` | Browser client (vanilla JS, canvas board). |
 | `shared/terrain.js` | Terrain kinds and effects, line of sight, fog-of-war vision. |
-| `test/` | `npm test`: 25 tests covering rules, rosters, costs, abilities, terrain, fog, and random battles using all 247 units. |
+| `shared/battlefield.js` | Battlefields, the matchup ring and the terrain shop. |
+| `shared/items.js`, `shared/items/` | Magic items: schema, pricing from the unit profile, and one item file per army. |
+| `shared/presets.js`, `shared/presets/` | Prebuilt warbands tuned at 100 DP and scaled to any budget, one file per army. |
+| `shared/ai.js` | Computer opponent; plays through the same commands as a person and obeys fog of war. |
+| `scripts/` | `check-roster` (roster rules), `check-items` (item prices), `check-presets` (preset legality at every DP), `sim-items` (item balance), `sim-presets` (computer-vs-computer win rates), `gen-art` (OpenAI Images art), `install-art` (move `Art/` drops into `public/art/`). |
+| `test/` | `npm test` runs the rules, roster, terrain, battlefield, preset and computer-opponent tests, including random battles with all 247 units. |
 | `data/armies.json` | Saved armies (created on first save, not in git). |
 
 The server is authoritative: browsers send intents, the engine validates them,

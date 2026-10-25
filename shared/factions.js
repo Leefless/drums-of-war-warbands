@@ -117,7 +117,7 @@ export const UPGRADES = {
   banner: { id: "banner", name: "Battle Banner", cost: 4, text: "Gain the Command action.", addAction: "command", notThrall: true },
   keen: { id: "keen", name: "Keen Eyes", cost: 2, text: "Gain the Mark action.", addAction: "mark", notThrall: true },
   // Faction relics: at most one relic per army.
-  runeOfStone: { id: "runeOfStone", name: "Rune of Stone", cost: 3, faction: "holds", relic: true, text: "Brace may cancel a Rend instead of a Strike.", ability: "stoneRune" },
+  runeOfStone: { id: "runeOfStone", name: "Rune of Stone", cost: 3, faction: "holds", relic: true, text: "Brace may cancel a Rend when no Strike is left to cancel.", ability: "stoneRune" },
   cloakOfLeaves: { id: "cloakOfLeaves", name: "Cloak of Leaves", cost: 3, faction: "sylvan", relic: true, text: "Gain Elusive (+1 defence die at range 2 or more).", ability: "elusive" },
   krumpChoppa: { id: "krumpChoppa", name: "Choppa of Krumpin", cost: 3, faction: "greenskin", relic: true, text: "+1 attack die at range 1.", ability: "brutal" },
   phylactery: { id: "phylactery", name: "Phylactery", cost: 4, faction: "umbral", relic: true, text: "Start the battle with 2 Souls.", ability: "phylactery" },
@@ -155,7 +155,7 @@ export const ABILITIES = {
   elusive: "Elusive: +1 defence die at range 2 or more.",
   bane: "Bane: +1 attack die against undead and Calamity units.",
   brutal: "Brutal: +1 attack die at range 1.",
-  stoneRune: "Rune of Stone: Brace may cancel a Rend.",
+  stoneRune: "Rune of Stone: Brace may cancel a Rend when no Strike is left to cancel.",
   phylactery: "Phylactery: starts with 2 Souls.",
   riftEye: "Eye of the Rift: Taint rolls only hurt on a Rend.",
   charge: "Charge: +1 attack die at range 1 after executing a maneuver of speed 3 or more this round.",
