@@ -5,8 +5,8 @@
 //   if it did something; the server calls it on a timer so moves stay watchable.
 import * as E from "./engine.js";
 import { FACTIONS, armyLimits, upgradesFor, validateArmy } from "./factions.js";
-import { isAim, isStance, parseManeuver } from "./geometry.js";
-import { visibleTo } from "./terrain.js";
+import { BASE_SIZE, inArc, isAim, isStance, parseManeuver } from "./geometry.js";
+import { lineOfSight, visibleTo } from "./terrain.js";
 import { MAPS, mapEffect } from "./battlefield.js";
 import { itemCost, itemsFor } from "./items.js";
 
@@ -74,12 +74,26 @@ function preferredRange(u) {
   return melee || reach <= 1 ? 40 : Math.min(reach, 3) * 100 - 60;
 }
 
+/**
+ * Would this unit, standing at `pose`, have a shot at a visible enemy: one within a weapon's
+ * range band (minimum included), inside its arc, and in line of sight. Enemies will move too,
+ * so this is a guide, but it keeps archers from ending their move facing away from the fight.
+ */
+function hasShot(state, u, pose, foes) {
+  const g = { ...u, x: pose.x, y: pose.y, h: pose.h };
+  return foes.some((f) => u.weapons.some((w) => {
+    const r = E.rangeBetween(g, f);
+    return r >= w.range[0] && r <= w.range[1] && inArc(g, w.arc, f, BASE_SIZE[f.base]) && lineOfSight(state, g, f);
+  }));
+}
+
 function planDials(state, pid) {
   const seen = visibleTo(state, pid);
   const foes = state.units.filter((x) => !x.dead && x.owner !== pid && seen.has(x.id));
   for (const u of state.units.filter((x) => !x.dead && x.owner === pid)) {
     const target = nearest(u, foes) || { x: state.board / 2, y: state.board / 2 };
     const want = foes.length ? preferredRange(u) : 0;
+    const noClose = u.weapons.every((w) => w.range[0] >= 2);
     let best = null;
     let bestScore = -Infinity;
     for (const code of u.dial) {
@@ -99,6 +113,10 @@ function planDials(state, pid) {
         const near = Math.min(Infinity, ...foes.map((f) => dist(f, u)));
         score += near <= 300 && (want > 40 || near <= 110) ? 6 : -30;
       }
+      // Ending the move with a shot lined up matters more than the exact distance.
+      if (foes.length && hasShot(state, u, mv.pose, foes)) score += 30;
+      // Units that cannot fight at range 1 (bows, guns) keep out of base contact.
+      if (noClose && foes.some((f) => E.rangeBetween({ ...u, ...mv.pose }, f) <= 1)) score -= 20;
       // Face the target at the end of the move so front arcs can fire.
       const ang = (Math.atan2(target.x - mv.pose.x, -(target.y - mv.pose.y)) * 180) / Math.PI;
       const off = Math.abs(((ang - mv.pose.h + 540) % 360) - 180);

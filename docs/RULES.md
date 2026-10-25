@@ -647,7 +647,9 @@ Relics (section 2) carry their own abilities, which appear on a unit's card:
   champion about half the time and 15% of its DP held back for magic items.
   They buy no terrain. If one holds the most unspent DP it picks the
   battlefield that helps it most and its opponents least. They only act on what
-  their side can see, and never plan Aim. A table of only computer opponents
+  their side can see, and never plan Aim. They plan each move so the unit ends
+  with a shot lined up where it can (target in range, in arc and in sight), and
+  bows and guns keep out of base contact. A table of only computer opponents
   (after **End battle**, **New battle**, or once the last person presses
   **Watch instead of playing** in the muster) waits until a watcher presses
   **Start computer battle**. **Take a seat** brings you back before the next
