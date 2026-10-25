@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 const DROP = join(ROOT, "Art");
+mkdirSync(DROP, { recursive: true }); // a fresh clone has no Art/ (it is gitignored)
 let moved = 0;
 const ART = join(ROOT, "public/art");
 // The same names the server accepts: letters, digits and dashes per folder, so nothing lands outside public/art.

@@ -63,6 +63,8 @@ setInterval(async () => {
 
 /** The host is the first human in a seat: computer opponents never host. */
 const hostId = () => game.players.find((p) => !p.ai)?.id ?? null;
+/** Is this connection the host? A connection that has not joined (no id) never is, even at an empty table. */
+const isHost = (pid) => !!pid && hostId() === pid;
 // Started from Start Game, exit code 75 asks that window to start a fresh server.
 const SUPERVISED = process.env.DOW_SUPERVISED === "1";
 const STALE_HINT = SUPERVISED
@@ -76,6 +78,11 @@ let armies = [];
 try {
   armies = JSON.parse(await readFile(ARMIES, "utf8"));
   if (!Array.isArray(armies)) throw new Error("not a list");
+  // Keep only well-formed entries: one bad hand edit must not break every screen.
+  const ok = (a) => a && typeof a === "object" && typeof a.id === "string" && typeof a.owner === "string" && typeof a.name === "string" && Object.hasOwn(FACTIONS, a.faction) && Array.isArray(a.list);
+  const bad = armies.filter((a) => !ok(a)).length;
+  if (bad) console.error(`data/armies.json: skipped ${bad} malformed saved arm${bad === 1 ? "y" : "ies"}.`);
+  armies = armies.filter(ok);
 } catch (err) {
   armies = [];
   // Keep an unreadable file for recovery instead of overwriting it on the next save.
@@ -128,7 +135,7 @@ function deleteArmy(pid, id) {
   if (!pid) throw new Error("Take a seat to manage saved armies.");
   const a = armies.find((x) => x.id === id);
   if (!a) return;
-  if (a.owner !== pid && hostId() !== pid) throw new Error("Only the army's author or the host can delete it.");
+  if (a.owner !== pid && !isHost(pid)) throw new Error("Only the army's author or the host can delete it.");
   armies = armies.filter((x) => x.id !== id);
   return persistArmies();
 }
@@ -316,7 +323,7 @@ function handle(ws, info, m) {
       break;
     }
     case "reset": {
-      const host = hostId() === pid;
+      const host = isHost(pid);
       const noHumans = !game.players.some((p) => !p.ai); // a computer-only battle: any watcher may end it
       if (!host && !noHumans && !(game.phase === "over" && E.player(game, pid))) throw new Error("Only the host can restart mid-battle.");
       const old = game;
@@ -401,6 +408,20 @@ function aiTick() {
       console.error(`AI ${p.name}:`, err.message);
       if (game.pending?.pid === p.id) {
         try { E.pass(game, p.id); acted = true; } catch { /* nothing to pass */ }
+      } else if ((game.phase === "deploy" || game.phase === "plan") && !p.ready) {
+        // A failed deployment or plan must not leave the table waiting on this seat forever:
+        // fall back to a 1-straight (or the first maneuver) for every unit and ready up.
+        try {
+          if (game.phase === "plan") {
+            for (const u of game.units.filter((x) => x.owner === p.id && !x.dead && !game.dials[x.id])) {
+              E.setDial(game, p.id, u.id, u.dial.find((c) => c.startsWith("1S")) || u.dial[0]);
+            }
+          }
+          E.ready(game, p.id);
+          acted = true;
+        } catch (e2) {
+          console.error(`AI ${p.name} fallback:`, e2.message);
+        }
       }
     }
     if (acted) {
@@ -416,7 +437,7 @@ function aiTick() {
 }
 
 function addAI(pid, faction) {
-  if (hostId() !== pid) throw new Error("Only the host can add computer opponents.");
+  if (!isHost(pid)) throw new Error("Only the host can add computer opponents.");
   if (game.phase !== "muster") throw new Error("Add computer opponents before the battle starts.");
   const id = `ai${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
   const fid = Object.hasOwn(AI_NAMES, faction) ? faction : Object.keys(AI_NAMES)[Math.floor(Math.random() * 6)];
@@ -433,7 +454,7 @@ const online = (token) => [...sockets.values()].some((s) => s.token === token);
  * table; during it their warband withdraws (as a surrender) so the battle can carry on.
  */
 function dropPlayer(pid, seatId) {
-  if (hostId() !== pid) throw new Error("Only the host can remove a player.");
+  if (!isHost(pid)) throw new Error("Only the host can remove a player.");
   const p = game.players.find((x) => !x.ai && `p${x.seat}` === seatId);
   if (!p || p.id === pid) throw new Error("No such player.");
   if (online(p.id)) throw new Error(`${p.name} is still connected.`);
@@ -451,16 +472,20 @@ function freeSeatLater(token) {
   setTimeout(() => {
     const p = E.player(game, token);
     if (!p || p.ai || game.phase !== "muster" || online(token)) return;
-    E.removePlayer(game, token);
-    console.log(`${p.name} left the table (disconnected).`);
-    E.run(game);
+    try {
+      E.removePlayer(game, token);
+      console.log(`${p.name} left the table (disconnected).`);
+      E.run(game);
+    } catch (err) {
+      console.error("Rules error freeing a seat:", err.message);
+    }
     broadcast();
     scheduleAI();
   }, SEAT_GRACE_MS).unref();
 }
 
 function removeAI(pid, seatId) {
-  if (hostId() !== pid) throw new Error("Only the host can remove computer opponents.");
+  if (!isHost(pid)) throw new Error("Only the host can remove computer opponents.");
   const p = game.players.find((x) => x.ai && `p${x.seat}` === seatId);
   if (p) E.removePlayer(game, p.id);
 }
@@ -472,6 +497,7 @@ wss.on("connection", (ws) => {
   const info = { token: null, spectator: true, bucket: 40, last: Date.now() };
   sockets.set(ws, info);
   broadcast(); // a new screen sees the table (seats taken, battle running) before it joins
+  ws.on("error", (err) => console.error("Connection error:", err.message)); // e.g. an oversized frame
   ws.on("message", async (raw) => {
     // Rate limit: 40-message burst, refilling at 20 per second.
     const now = Date.now();
