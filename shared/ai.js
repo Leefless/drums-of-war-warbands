@@ -5,8 +5,8 @@
 //   if it did something; the server calls it on a timer so moves stay watchable.
 import * as E from "./engine.js";
 import { FACTIONS, armyLimits, upgradesFor, validateArmy } from "./factions.js";
-import { BASE_SIZE, inArc, isAim, isStance, parseManeuver } from "./geometry.js";
-import { lineOfSight, visibleTo } from "./terrain.js";
+import { isAim, isStance, parseManeuver } from "./geometry.js";
+import { visibleTo } from "./terrain.js";
 import { MAPS, mapEffect } from "./battlefield.js";
 import { itemCost, itemsFor } from "./items.js";
 
@@ -81,10 +81,7 @@ function preferredRange(u) {
  */
 function hasShot(state, u, pose, foes) {
   const g = { ...u, x: pose.x, y: pose.y, h: pose.h };
-  return foes.some((f) => u.weapons.some((w) => {
-    const r = E.rangeBetween(g, f);
-    return r >= w.range[0] && r <= w.range[1] && inArc(g, w.arc, f, BASE_SIZE[f.base]) && lineOfSight(state, g, f);
-  }));
+  return foes.some((f) => u.weapons.some((w) => E.attackCheck(state, g, f, w).ok));
 }
 
 function planDials(state, pid) {

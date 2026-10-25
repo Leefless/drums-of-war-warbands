@@ -5,10 +5,10 @@ import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, presetBuild } from "/shared/presets.js";
 import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
-import { BASE_SIZE, inArc, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
-import { CRIT_TEXT, attackOptions, boughtRadius, parseAction, planMove, rangeBetween, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
+import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
+import { CRIT_TEXT, attackCheck, attackDice, attackOptions, boughtRadius, defenseDice, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
 import { boardToScreen, focusPoint, focusUnit, onFrame, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
-import { TERRAIN, lineOfSight, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
+import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -1259,15 +1259,15 @@ function reachMarks() {
     const m = marks.get(o.target);
     if (!m || o.range < m.range) marks.set(o.target, { kind: "hit", range: o.range });
   }
-  // Near misses: within a weapon's range band but turned the wrong way, out of sight, or hidden.
-  const high = onKind(S, g, "hill") ? 1 : 0;
+  // Near misses: within a weapon's range band but not attackable as it stands, with the reason.
+  const LABEL = { arc: "turn", contact: "close in", blocked: "blocked", sight: "no sight", stealthy: "hidden" };
+  const ORDER = ["arc", "contact", "blocked", "sight", "stealthy"]; // the most fixable reason first
   for (const t of S.units) {
     if (t.dead || t.owner === sel.owner || marks.has(t.id)) continue;
-    const r = rangeBetween(g, t);
-    const ws = sel.weapons.filter((w) => r >= w.range[0] && r <= Math.min(4, w.range[1] + high));
-    if (!ws.length) continue;
-    const why = !lineOfSight(S, g, t) ? "no sight" : !ws.some((w) => inArc(g, w.arc, t, BASE_SIZE[t.base])) ? "turn" : "hidden";
-    marks.set(t.id, { kind: "miss", range: r, why });
+    const checks = sel.weapons.map((w) => attackCheck(S, g, t, w)).filter((c) => c.why !== "range");
+    if (!checks.length) continue;
+    const c = checks.find((x) => x.ok) || checks.sort((a, b) => ORDER.indexOf(a.why) - ORDER.indexOf(b.why))[0];
+    marks.set(t.id, c.ok ? { kind: "miss", range: c.range, why: "hidden" } : { kind: "miss", range: c.range, why: LABEL[c.why] || c.why });
   }
   return marks;
 }
@@ -1521,7 +1521,11 @@ function myPromptHTML(p) {
       <div class="ulist" style="margin:8px 0">${p.options.map((o, i) => {
         const t = unitById(o.target);
         if (!t) return "";
-        return `<button data-atk="${i}" data-hover="${t.id}"><span>${esc(t.name)} <span class="muted">${esc(nameOf(t.owner))}</span></span><span class="muted">${esc(u.weapons[o.weapon].name)} · R${o.range}</span></button>`;
+        // The dice each side would roll, from the engine's own count (range, abilities, terrain, stances).
+        const w = u.weapons[o.weapon];
+        const atk = o.dice ?? attackDice(S, u, t, w, o.range);
+        const def = o.defDice ?? defenseDice(S, u, t, w, o.range);
+        return `<button data-atk="${i}" data-hover="${t.id}"><span>${esc(t.name)} <span class="muted">${esc(nameOf(t.owner))}</span></span><span class="muted">${esc(w.name)} · R${o.range} · <b class="num">${atk}</b> attack ${atk === 1 ? "die" : "dice"} vs <b class="num">${def}</b> defence</span></button>`;
       }).join("")}</div><button class="ghost" id="pass">Hold fire</button>`;
   }
   const verb = p.type === "attackMods" ? "Modify your attack" : "Defend";

@@ -20,6 +20,9 @@ consideration, see [ROADMAP.md](ROADMAP.md).
   The thick edge is its front.
 - Weapons fire in a **90 degree arc** (front or rear) or all round (full), out
   to the weapon's range band or bands.
+- **Melee weapons** (those whose longest reach is range 1) only strike a unit
+  whose base is **in contact**: touching, or within 10. A weapon that reaches
+  range 2 or more (bows, blowpipes, spells) strikes anywhere in range 1.
 - Random terrain pieces are placed in the middle of the table: hills, forests,
   ruins, lava, marsh, rifts and rocks (see section 8). The ground is one of
   three painted battlefields, chosen per battle, and the battlefield decides
@@ -42,8 +45,9 @@ consideration, see [ROADMAP.md](ROADMAP.md).
   red target with the range band (for example **R2**): in a weapon's range
   (minimum range and hills included), inside its arc, in sight and spotted.
   Enemies within range that it cannot attack as it stands get a dashed ring
-  saying why: **turn** (outside the arc), **no sight** (terrain in the way) or
-  **hidden** (not spotted, or Stealthy at range 3 or more). In Planning the
+  saying why: **turn** (outside the arc), **close in** (a melee weapon not yet
+  in base contact), **blocked** (another unit in the way), **no sight** (terrain
+  in the way) or **hidden** (not spotted, or Stealthy at range 3 or more). In Planning the
   markers follow the dial: hover a maneuver to see what the unit could hit
   after that move, and the dial shows how many enemies are in reach. Select an
   enemy to see which of your units it threatens.
@@ -330,7 +334,10 @@ a unit activates:
 
 At the start of Engagement, Fear and Warcry take effect (section 12). Then units
 attack from initiative 6 downward. Each unit may make **one attack** with one
-weapon against one enemy in that weapon's arc and range. Units with the **same
+weapon against one enemy in that weapon's arc and range, in line of sight with
+no other unit in the way (section 8), and in base contact for a melee weapon.
+The attack list shows, for each choice, how many attack dice you would roll and
+how many defence dice the target would roll. Units with the **same
 initiative fire simultaneously**: a unit destroyed by an attacker of equal
 initiative still makes its own attack before it is removed. As in Activation,
 a player with two or more units able to attack at the same initiative chooses
@@ -442,7 +449,7 @@ board to see its effects.
 
 | Terrain | Upside | Downside |
 | --- | --- | --- |
-| **Hill** | High ground: +1 maximum weapon range (up to 4), sees 1 band farther and over forests and ruins, and +1 defence die against attackers not on a hill. | Climbing onto it gives 1 strain. A unit on a hill can never be concealed. |
+| **Hill** | High ground: +1 maximum range for weapons that reach range 2 or more (up to 4; melee still needs contact), sees 1 band farther and over forests and ruins, and +1 defence die against attackers not on a hill. | Climbing onto it gives 1 strain. A unit on a hill can never be concealed. |
 | **Forest** | Cover: +1 defence die inside. Blocks line of sight. Units inside are concealed. | Entering it gives 1 strain, and attacks made from inside roll 1 fewer die (Sylvan units ignore both). |
 | **Ruins** | Cover: +1 defence die inside. Blocks line of sight. | Entering it rolls an attack die (Strike = 1 damage, Rend = 1 damage and a critical) and the unit loses its actions. |
 | **Lava** | Heat haze: attacks that cross it give the defender +1 die. | Burns for 1 damage, and a unit that enters it stops 40 into it. Calamity units are not burned and gain a Calamity charge instead. |
@@ -480,6 +487,12 @@ damage or climbing), but still cannot end a move on rocks.
 **Line of sight** runs centre to centre. Rocks always block it. Forests and
 ruins block it unless one of the two units stands in that piece, or either unit
 is on a hill.
+
+**Units in the way.** For attacks, any other unit's base (friend or foe) on the
+line between attacker and target blocks the attack. A shot that only clips the
+corner of a base gets through, bases in contact can always fight, a unit on a
+hill (attacker or target) sees over the ranks, and Flying units are above
+them. Units in the way do not hide anything from sight: they only stop attacks.
 
 ## 9. Fog of war
 

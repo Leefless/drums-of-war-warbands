@@ -11,7 +11,7 @@
 
 import {
   BASE_SIZE, BOARD, boardSize, corners, inArc, insideBoard, isAim, isHold, isStance, maneuverPose, maneuverSegments, parseManeuver, polyCircleOverlap,
-  polyDistance, polysOverlap, rangeBand, right, zoneDepth,
+  polyDistance, polysOverlap, rangeBand, right, segmentHitsCircle, zoneDepth,
 } from "./geometry.js";
 import { AIM_ROW, STANCE_ROW } from "./dials.js";
 import { MAPS, mapEffect, matchupDice } from "./battlefield.js";
@@ -968,7 +968,38 @@ function obstructed(state, a, t) {
   return hazeBetween(state, a, t);
 }
 const inCover = (state, u) => state.obstacles.some((o) => COVER.has(o.kind) && inside(u, o));
-const maxRange = (state, u, w) => Math.min(4, w.range[1] + (onKind(state, u, "hill") ? 1 : 0));
+/** Bases this close (board units) are touching: what a melee weapon needs. */
+export const CONTACT = 10;
+/** A melee weapon reaches only range 1, and only into base contact. */
+export const isMelee = (w) => w.range[1] === 1;
+const maxRange = (state, u, w) => (isMelee(w) ? 1 : Math.min(4, w.range[1] + (onKind(state, u, "hill") ? 1 : 0)));
+
+/**
+ * Another unit's base (friend or foe) on the line between attacker and target blocks the attack.
+ * Bases in contact always fight; a unit on a hill sees over the ranks; Flying attackers and
+ * targets are above them. Bases count a little smaller than drawn, so a shot past a corner gets through.
+ */
+export function unitsBlock(state, u, t) {
+  if (flies(u) || flies(t) || onKind(state, u, "hill") || onKind(state, t, "hill")) return false;
+  if (polyDistance(poly(u), poly(t)) <= CONTACT) return false;
+  return alive(state).some((o) => o.id !== u.id && o.id !== t.id && segmentHitsCircle(u, t, { x: o.x, y: o.y, r: sizeOf(o) * 0.45 }));
+}
+
+/**
+ * Can unit u attack t with weapon w (spotting aside, which depends on the whole side)?
+ * Returns { ok, range, why } with why one of "range", "contact", "stealthy", "sight", "blocked", "arc".
+ * Shared by the engine, the computer opponent and the target markers on the map.
+ */
+export function attackCheck(state, u, t, w) {
+  const r = rangeBetween(u, t);
+  if (r < w.range[0] || r > maxRange(state, u, w)) return { ok: false, range: r, why: "range" };
+  if (isMelee(w) && polyDistance(poly(u), poly(t)) > CONTACT) return { ok: false, range: r, why: "contact" };
+  if (has(t, "stealthy") && r >= 3) return { ok: false, range: r, why: "stealthy" };
+  if (!lineOfSight(state, u, t)) return { ok: false, range: r, why: "sight" };
+  if (unitsBlock(state, u, t)) return { ok: false, range: r, why: "blocked" };
+  if (!inArc(u, w.arc, t, sizeOf(t))) return { ok: false, range: r, why: "arc" };
+  return { ok: true, range: r, why: null };
+}
 
 /** Every legal (target, weapon) pair for a unit. */
 export function attackOptions(state, u) {
@@ -978,12 +1009,10 @@ export function attackOptions(state, u) {
   for (let wi = 0; wi < u.weapons.length; wi++) {
     const w = u.weapons[wi];
     for (const t of enemiesOf(state, u)) {
-      if (!spotted.has(t.id) || !lineOfSight(state, u, t)) continue;
-      const r = rangeBetween(u, t);
-      if (r < w.range[0] || r > maxRange(state, u, w)) continue;
-      if (has(t, "stealthy") && r >= 3) continue;
-      if (!inArc(u, w.arc, t, sizeOf(t))) continue;
-      out.push({ target: t.id, weapon: wi, range: r });
+      if (!spotted.has(t.id)) continue;
+      const c = attackCheck(state, u, t, w);
+      // The dice each side would roll, so players can weigh the choice (exact: the server sees everything).
+      if (c.ok) out.push({ target: t.id, weapon: wi, range: c.range, dice: attackDice(state, u, t, w, c.range), defDice: defenseDice(state, u, t, w, c.range) });
     }
   }
   return out;

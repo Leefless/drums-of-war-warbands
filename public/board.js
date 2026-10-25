@@ -1019,7 +1019,7 @@ function drawTrails(ctx, state) {
 
 /**
  * Target markers for the selected unit: a solid red target with its range on enemies it can
- * attack, a dashed ring with the reason ("turn", "no sight", "hidden") on enemies in range it
+ * attack, a dashed ring with the reason ("turn", "close in", "blocked", "no sight", "hidden") on enemies in range it
  * cannot attack as it stands.
  */
 function drawReachMarks(ctx, state, marks, now) {
