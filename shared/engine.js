@@ -1104,6 +1104,7 @@ export function declareAttack(state, pid, msg) {
   const u = unit(state, pend.uid);
   const opt = pend.options.find((o) => o.target === target && o.weapon === weapon) || fail("Not a legal target.");
   const t = unit(state, target);
+  if (!t || t.dead || t.dying) fail("That unit has left the field.");
   const w = u.weapons[weapon];
   const ambush = !visibleTo(state, t.owner).has(u.id);
   const n = attackDice(state, u, t, w, opt.range);
@@ -1505,8 +1506,29 @@ export function surrender(state, pid) {
     state.attack = null;
   }
   log(state, `${p.name} surrenders and quits the field.`);
+  refreshPending(state);
   const standing = activePlayers(state);
   if (standing.length <= 1 || standing.every((x) => x.ai)) endBattle(state);
+}
+
+/**
+ * Another seat's open choice may name units that just left the field (a surrender): rebuild it
+ * from the current state, and end it when nothing is left to choose.
+ */
+function refreshPending(state) {
+  const pend = state.pending;
+  if (!pend) return;
+  const u = pend.uid ? unit(state, pend.uid) : null;
+  if (pend.type === "attack") {
+    pend.options = u && !u.dead ? attackOptions(state, u) : [];
+    if (!pend.options.length) state.pending = null;
+  } else if (pend.type === "action") {
+    pend.options = u && !u.dead ? actionOptions(state, u) : [];
+    if (!pend.options.length) finishActivation(state, u);
+  } else if (pend.type === "pick") {
+    pend.options = pend.options.filter((id) => !unit(state, id)?.dead);
+    if (pend.options.length < 2) state.pending = null;
+  }
 }
 
 /** Advance the game until a player decision is needed. Idempotent when waiting. */

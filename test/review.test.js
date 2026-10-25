@@ -144,3 +144,28 @@ test("a seat whose warband is out of the battle watches with full sight", () => 
   const v = E.viewFor(s, A);
   assert.equal(v.hidden, 0, "nothing is hidden from a knocked-out seat");
 });
+
+test("a surrender refreshes other seats' choices: no attacks on units that left the field", () => {
+  const C = "tokenCCCC3333";
+  const s = E.createGame({ seed: 5, budget: 300 });
+  for (const [id, f] of [[A, "holds"], [B, "concord"], [C, "umbral"]]) {
+    E.addPlayer(s, id, id);
+    E.setFaction(s, id, f);
+  }
+  E.submitArmy(s, A, [{ unit: "gunners" }]);
+  E.submitArmy(s, B, [{ unit: "halberdiers" }]);
+  E.submitArmy(s, C, [{ unit: "skeletons" }]);
+  E.run(s);
+  s.obstacles = [];
+  const [gun, hal, skel] = s.units;
+  Object.assign(gun, { x: 500, y: 700, h: 0 });
+  Object.assign(hal, { x: 400, y: 450, h: 180 });
+  Object.assign(skel, { x: 600, y: 450, h: 180 });
+  s.phase = "engagement";
+  s.queue = [];
+  s.pending = { type: "attack", pid: A, uid: gun.id, options: E.attackOptions(s, gun) };
+  assert.ok(s.pending.options.some((o) => o.target === skel.id), "premise: the skeletons are a legal target");
+  E.surrender(s, C);
+  assert.ok(!s.pending?.options?.some((o) => o.target === skel.id), "the departed unit is no longer offered");
+  assert.throws(() => E.declareAttack(s, A, { target: skel.id, weapon: 0 }));
+});
