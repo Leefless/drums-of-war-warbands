@@ -1,9 +1,1155 @@
 {
-  "lastRun": { "commit": null, "date": null, "overallScore": null, "cycleCounter": 0 },
-  "artifactUrl": null,
-  "siblingSync": { "path": "~/.claude/commands/full-review.md", "lastSeenHash": "b0b48eeb8b5d004e9d5ac0a01f7df5a8c2ecc4ef", "lastSeenDate": "2026-10-25", "ported": "seeded the project command from this template" },
-  "areas": [],
-  "findings": [],
-  "hardened": [],
-  "learnings": []
+ "lastRun": {
+  "commit": "8e77830",
+  "date": "2026-10-25",
+  "overallScore": 8.1,
+  "cycleCounter": 1
+ },
+ "artifactUrl": "https://claude.ai/artifact/YRvah2e5hMDMbfYuBg48V5",
+ "siblingSync": {
+  "path": "~/.claude/commands/full-review.md",
+  "lastSeenHash": "b0b48eeb8b5d004e9d5ac0a01f7df5a8c2ecc4ef",
+  "lastSeenDate": "2026-10-25",
+  "ported": "seeded the project command from this template"
+ },
+ "areas": [
+  {
+   "key": "engine",
+   "name": "Rules engine",
+   "globs": [
+    "shared/engine.js",
+    "shared/geometry.js",
+    "shared/terrain.js",
+    "shared/battlefield.js"
+   ],
+   "score": 7.9,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "Soak: 640 AI games, no stall/overlap; token scan of 40 games clean.",
+   "deductions": [
+    {
+     "id": "E1",
+     "desc": "Hold pivot and pileIn can leave a base off the table (engine.js:551-555, 1375-1384)",
+     "points": 0.5,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "E2",
+     "desc": "Surrender leaves other seats' pending options stale; attacks on dead units accepted (engine.js:1502, 1104)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "E4",
+     "desc": "Log scrubbing matches names by substring/prefix (engine.js:72-75, 1600-1602)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "E5",
+     "desc": "Back-away checks only the destination; can hop rocks, skips terrain (engine.js:615-621)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "E6",
+     "desc": "A visible unit's tokens.mark can carry a hidden unit id",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "E7",
+     "desc": "Rejected setDials batch still unreadies the player (engine.js:440, 452)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "D1",
+     "desc": "Tie pick auto-promotes a remembered unit over never-compared units (engine.js offerPick); decided: ask",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "E8",
+     "desc": "No real-human playtest of the rules",
+     "points": 0.3,
+     "bucket": "wontfix",
+     "unlock": "playtest sessions",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "client-ui",
+   "name": "Battle and muster UI",
+   "globs": [
+    "public/app.js",
+    "public/styles.css",
+    "public/index.html"
+   ],
+   "score": 7.1,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "All pending types have prompts; XSS clean; handlers not duplicated.",
+   "deductions": [
+    {
+     "id": "UI-1",
+     "desc": "Eliminated/removed seat sees a black board (engine.js:1586, app.js:1236)",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-2",
+     "desc": "Continue text with no button when the attack is hidden (app.js:978-981, 1115)",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-3",
+     "desc": "Ambushed defender prompted with no dice (engine.js:1596, app.js:1498)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-4",
+     "desc": "Strain cap re-derived 3x instead of engine strainCap (app.js:1675, 1838, 1944)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-5",
+     "desc": "Pile in label re-implements pileIn (app.js:1271)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-6",
+     "desc": "Focus lost on every broadcast (app.js:259-267)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-7",
+     "desc": "Contrast failures (toast, light ink-3, red glyph, blank die)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-8",
+     "desc": "No disconnected state shown (app.js:81-86)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-9",
+     "desc": "Stale Last attack panel in later phases (lastAttack never cleared)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-10",
+     "desc": "Terrain placing mode survives selecting a unit; no Esc (app.js:1613)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-11",
+     "desc": "Q/E rotation not throttled (app.js:850)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-12",
+     "desc": "New battle shown to watchers/removed players (app.js:1489)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-13",
+     "desc": "Muster list sticky without max-height (styles.css:178)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-14",
+     "desc": "Dial buttons lack aria-label; toast/banner lack aria-live",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "UI-15",
+     "desc": "Render-blocking Google Fonts link on a LAN game (index.html:8-9)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "board",
+   "name": "Map renderer",
+   "globs": [
+    "public/board.js",
+    "public/art.js"
+   ],
+   "score": 9.1,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "reachMarks 0.003ms per call: not a perf trap.",
+   "deductions": [
+    {
+     "id": "B-1",
+     "desc": "Fog layer and art lists rebuilt every frame (board.js:586, 921-951)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "B-2",
+     "desc": "Greyed units rely on canvas filter (older Safari lacks it) (board.js:834)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "B-3",
+     "desc": "Deployment nudges queue serial 700ms glides (board.js:651-664)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "B-4",
+     "desc": "Status text 4-7px on screen at fit zoom (board.js:1356, 1383)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "B-5",
+     "desc": "placeMapDial forces layout every frame (app.js:1368-1389)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "ai",
+   "name": "Computer opponent",
+   "globs": [
+    "shared/ai.js"
+   ],
+   "score": 9.1,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "",
+   "deductions": [
+    {
+     "id": "A1",
+     "desc": "Acts on stale pending options after a surrender (ai.js:142-186)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "A2",
+     "desc": "A throw in deploy/plan leaves the AI never ready (server/index.js:386-392)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "A3",
+     "desc": "Math.random: soak failures cannot be replayed (ai.js:20,129)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "A4",
+     "desc": "Strength not validated against real players",
+     "points": 0.3,
+     "bucket": "wontfix",
+     "unlock": "human playtests",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "server",
+   "name": "Server and networking",
+   "globs": [
+    "server/index.js",
+    "public/receive.html",
+    "scripts/install-art.mjs"
+   ],
+   "score": 8.4,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "81k junk commands, 33 junk WS frames, traversal probes: no crash.",
+   "deductions": [
+    {
+     "id": "S1",
+     "desc": "Tokenless socket passes host checks when no human is seated (server/index.js:312,407,423,451)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S2",
+     "desc": "One bad entry in armies.json blanks every screen (server/index.js:77,137)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S3",
+     "desc": "freeSeatLater runs run/broadcast without try (server/index.js:438-447)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S4",
+     "desc": "install-art crashes when Art/ is missing (install-art.mjs:14)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S5",
+     "desc": "No ws.on(\"error\"); oversize frame reaches uncaughtException",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S6",
+     "desc": "Beat not re-checked when a non-acked player disconnects",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S7",
+     "desc": "receive.html sends no ack when fetch rejects (receive.html:19)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "S8",
+     "desc": "No multi-machine LAN soak",
+     "points": 0.3,
+     "bucket": "wontfix",
+     "unlock": "four-device LAN session",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "data",
+   "name": "Game data",
+   "globs": [
+    "shared/rosters/",
+    "shared/items*",
+    "shared/presets*",
+    "shared/cost.js",
+    "shared/dials.js",
+    "shared/factions.js",
+    "shared/roster-check.js"
+   ],
+   "score": 8.9,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "6,264 preset builds legal.",
+   "deductions": [
+    {
+     "id": "X1",
+     "desc": "Pile in predicate duplicated in engine, app.js:1271, ai.js:87",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "X2",
+     "desc": "roster-check imports ../public/art.js; no cross-army name or upgrade checks",
+     "points": 0.2,
+     "bucket": "deferred",
+     "unlock": "layering refactor",
+     "status": "open"
+    },
+    {
+     "id": "X3",
+     "desc": "check-presets DP list fixed; crimson-court no item at 54/55/90",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "X4",
+     "desc": "Start Game.command: no Node 20 check, blind kill of port 3000",
+     "points": 0.2,
+     "bucket": "handoff",
+     "unlock": "double-click test on the Mac",
+     "status": "open"
+    },
+    {
+     "id": "X5",
+     "desc": "Stale ITEM_PRICE_FACTION comment (items.js:26-27)",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "tests-tooling",
+   "name": "Tests and tooling",
+   "globs": [
+    "test/",
+    "scripts/",
+    "package.json"
+   ],
+   "score": 7.1,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "Mutation run: 33 of 102 killed.",
+   "deductions": [
+    {
+     "id": "T1",
+     "desc": "viewFor token/fog mutations survive (pending.pid, winner, obstacle owner, army, queue...)",
+     "points": 1.0,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "T2",
+     "desc": "pileIn: 2 scenarios, 10 surviving mutations",
+     "points": 0.5,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "T3",
+     "desc": "Back-away: magnitude, retries, guards, direction survive",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "T4",
+     "desc": "attackCheck why-chain and CONTACT boundary survive",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "T5",
+     "desc": "Tie pick guards, phase key, 3-unit ordering survive",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "T6",
+     "desc": "No mdToHTML test; no server tests",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "T7",
+     "desc": "Fuzz tests assert only that games finish",
+     "points": 0.1,
+     "bucket": "deferred",
+     "unlock": "invariant design",
+     "status": "open"
+    }
+   ]
+  },
+  {
+   "key": "docs",
+   "name": "Docs",
+   "globs": [
+    "docs/",
+    "README.md"
+   ],
+   "score": 9.3,
+   "lastReviewedCommit": "8e77830",
+   "lastReviewedDate": "2026-10-25",
+   "notes": "Rulebook renders under mdToHTML; tables and counts verified.",
+   "deductions": [
+    {
+     "id": "D2",
+     "desc": "RULES 24-25 ignores minimum range (range 2+ weapons at range 1)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "D3",
+     "desc": "Pile in ring shows where pile in cannot happen (via X1)",
+     "points": 0.3,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "D4",
+     "desc": "Stale comments/hints: board.js:1022, reachSummary, ROADMAP intro, 60 vs 40 DP",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "open"
+    },
+    {
+     "id": "D5",
+     "desc": "No doc render test (counted in T6)",
+     "points": 0.0,
+     "bucket": "wontfix",
+     "unlock": "",
+     "status": "open"
+    }
+   ]
+  }
+ ],
+ "findings": [
+  {
+   "id": "E1",
+   "title": "Hold pivot and pileIn can leave a base off the table (engine.js:551-555, 1375-1384)",
+   "ref": "engine.js:551-555, 1375-1384",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "E2",
+   "title": "Surrender leaves other seats' pending options stale; attacks on dead units accepted (engine.js:1502, 1104)",
+   "ref": "engine.js:1502, 1104",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "E4",
+   "title": "Log scrubbing matches names by substring/prefix (engine.js:72-75, 1600-1602)",
+   "ref": "engine.js:72-75, 1600-1602",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "E5",
+   "title": "Back-away checks only the destination; can hop rocks, skips terrain (engine.js:615-621)",
+   "ref": "engine.js:615-621",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "E6",
+   "title": "A visible unit's tokens.mark can carry a hidden unit id",
+   "ref": "",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "E7",
+   "title": "Rejected setDials batch still unreadies the player (engine.js:440, 452)",
+   "ref": "engine.js:440, 452",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "D1",
+   "title": "Tie pick auto-promotes a remembered unit over never-compared units (engine.js offerPick); decided: ask",
+   "ref": "engine.js offerPick); decided: ask",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "E8",
+   "title": "No real-human playtest of the rules",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "wontfix",
+   "status": "wontfix",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-1",
+   "title": "Eliminated/removed seat sees a black board (engine.js:1586, app.js:1236)",
+   "ref": "engine.js:1586, app.js:1236",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-2",
+   "title": "Continue text with no button when the attack is hidden (app.js:978-981, 1115)",
+   "ref": "app.js:978-981, 1115",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-3",
+   "title": "Ambushed defender prompted with no dice (engine.js:1596, app.js:1498)",
+   "ref": "engine.js:1596, app.js:1498",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-4",
+   "title": "Strain cap re-derived 3x instead of engine strainCap (app.js:1675, 1838, 1944)",
+   "ref": "app.js:1675, 1838, 1944",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-5",
+   "title": "Pile in label re-implements pileIn (app.js:1271)",
+   "ref": "app.js:1271",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-6",
+   "title": "Focus lost on every broadcast (app.js:259-267)",
+   "ref": "app.js:259-267",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-7",
+   "title": "Contrast failures (toast, light ink-3, red glyph, blank die)",
+   "ref": "toast, light ink-3, red glyph, blank die",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-8",
+   "title": "No disconnected state shown (app.js:81-86)",
+   "ref": "app.js:81-86",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-9",
+   "title": "Stale Last attack panel in later phases (lastAttack never cleared)",
+   "ref": "lastAttack never cleared",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-10",
+   "title": "Terrain placing mode survives selecting a unit; no Esc (app.js:1613)",
+   "ref": "app.js:1613",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-11",
+   "title": "Q/E rotation not throttled (app.js:850)",
+   "ref": "app.js:850",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-12",
+   "title": "New battle shown to watchers/removed players (app.js:1489)",
+   "ref": "app.js:1489",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-13",
+   "title": "Muster list sticky without max-height (styles.css:178)",
+   "ref": "styles.css:178",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-14",
+   "title": "Dial buttons lack aria-label; toast/banner lack aria-live",
+   "ref": "",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-15",
+   "title": "Render-blocking Google Fonts link on a LAN game (index.html:8-9)",
+   "ref": "index.html:8-9",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "B-1",
+   "title": "Fog layer and art lists rebuilt every frame (board.js:586, 921-951)",
+   "ref": "board.js:586, 921-951",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "B-2",
+   "title": "Greyed units rely on canvas filter (older Safari lacks it) (board.js:834)",
+   "ref": "board.js:834",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "B-3",
+   "title": "Deployment nudges queue serial 700ms glides (board.js:651-664)",
+   "ref": "board.js:651-664",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "B-4",
+   "title": "Status text 4-7px on screen at fit zoom (board.js:1356, 1383)",
+   "ref": "board.js:1356, 1383",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "B-5",
+   "title": "placeMapDial forces layout every frame (app.js:1368-1389)",
+   "ref": "app.js:1368-1389",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "A1",
+   "title": "Acts on stale pending options after a surrender (ai.js:142-186)",
+   "ref": "ai.js:142-186",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "A2",
+   "title": "A throw in deploy/plan leaves the AI never ready (server/index.js:386-392)",
+   "ref": "server/index.js:386-392",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "A3",
+   "title": "Math.random: soak failures cannot be replayed (ai.js:20,129)",
+   "ref": "ai.js:20,129",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "A4",
+   "title": "Strength not validated against real players",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "wontfix",
+   "status": "wontfix",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S1",
+   "title": "Tokenless socket passes host checks when no human is seated (server/index.js:312,407,423,451)",
+   "ref": "server/index.js:312,407,423,451",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S2",
+   "title": "One bad entry in armies.json blanks every screen (server/index.js:77,137)",
+   "ref": "server/index.js:77,137",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S3",
+   "title": "freeSeatLater runs run/broadcast without try (server/index.js:438-447)",
+   "ref": "server/index.js:438-447",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S4",
+   "title": "install-art crashes when Art/ is missing (install-art.mjs:14)",
+   "ref": "install-art.mjs:14",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S5",
+   "title": "No ws.on(\"error\"); oversize frame reaches uncaughtException",
+   "ref": "\"error\"); oversize frame reaches uncaughtException",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S6",
+   "title": "Beat not re-checked when a non-acked player disconnects",
+   "ref": "",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S7",
+   "title": "receive.html sends no ack when fetch rejects (receive.html:19)",
+   "ref": "receive.html:19",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S8",
+   "title": "No multi-machine LAN soak",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "wontfix",
+   "status": "wontfix",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "X1",
+   "title": "Pile in predicate duplicated in engine, app.js:1271, ai.js:87",
+   "ref": "",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "X2",
+   "title": "roster-check imports ../public/art.js; no cross-army name or upgrade checks",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "deferred",
+   "status": "deferred",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "X3",
+   "title": "check-presets DP list fixed; crimson-court no item at 54/55/90",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "X4",
+   "title": "Start Game.command: no Node 20 check, blind kill of port 3000",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "handoff",
+   "status": "handoff",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "X5",
+   "title": "Stale ITEM_PRICE_FACTION comment (items.js:26-27)",
+   "ref": "items.js:26-27",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T1",
+   "title": "viewFor token/fog mutations survive (pending.pid, winner, obstacle owner, army, queue...)",
+   "ref": "pending.pid, winner, obstacle owner, army, queue...",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T2",
+   "title": "pileIn: 2 scenarios, 10 surviving mutations",
+   "ref": "",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T3",
+   "title": "Back-away: magnitude, retries, guards, direction survive",
+   "ref": "",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T4",
+   "title": "attackCheck why-chain and CONTACT boundary survive",
+   "ref": "",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T5",
+   "title": "Tie pick guards, phase key, 3-unit ordering survive",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T6",
+   "title": "No mdToHTML test; no server tests",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "T7",
+   "title": "Fuzz tests assert only that games finish",
+   "ref": "",
+   "severity": "low",
+   "bucket": "deferred",
+   "status": "deferred",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "D2",
+   "title": "RULES 24-25 ignores minimum range (range 2+ weapons at range 1)",
+   "ref": "range 2+ weapons at range 1",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "D3",
+   "title": "Pile in ring shows where pile in cannot happen (via X1)",
+   "ref": "via X1",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "D4",
+   "title": "Stale comments/hints: board.js:1022, reachSummary, ROADMAP intro, 60 vs 40 DP",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "open",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  }
+ ],
+ "hardened": [
+  "Units block attacks but never sight or spotting (decision 2026-10-25).",
+  "Own units never block own shots; hills and fliers ignore unit blocking.",
+  "Melee (max range 1) needs base contact <= 10, with pile in at Engagement start.",
+  "Enemy bumps stay in contact; friend/rock bumps back away at half the remaining move; bumped units lose actions.",
+  "Tie picks persist all battle per phase; computer opponents never get pick prompts.",
+  "One-click attack when one weapon option is intentional.",
+  "Spectators see every unit; dead enemy units stay visible under fog (decision 2026-10-25).",
+  "LAN with no auth; client-generated tokens; one process is one table.",
+  "No touch-screen pinch zoom (documented). The side-panel dial coexists with the map dial.",
+  "docs/STATUS.html is a marked historical snapshot."
+ ],
+ "learnings": [
+  "Mutation runs on a scratch copy are the highest-yield test lens here: 69 of 102 survived in cycle 1.",
+  "Balance regressions after rules changes came from AI planning twice (facing, bump avoidance): diagnose per-unit attack availability before touching costs.",
+  "Hand-placed test geometry lies: assert the premise (range band, contact) before the behavior."
+ ]
 }
