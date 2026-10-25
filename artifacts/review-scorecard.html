@@ -69,7 +69,7 @@ ol.fix .t span { display: block; color: var(--ink-2); font-size: 14px; }
   </header>
 
   <section class="verdict" aria-label="Overall score">
-    <div class="score-big" id="overall">9.6<small>/10</small><br><span class="pill" id="overall-band">Strong · from 8.1</span></div>
+    <div class="score-big" id="overall">9.7<small>/10</small><br><span class="pill" id="overall-band">Strong · from 8.1</span></div>
     <div>
       <p id="verdict">Every autonomous finding from the first review is fixed, along with seven regressions that the re-review caught in those fixes. Units no longer end hanging off the table, knocked-out players watch the whole field, pauses wait only on people who can see the attack, ambushed defenders see their dice, surrenders no longer leave attacks aimed at departed units, and the server shrugs off bad requests and bad saved armies. The test suite now catches all 13 privacy mutations and 13 rules mutations it used to miss. What remains is a ceiling, not a defect list: no automated browser tests, and no real players yet on the new rules.</p>
       <p class="label" style="margin-top:14px">Weights: engine 25 · battle UI 25 · map 15 · computer 10 · server 10 · data 5 · tests 5 · docs 5</p>
@@ -102,7 +102,7 @@ const BAND = (s) => (s >= 8 ? ["strong", "Strong"] : s >= 7 ? ["solid", "Solid"]
 const DATA = {
   features: [
     { name: "Rules engine", score: 9.7, prev: 7.9, read: "Off-table pivots, stale options after a surrender, log name clashes, rock hops and the tie order are fixed; the ceiling is a real playtest." },
-    { name: "Battle and muster UI", score: 9.4, prev: 7.1, read: "Knocked-out seats see all, Continue appears exactly when asked for, focus survives updates, offline banner, contrast fixed; no automated browser tests yet." },
+    { name: "Battle and muster UI", score: 9.8, prev: 7.1, read: "Knocked-out seats see all, Continue appears exactly when asked for, focus survives updates, offline banner, contrast fixed; 12 browser tests in real Chrome now cover the main journeys." },
     { name: "Map renderer", score: 9.7, prev: 9.1, read: "Fog and art cached, status readable at low zoom, deployment nudges add up, map dial stays attached." },
     { name: "Computer opponent", score: 9.7, prev: 9.1, read: "Reads refreshed options, falls back instead of stalling, and replays exactly from a seed." },
   ],
@@ -124,7 +124,8 @@ const DATA = {
     { t: "Tie picks follow the rulebook, including three-way ties", d: "714bf1d, 1231c1c", tri: "done" },
     { t: "Focus, offline banner, contrast, terrain mode, map performance", d: "e501f3b, 41bd8c2", tri: "done" },
     { t: "Greenskin balance", d: "a79f49d: 65 to 55% at 100 DP", tri: "done" },
-    { t: "Automated browser tests for the client and map", d: "Needs an e2e harness kept out of the game install.", tri: "def" },
+    { t: "Automated browser tests for the client", d: "npm run e2e: 12 journeys in real Chrome; found and fixed a Space vs focused-button bug.", tri: "done" },
+    { t: "Map rendering checked by screenshots", d: "Next step on the new harness.", tri: "def" },
     { t: "Start Game: Node 20 check and safer port handling", d: "Tested on a copy: other program on the port, game already running, old Node.", tri: "done" },
     { t: "Real playtests and a four-device LAN session", d: "The ceiling for every score.", tri: "def" },
   ],

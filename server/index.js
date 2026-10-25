@@ -72,7 +72,8 @@ const STALE_HINT = SUPERVISED
   : "The game server is running older code. Stop it and open Start Game again to load the latest rules.";
 
 // ── Saved armies (persist across battles and restarts, shared by the table) ──
-const DATA = join(ROOT, "data");
+// Saved armies live in data/ (DOW_DATA moves them, so the browser tests never touch real saves).
+const DATA = process.env.DOW_DATA || join(ROOT, "data");
 const ARMIES = join(DATA, "armies.json");
 let armies = [];
 try {

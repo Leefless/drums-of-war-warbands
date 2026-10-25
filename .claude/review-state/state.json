@@ -2,7 +2,7 @@
  "lastRun": {
   "commit": "1231c1c",
   "date": "2026-10-25",
-  "overallScore": 9.6,
+  "overallScore": 9.7,
   "cycleCounter": 1,
   "prevOverall": 8.1
  },
@@ -119,7 +119,7 @@
     "public/styles.css",
     "public/index.html"
    ],
-   "score": 9.4,
+   "score": 9.8,
    "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "All pending types have prompts; XSS clean; handlers not duplicated.",
@@ -283,7 +283,8 @@
      "points": 0.4,
      "bucket": "deferred",
      "unlock": "Playwright or similar e2e harness (local-only tooling)",
-     "status": "open"
+     "status": "burned",
+     "commit": "e2e harness, 2026-10-25"
     },
     {
      "id": "UI-HUMAN",
@@ -292,6 +293,15 @@
      "bucket": "wontfix",
      "unlock": "human playtests",
      "status": "open"
+    },
+    {
+     "id": "CUI-SPACE-BTN",
+     "desc": "e2e found: Space did not press Continue while a mouse-clicked button (e.g. Sound) kept focus",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "e2e harness, 2026-10-25"
     }
    ],
    "prevScore": 7.1
@@ -1438,6 +1448,7 @@
   "Hand-placed test geometry lies: assert the premise (range band, contact) before the behavior.",
   "Re-reviewing this cycle's own fixes found 7 regressions (focus vs shortcut, dial drift, tie ordering, armies erase, beat close, banner text, cost display): the Phase 6 re-review is mandatory, not optional.",
   "Mutation-check every new test the moment it is written: 4 new tests this cycle passed for the wrong reason (2-player surrender ended the battle; pile-in rock premise; 3-way tie; rock-hop geometry) until a planted bug showed they could not fail.",
-  "gate.sh and commit.sh helper scripts in the session scratchpad kept 20 commits consistent (Leefless identity, push, account switch back)."
+  "gate.sh and commit.sh helper scripts in the session scratchpad kept 20 commits consistent (Leefless identity, push, account switch back).",
+  "The e2e harness found a bug every manual drive missed (Space vs a mouse-focused button) and its first flake was a real race in the test (stale beat.ms): debug flakes with page-side instrumentation before changing timing."
  ]
 }

@@ -77,6 +77,7 @@ and sprites through the OpenAI Images API instead, if a key is set in `.env`.
 | `shared/ai.js` | Computer opponent; plays through the same commands as a person and obeys fog of war. |
 | `scripts/` | `check-roster` (roster rules), `check-items` (item prices), `check-presets` (preset legality at every DP), `sim-items` (item balance), `sim-presets` (computer-vs-computer win rates), `gen-art` (OpenAI Images art), `install-art` (move `Art/` drops into `public/art/`). |
 | `test/` | `npm test` runs the rules, roster, terrain, battlefield, preset and computer-opponent tests, including random battles with all 247 units. |
+| `test/e2e/` | `npm run e2e`: browser tests that drive Chrome through joining, mustering, deploying, planning, combat with the pause, surrendering and losing the connection. The test tool (playwright-core) installs into `.e2e/` on first run, never into the game's own install, and uses the Chrome already on this computer. |
 | `data/armies.json` | Saved armies (created on first save, not in git). |
 
 The server is authoritative: browsers send intents, the engine validates them,

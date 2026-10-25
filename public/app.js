@@ -187,6 +187,19 @@ async function openRules() {
   }
 }
 $("#rulesBtn").onclick = openRules;
+
+// Browser tests (page opened with ?e2e) read this screen's own view and where its units are drawn.
+// It exposes nothing the page does not already hold, and normal play never creates it.
+if (/[?&]e2e(&|$)/.test(location.search)) {
+  window.__dow = {
+    state: () => S,
+    unitScreen: (id) => {
+      const u = unitById(id);
+      const c = $("#board");
+      return u && c ? boardToScreen(c, u.x, u.y) : null;
+    },
+  };
+}
 $("#players").onclick = (ev) => {
   const b = ev.target.closest("[data-drop]");
   if (b) send("dropPlayer", { seat: b.dataset.drop });
@@ -807,8 +820,15 @@ function renderBattle(app) {
       L.resizeTimer = setTimeout(drawBoard, 150); // repaint the battlefield once resizing settles
     };
     window.onkeydown = (ev) => {
-      if ((ev.key === " " || ev.key === "Enter") && canContinue() && !ev.repeat && !/^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(ev.target?.tagName || "") && !ev.target?.isContentEditable) {
+      // Space or Enter presses Continue during a pause. Typing fields keep their keys; a focused
+      // button or link keeps them only for keyboard players (after a mouse click, Chrome leaves
+      // focus on the clicked button, and Space must still mean Continue rather than click it again).
+      const tag = ev.target?.tagName || "";
+      const keepsKeys = /^(INPUT|TEXTAREA|SELECT)$/.test(tag) || ev.target?.isContentEditable || (/^(BUTTON|A)$/.test(tag) && T.keyboard && ev.target.id !== "contBtn");
+      if ((ev.key === " " || ev.key === "Enter") && canContinue() && !ev.repeat && !keepsKeys) {
         ev.preventDefault();
+        // A button clicks on Space's key-up: take focus off it so the release does not press it too.
+        if (/^(BUTTON|A)$/.test(tag)) ev.target.blur();
         return pressContinue();
       }
       if (ev.key === "Escape" && L.cardFor) { L.cardFor = null; return render(); }
