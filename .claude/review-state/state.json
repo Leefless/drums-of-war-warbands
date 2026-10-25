@@ -1,0 +1,9 @@
+{
+  "lastRun": { "commit": null, "date": null, "overallScore": null, "cycleCounter": 0 },
+  "artifactUrl": null,
+  "siblingSync": { "path": "~/.claude/commands/full-review.md", "lastSeenHash": "b0b48eeb8b5d004e9d5ac0a01f7df5a8c2ecc4ef", "lastSeenDate": "2026-10-25", "ported": "seeded the project command from this template" },
+  "areas": [],
+  "findings": [],
+  "hardened": [],
+  "learnings": []
+}
