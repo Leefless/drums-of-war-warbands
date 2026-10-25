@@ -5,8 +5,8 @@ import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, presetBuild } from "/shared/presets.js";
 import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
-import { BASE_SIZE, inArc, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
-import { CRIT_TEXT, attackCheck, attackDice, attackOptions, boughtRadius, defenseDice, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
+import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
+import { CRIT_TEXT, attackCheck, attackDice, attackOptions, boughtRadius, defenseDice, pileInTarget, strainCap, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
 import { boardToScreen, focusPoint, focusUnit, onFrame, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
@@ -1268,8 +1268,8 @@ function reachMarks() {
     const checks = sel.weapons.map((w) => attackCheck(S, g, t, w)).filter((c) => c.why !== "range");
     if (!checks.length) continue;
     const c = checks.find((x) => x.ok) || checks.sort((a, b) => ORDER.indexOf(a.why) - ORDER.indexOf(b.why))[0];
-    // A melee weapon short of contact but with the enemy in its arc piles in at the start of the Engagement.
-    const piles = c.why === "contact" && sel.weapons.some((w) => w.range[1] === 1 && inArc(g, w.arc, t, BASE_SIZE[t.base]));
+    // A melee weapon short of contact that will pile in on this enemy at the start of the Engagement.
+    const piles = c.why === "contact" && pileInTarget(S, g)?.t.id === t.id;
     marks.set(t.id, c.ok ? { kind: "miss", range: c.range, why: "hidden" } : { kind: "miss", range: c.range, why: piles ? "pile in" : LABEL[c.why] || c.why });
   }
   return marks;
@@ -1673,7 +1673,7 @@ function cardHTML() {
   if (u.cond.broken) conds.push(`Broken Arms ×${u.cond.broken}`);
   return `<div class="row" style="display:flex;justify-content:space-between;align-items:center;gap:8px;--fc:${playerColor(S, u.owner)}"><span style="display:flex;align-items:center;gap:8px"><span class="portrait small">${iconSVG(u.icon || UNIT_ICON[u.type] || "sword", "emblem")}${artTag(`units/${u.type}.png`, "")}</span><h3>${esc(u.name)}</h3></span><span class="label">${esc(nameOf(u.owner))}</span></div>
     <div class="label" style="color:${playerColor(S, u.owner)}">${esc(FACTIONS[u.faction].name)}${u.upgrade ? ` · ${esc(UPGRADES[u.upgrade].name)}` : ""}${u.dead ? " · destroyed" : ""}</div>
-    <div class="stats" style="margin:6px 0"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}/${u.maxWounds}</b></span><span>Ward <b>${u.ward}/${u.maxWard}</b></span><span>Strain <b>${u.strain}</b>/${u.faction === "greenskin" ? 2 : 1}</span></div>
+    <div class="stats" style="margin:6px 0"><span>Init <b>${u.init}</b></span><span>Def <b>${u.def}</b></span><span>Wounds <b>${u.wounds}/${u.maxWounds}</b></span><span>Ward <b>${u.ward}/${u.maxWard}</b></span><span>Strain <b>${u.strain}</b>/${strainCap(u)}</span></div>
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
     ${u.revealed ? `<div class="label" style="margin-top:6px">Revealed ${esc(u.revealed.replace(":", " "))}</div>` : ""}
     ${tokens.length ? `<div class="tags" style="margin-top:6px">${tokens.map((x) => `<span class="tag"><span class="coin"></span>${esc(x)}</span>`).join("")}</div>` : ""}
@@ -1836,7 +1836,7 @@ function unitStatus(u) {
   if (me2) ((me2.init || 0) + (me2.melee || 0) + (me2.ranged || 0) > 0 ? buffs : debuffs).push([`${me2.name} (${MAPS[S.map].name})`, `${me2.text}. ${me2.why}`]);
   if (u.aim) buffs.push([`Aimed ${u.aim}`, `Attacks gain up to ${u.aim} ${u.aim === 1 ? "die" : "dice"} against a target in a defensive stance, never more than its stance added.`]);
   if (u.stance) buffs.push([`Defensive stance +${u.stance}`, `Rolls ${u.stance} extra defence ${u.stance === 1 ? "die" : "dice"} until the end of the round.`]);
-  if (u.strain) debuffs.push([`Strain ${u.strain}/${u.faction === "greenskin" ? 2 : 1}`, strained(u) ? "Strained: cannot pick red maneuvers or red actions." : "Strain builds from red maneuvers and actions."]);
+  if (u.strain) debuffs.push([`Strain ${u.strain}/${strainCap(u)}`, strained(u) ? "Strained: cannot pick red maneuvers or red actions." : "Strain builds from red maneuvers and actions."]);
   for (const c of Object.keys(u.cond)) if (CRIT_TEXT[c] && c !== "broken") debuffs.push([c[0].toUpperCase() + c.slice(1), CRIT_TEXT[c]]);
   if (u.cond.broken) debuffs.push([`Broken Arms ×${u.cond.broken}`, CRIT_TEXT.broken]);
   if (u.cond.noAction) debuffs.push(["No actions", "Bumped, blocked or in rubble: no actions this activation."]);
@@ -1942,7 +1942,7 @@ function unitModalHTML(u) {
         <div class="cband-title">Current status${u.dead ? " · destroyed" : ""}${u.revealed ? ` · revealed ${esc(u.revealed.replace(":", " "))}` : ""}</div>
         ${meter("Wounds", u.wounds, u.maxWounds, "w")}
         ${u.maxWard ? meter("Ward", u.ward, u.maxWard, "ward") : ""}
-        ${meter("Strain", u.strain, u.faction === "greenskin" ? 2 : 1, "strain")}
+        ${meter("Strain", u.strain, strainCap(u), "strain")}
       </div>
       <div class="cfx"><div><h5>Buffs</h5><ul>${effects(buffs, "buff", "None right now.")}</ul></div>
         <div><h5>Debuffs</h5><ul>${effects(debuffs, "debuff", "None right now.")}</ul></div></div>

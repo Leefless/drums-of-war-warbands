@@ -5,7 +5,7 @@
 //   if it did something; the server calls it on a timer so moves stay watchable.
 import * as E from "./engine.js";
 import { FACTIONS, armyLimits, upgradesFor, validateArmy } from "./factions.js";
-import { BASE_SIZE, inArc, isAim, isStance, parseManeuver } from "./geometry.js";
+import { isAim, isStance, parseManeuver } from "./geometry.js";
 import { visibleTo } from "./terrain.js";
 import { MAPS, mapEffect } from "./battlefield.js";
 import { itemCost, itemsFor } from "./items.js";
@@ -81,10 +81,11 @@ function preferredRange(u) {
  */
 function hasShot(state, u, pose, foes) {
   const g = { ...u, x: pose.x, y: pose.y, h: pose.h };
-  // A melee weapon within range 1 and in arc counts: the unit piles in at the start of the Engagement.
+  // A melee unit that will pile in on the enemy at the start of the Engagement counts as a shot.
+  const piles = E.pileInTarget(state, g)?.t.id;
   return foes.some((f) => u.weapons.some((w) => {
     const c = E.attackCheck(state, g, f, w);
-    return c.ok || (c.why === "contact" && inArc(g, w.arc, f, BASE_SIZE[f.base]));
+    return c.ok || (c.why === "contact" && piles === f.id);
   }));
 }
 

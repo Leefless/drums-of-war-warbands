@@ -1369,38 +1369,46 @@ function startActivation(state) {
 }
 
 /**
- * Pile in: at the start of the Engagement, each unit with a melee weapon steps straight into base
- * contact with the nearest spotted enemy within range 1 in that weapon's arc, facing unchanged, if
- * the way is clear (no other base, no rocks, no terrain it is not already in). Highest initiative first.
+ * Where a unit would pile in: the nearest spotted enemy within range 1 in a melee weapon's arc,
+ * reached by stepping straight toward it, facing unchanged, if the way is clear (no other base,
+ * no rocks, no terrain it is not already in, never off the table). Returns { t, pose } or null.
+ * Shared by the engine, the computer opponent and the map markers.
  */
+export function pileInTarget(state, u) {
+  if (!u || u.dead) return null;
+  const melee = u.weapons.filter(isMelee);
+  if (!melee.length) return null;
+  const seen = visibleTo(state, u.owner);
+  const foes = enemiesOf(state, u)
+    .filter((t) => seen.has(t.id) && rangeBetween(u, t) <= 1 && melee.some((w) => inArc(u, w.arc, t, sizeOf(t))))
+    .map((t) => ({ t, gap: polyDistance(poly(u), poly(t)) }))
+    .sort((a, b) => a.gap - b.gap);
+  if (!foes.length || foes[0].gap <= CONTACT) return null; // already fighting
+  const { t, gap } = foes[0];
+  const d = Math.hypot(t.x - u.x, t.y - u.y) || 1;
+  const dir = { x: (t.x - u.x) / d, y: (t.y - u.y) / d };
+  const startIn = new Set(state.obstacles.filter((o) => touches(u, o)).map((o) => o.id));
+  let pose = null;
+  for (let step = 2; step <= gap + 2; step += 2) {
+    const p = { x: u.x + dir.x * step, y: u.y + dir.y * step, h: u.h };
+    if (overlapsAny(state, u, p).length || !insideBoard(corners(p, sizeOf(u)), state.board)) break;
+    if (state.obstacles.some((o) => !startIn.has(o.id) && touches(u, o, p))) break;
+    pose = p;
+    if (polyDistance(corners(p, sizeOf(u)), poly(t)) <= CONTACT / 2) break;
+  }
+  if (!pose || polyDistance(corners(pose, sizeOf(u)), poly(t)) > CONTACT) return null; // the way is not clear
+  return { t, pose };
+}
+
+/** Pile in: at the start of the Engagement, highest initiative first, every unit that can pile in does. */
 function pileIn(state) {
   const order = initiativeQueue(state, true).map((id) => unit(state, id));
   for (const u of order) {
-    if (!u || u.dead) continue;
-    const melee = u.weapons.filter(isMelee);
-    if (!melee.length) continue;
-    const seen = visibleTo(state, u.owner);
-    const foes = enemiesOf(state, u)
-      .filter((t) => seen.has(t.id) && rangeBetween(u, t) <= 1 && melee.some((w) => inArc(u, w.arc, t, sizeOf(t))))
-      .map((t) => ({ t, gap: polyDistance(poly(u), poly(t)) }))
-      .sort((a, b) => a.gap - b.gap);
-    if (!foes.length || foes[0].gap <= CONTACT) continue; // already fighting
-    const { t, gap } = foes[0];
-    const d = Math.hypot(t.x - u.x, t.y - u.y) || 1;
-    const dir = { x: (t.x - u.x) / d, y: (t.y - u.y) / d };
-    const startIn = new Set(state.obstacles.filter((o) => touches(u, o)).map((o) => o.id));
-    let pose = null;
-    for (let step = 2; step <= gap + 2; step += 2) {
-      const p = { x: u.x + dir.x * step, y: u.y + dir.y * step, h: u.h };
-      if (overlapsAny(state, u, p).length || !insideBoard(corners(p, sizeOf(u)), state.board)) break;
-      if (state.obstacles.some((o) => !startIn.has(o.id) && touches(u, o, p))) break;
-      pose = p;
-      if (polyDistance(corners(p, sizeOf(u)), poly(t)) <= CONTACT / 2) break;
-    }
-    if (!pose || polyDistance(corners(pose, sizeOf(u)), poly(t)) > CONTACT) continue; // the way is not clear
-    u.trail = [{ x: u.x, y: u.y }, { x: pose.x, y: pose.y }];
-    Object.assign(u, { x: pose.x, y: pose.y });
-    log(state, `${u.name} piles in against ${t.name}.`);
+    const r = pileInTarget(state, u);
+    if (!r) continue;
+    u.trail = [{ x: u.x, y: u.y }, { x: r.pose.x, y: r.pose.y }];
+    Object.assign(u, { x: r.pose.x, y: r.pose.y });
+    log(state, `${u.name} piles in against ${r.t.name}.`);
   }
 }
 
