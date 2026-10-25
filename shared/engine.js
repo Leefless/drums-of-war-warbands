@@ -1629,7 +1629,15 @@ export function viewFor(state, pid) {
     v.planned = v.planned.filter(known);
     v.queue = v.queue.filter(known);
     if (v.pending && v.pending.pid !== pid) v.pending = { type: v.pending.type, pid: v.pending.pid, uid: known(v.pending.uid) ? v.pending.uid : null };
-    for (const k of ["attack", "lastAttack"]) if (v[k] && (!known(v[k].attacker) || !known(v[k].target))) v[k] = null;
+    // An attack between units this seat cannot see is hidden, except that the target's owner always
+    // sees an attack on their own unit (dice and all), with an unseen attacker masked.
+    for (const k of ["attack", "lastAttack"]) {
+      const A = v[k];
+      if (!A) continue;
+      const mineHit = unit(state, A.target)?.owner === pid;
+      if (mineHit && !known(A.attacker)) Object.assign(A, { attacker: null, weapon: null });
+      else if (!known(A.attacker) || !known(A.target)) v[k] = null;
+    }
     const nameOf = Object.fromEntries(hiddenUnits.map((u) => [u.id, u.name]));
     for (const entry of v.log) {
       // A line about what an unseen enemy did (its maneuver, actions) says only that it acted.

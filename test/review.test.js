@@ -179,3 +179,15 @@ test("seesUnit: what a seat can see decides whether a pause waits on it", () => 
   s.players[0].eliminated = true;
   assert.equal(E.seesUnit(s, A, foe.id), true, "a seat out of the battle sees everything");
 });
+
+test("an ambushed defender sees the attack on their unit, with the unseen attacker masked", () => {
+  const s = battle();
+  const foe = s.units.find((u) => u.owner === B);
+  const mine = s.units.find((u) => u.owner === A);
+  assert.equal(E.seesUnit(s, A, foe.id), false, "premise: the attacker is out of sight");
+  s.attack = { attacker: foe.id, target: mine.id, weapon: 0, range: 3, atk: ["strike"], def: [], rerolled: [], used: [], steps: [] };
+  const v = E.viewFor(s, A);
+  assert.ok(v.attack, "the defender sees the attack");
+  assert.equal(v.attack.attacker, null, "the attacker stays unseen");
+  assert.deepEqual(v.attack.atk, ["strike"], "with the dice");
+});

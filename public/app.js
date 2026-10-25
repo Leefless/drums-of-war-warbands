@@ -1594,7 +1594,7 @@ function diceHTML(A, live) {
   const selectable = live && S.pending?.type === "attackMods" && S.pending.pid === S.you;
   const res = A.result ? ` · ${A.result.strikes} Strike, ${A.result.rends} Rend` : "";
   return `<hr><div class="label">${A.ambush ? "Ambush! · " : ""}${live ? "Attack in progress" : "Last attack"} · R${A.range}${A.obstructed ? " · haze" : ""}${res}</div>
-    <div style="font-size:13px;margin:4px 0">${esc(at?.name)} → ${esc(df?.name)}</div>
+    <div style="font-size:13px;margin:4px 0">${esc(unitName(A.attacker))} → ${esc(unitName(A.target))}</div>
     <div class="dice">${A.atk.map((f, i) => `${selectable ? `<button class="die atk ${f} ${L.diceSel.has(i) ? "sel" : ""} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}" data-die="${i}" aria-pressed="${L.diceSel.has(i)}" aria-label="${f} die">${iconSVG(DIE_ICON[f])}</button>` : `<span class="die atk ${f} ${A.rerolled.includes(i) ? "rr" : ""} ${rolled("a", i, f)}" title="${f}">${iconSVG(DIE_ICON[f])}</span>`}`).join("")}</div>
     <div class="dice" style="margin-top:4px">${A.def.map((f, i) => `<span class="die def ${f} ${rolled("d", i, f)}" title="${f}">${iconSVG(DIE_ICON[f])}</span>`).join("") || (live ? "<span class='muted'>defence not rolled yet</span>" : "<span class='muted'>no defence dice</span>")}${A.brace ? " <span class='tag'>brace</span>" : ""}</div>`;
 }
