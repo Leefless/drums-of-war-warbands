@@ -951,11 +951,11 @@ function noteArrival(hadState) {
   updateTitle();
 }
 
-/** Seated, still fighting, connected humans the battle waits on during a beat. */
-const beatHumans = () => S.players.filter((p) => !p.ai && !p.eliminated && !p.surrendered && p.connected);
+/** How many people the pause waits on, as the server counts them (those who can see the attack). */
+const beatTotal = () => S.beat?.total ?? 0;
+/** The pause waits on this screen and it has not pressed Continue yet. */
 function canContinue() {
-  const p = me();
-  return !!(S?.beat && p && !p.ai && !p.eliminated && !p.surrendered && !(S.beat.acked || []).includes(S.you) && T.pressedN !== S.beat.n);
+  return !!(S?.beat?.waiting && !(S.beat.acked || []).includes(S.you) && T.pressedN !== S.beat.n);
 }
 function pressContinue() {
   if (!canContinue()) return;
@@ -977,7 +977,8 @@ function turnInfo() {
   }
   if (S.beat) {
     const acked = (S.beat.acked || []).length;
-    const total = Math.max(beatHumans().length, acked);
+    const total = Math.max(beatTotal(), acked);
+    if (!S.lastAttack) return { text: "An attack resolves out of your sight", pid: null, mine: false };
     return { text: total ? `Attack resolved: Continue when ready (${acked} of ${total})` : "Attack resolved", pid: null, mine: false };
   }
   const pd = S.pending;
@@ -1142,8 +1143,8 @@ function renderCombat() {
   let beatHTML = "";
   if (c.done && beat) {
     const acked = (beat.acked || []).length;
-    const total = Math.max(beatHumans().length, acked);
-    const seated = !!me() && !me().ai && !me().eliminated && !me().surrendered;
+    const total = Math.max(beatTotal(), acked);
+    const seated = !!S.beat.waiting;
     beatHTML = `<div class="cc-beat">${needAck ? `<button class="cta small" id="contBtn">Continue</button>` : seated ? `<span class="muted">Waiting for the others</span>` : ""}${seated && total ? `<span class="label">${acked} of ${total} ready</span>` : ""}<div class="cc-count" aria-hidden="true">__BAR__</div></div>`;
   }
   const html = `<div class="cc-head"><span class="cc-side" style="--tc:${col(at)}">${esc(unitName(A.attacker))}</span><span class="cc-arrow" aria-hidden="true">→</span><span class="cc-side" style="--tc:${col(df)}">${esc(unitName(A.target))}</span>

@@ -92,6 +92,17 @@ export const strained = (u) => u.strain >= strainCap(u);
 const deathless = (u) => rule(u, "deathless");
 const ignoresObstacles = (u) => has(u, "ethereal") || has(u, "flying");
 
+/**
+ * Can this seat see this unit right now (as its view shows it)? Own units, dead units and
+ * everything for a seat that is out of the battle count as seen.
+ */
+export function seesUnit(state, pid, uid) {
+  const p = player(state, pid);
+  const u = unit(state, uid);
+  if (!p || !u || p.eliminated || u.dead || u.owner === pid) return true;
+  return visibleTo(state, pid).has(uid);
+}
+
 /** Range band between two units' bases (1 when touching). */
 export function rangeBetween(a, b) {
   return rangeBand(polyDistance(poly(a), poly(b)));

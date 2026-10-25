@@ -221,6 +221,7 @@ function broadcast() {
 
 function sendStates() {
   watchBeat();
+  const waits = game.beat ? beatWaitsFor() : [];
   const online = new Set([...sockets.values()].map((s) => s.token));
   // Views carry public seat ids, so map connection status by seat (computer seats are always here).
   const here = new Set(game.players.filter((p) => p.ai || online.has(p.id)).map((p) => `p${p.seat}`));
@@ -234,7 +235,13 @@ function sendStates() {
     view.host = E.player(game, hostId()) ? `p${E.player(game, hostId()).seat}` : null;
     view.canRestart = SUPERVISED;
     // The pause after an attack: who has pressed Continue, and how long until it ends anyway.
-    if (game.beat) view.beat = { n: game.beat.n, acked: [...beatAcks].map((id) => E.player(game, id)).filter(Boolean).map((p) => `p${p.seat}`), ms: Math.max(0, beatUntil - Date.now()) };
+    if (game.beat) {
+      view.beat = {
+        n: game.beat.n, ms: Math.max(0, beatUntil - Date.now()),
+        acked: [...beatAcks].map((id) => E.player(game, id)).filter(Boolean).map((p) => `p${p.seat}`),
+        total: waits.length, waiting: !info.spectator && waits.some((p) => p.id === info.token), // does this pause wait on this screen
+      };
+    }
     try {
       ws.send(JSON.stringify({ t: "state", state: view }));
     } catch (err) {
@@ -374,10 +381,15 @@ function endBeat() {
   broadcast();
   scheduleAI();
 }
-/** Seated people who are connected and still fighting: the ones a pause waits for. */
+/**
+ * Seated people who are connected, still fighting, and can see the attack that just resolved:
+ * the ones a pause waits for. An attack fought out of someone's sight does not wait on them.
+ */
 function beatWaitsFor() {
   const online = new Set([...sockets.values()].filter((s) => !s.spectator).map((s) => s.token));
-  return game.players.filter((p) => !p.ai && !p.eliminated && online.has(p.id));
+  const A = game.lastAttack;
+  const sees = (p) => !A || (E.seesUnit(game, p.id, A.attacker) && E.seesUnit(game, p.id, A.target));
+  return game.players.filter((p) => !p.ai && !p.eliminated && online.has(p.id) && sees(p));
 }
 function aiTick() {
   for (const p of game.players.filter((x) => x.ai)) {
@@ -478,6 +490,8 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     sockets.delete(ws);
     if (info.token && !info.spectator && game.phase === "muster") freeSeatLater(info.token);
+    // A pause waiting on someone who just left may now be complete.
+    if (game.beat && beatWaitsFor().every((p) => beatAcks.has(p.id))) endBeat();
     broadcast();
   });
 });

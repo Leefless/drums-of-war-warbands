@@ -169,3 +169,13 @@ test("a surrender refreshes other seats' choices: no attacks on units that left 
   assert.ok(!s.pending?.options?.some((o) => o.target === skel.id), "the departed unit is no longer offered");
   assert.throws(() => E.declareAttack(s, A, { target: skel.id, weapon: 0 }));
 });
+
+test("seesUnit: what a seat can see decides whether a pause waits on it", () => {
+  const s = battle();
+  const foe = s.units.find((u) => u.owner === B);
+  const mine = s.units.find((u) => u.owner === A);
+  assert.equal(E.seesUnit(s, A, foe.id), false, "an enemy across the table is out of sight");
+  assert.equal(E.seesUnit(s, A, mine.id), true, "own units are always seen");
+  s.players[0].eliminated = true;
+  assert.equal(E.seesUnit(s, A, foe.id), true, "a seat out of the battle sees everything");
+});
