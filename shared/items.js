@@ -25,10 +25,11 @@ export const ITEM_KINDS = ["Weapon", "Armour", "Talisman", "Banner", "Arcane", "
 // Items are priced by the cost model, then scaled: battle simulations showed the model's
 // marginal prices undervalue gear (an army that spent its points on items beat the same
 // style spending them on units 63% of the time), so every item costs ITEM_PRICE_K times its
-// modelled value, at least ITEM_MIN_PRICE (check with node scripts/sim-items.mjs). The Greenskin horde gets more from extra bodies
-// than from gear, so its items stay at the plain modelled price.
+// modelled value, at least ITEM_MIN_PRICE (check with node scripts/sim-items.mjs). The Greenskin
+// horde once paid the plain modelled price (it gets more from extra bodies than from gear), but
+// under the base-contact melee rules it became the strongest army, so it now pays the standard rate.
 export const ITEM_PRICE_K = 1.5;
-export const ITEM_PRICE_FACTION = { greenskin: 1.0 };
+export const ITEM_PRICE_FACTION = {};
 export const ITEM_MIN_PRICE = 3;
 
 export const itemById = (fid, id) => (ITEMS[fid] || []).find((x) => x.id === id) || null;

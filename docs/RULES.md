@@ -198,8 +198,8 @@ A unit whose item gives a weapon range 2 or more gains the Aim row on its dial
 
 Items come in seven kinds: Weapon, Armour, Talisman, Banner, Arcane, Mount and
 Relic. An item's price comes from the same cost model that prices units: the
-unit's cost with the item minus its cost without, times 1.5 (1.0 for the
-Greenskin Warhorde), at least 3 DP, and with the 15% champion premium on a
+unit's cost with the item minus its cost without, times 1.5, at least 3 DP,
+and with the 15% champion premium on a
 champion. So the same blade costs more on a monster than on a goblin. The 1.5
 comes from battle simulations: priced at the plain modelled value, an army that
 spent points on items beat the same style spending them on units 63% of the
