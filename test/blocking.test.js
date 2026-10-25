@@ -3,6 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as E from "../shared/engine.js";
+import { BASE_SIZE, corners, insideBoard } from "../shared/geometry.js";
 
 const A = "tokenAAAA1111";
 const B = "tokenBBBB2222";
@@ -116,4 +117,32 @@ test("pile in: melee units step into contact at the start of the Engagement, if 
   engage(s);
   assert.deepEqual({ x: s.units[0].x, y: s.units[0].y }, before, "a blocked unit does not move");
   assert.equal(E.attackCheck(s, s.units[0], s.units[1], s.units[0].weapons[0]).why, "contact");
+});
+
+test("a stance pivot or a pile in never leaves a base off the table", () => {
+  // A medium base flush to the west edge, facing north: a half-left pivot would push a corner off.
+  const s = table([{ unit: "ironbreakers", x: 31, y: 600 }], [{ unit: "halberdiers", x: 600, y: 200, h: 180 }]);
+  const u = s.units[0];
+  const mv = E.planMove(s, u, "0DBL:w");
+  assert.equal(mv.fled, false);
+  assert.equal(mv.pose.h, 0, "the pivot is refused at the edge");
+  // Ork Boyz near the west edge pile in toward Lizard Skirmishers: they stop at the edge.
+  const t = E.createGame({ seed: 3, budget: 300 });
+  E.addPlayer(t, A, "Ann");
+  E.addPlayer(t, B, "Bo");
+  E.setFaction(t, A, "greenskin");
+  E.setFaction(t, B, "concord");
+  E.submitArmy(t, A, [{ unit: "boyz" }]);
+  E.submitArmy(t, B, [{ unit: "conLizardSkirmishers" }]);
+  E.run(t);
+  t.obstacles = [];
+  const [boyz, lizards] = t.units;
+  Object.assign(boyz, { x: 44, y: 200, h: 315 });
+  Object.assign(lizards, { x: 20, y: 100, h: 0 });
+  const inside = (x) => insideBoard(corners(x, BASE_SIZE[x.base]), t.board);
+  assert.ok(inside(boyz) && E.rangeBetween(boyz, lizards) === 1, "premise: on the table, within range 1");
+  t.phase = "activation";
+  t.queue = [];
+  E.run(t);
+  assert.ok(inside(boyz), "the pile in stops at the table edge");
 });

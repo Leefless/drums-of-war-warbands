@@ -549,9 +549,10 @@ export function planMove(state, u, code) {
   const start = { x: u.x, y: u.y, h: u.h };
   if (man.type === "X") return { man, pose: start, t: 1, bumped: [], path: [start], fled: false };
   if (isHold(man)) {
-    // Pivot in place; if the new facing would overlap a neighbour or rocks, keep the old one.
+    // Pivot in place; if the new facing would overlap a neighbour or rocks, or push a corner off
+    // the table, keep the old one (a turn never makes a unit flee).
     const turned = maneuverPose(start, man, size, 1);
-    const pose = overlapsAny(state, u, turned).length || blocksAt(state, u, turned) ? start : turned;
+    const pose = overlapsAny(state, u, turned).length || blocksAt(state, u, turned) || !insideBoard(corners(turned, size), state.board) ? start : turned;
     return { man, pose, t: 1, bumped: [], path: [start, pose], fled: false };
   }
   const STEP = 0.02;
@@ -1374,7 +1375,7 @@ function pileIn(state) {
     let pose = null;
     for (let step = 2; step <= gap + 2; step += 2) {
       const p = { x: u.x + dir.x * step, y: u.y + dir.y * step, h: u.h };
-      if (overlapsAny(state, u, p).length) break;
+      if (overlapsAny(state, u, p).length || !insideBoard(corners(p, sizeOf(u)), state.board)) break;
       if (state.obstacles.some((o) => !startIn.has(o.id) && touches(u, o, p))) break;
       pose = p;
       if (polyDistance(corners(p, sizeOf(u)), poly(t)) <= CONTACT / 2) break;
