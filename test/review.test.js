@@ -191,3 +191,35 @@ test("an ambushed defender sees the attack on their unit, with the unseen attack
   assert.equal(v.attack.attacker, null, "the attacker stays unseen");
   assert.deepEqual(v.attack.atk, ["strike"], "with the dice");
 });
+
+test("log scrubbing matches whole names: an unseen 'Organ Gun' never blanks 'Organ Gun Battery'", () => {
+  const s = E.createGame({ seed: 4, budget: 100 });
+  E.addPlayer(s, A, "Ann");
+  E.addPlayer(s, B, "Bo");
+  E.setFaction(s, A, "holds");
+  E.setFaction(s, B, "concord");
+  E.submitArmy(s, A, [{ unit: "holdOrganGun" }]);
+  E.submitArmy(s, B, [{ unit: "conOrganGun" }]);
+  E.run(s);
+  const [hidden, mine] = s.units;
+  assert.ok(mine.name.includes(hidden.name) && mine.name !== hidden.name, "premise: one name contains the other");
+  assert.equal(E.seesUnit(s, B, hidden.id), false, "premise: the Holds gun is out of sight");
+  s.phase = "plan";
+  s.log = [];
+  s.log.push({ round: 1, phase: "activation", msg: `${mine.name} executes 1S w.`, refs: [mine.id, hidden.id], who: B });
+  const v = E.viewFor(s, B);
+  assert.equal(v.log.at(-1).msg, `${mine.name} executes 1S w.`, "my own line is untouched");
+});
+
+test("a rejected batch of dials leaves the player's readiness as it was", () => {
+  const s = battle();
+  E.ready(s, A);
+  E.ready(s, B);
+  E.run(s);
+  assert.equal(s.phase, "plan");
+  const mine = s.units.find((u) => u.owner === A);
+  E.setDial(s, A, mine.id, mine.dial[1]);
+  E.ready(s, A);
+  assert.throws(() => E.setDials(s, A, { [mine.id]: "not-a-move" }));
+  assert.equal(s.players[0].ready, true);
+});

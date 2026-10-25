@@ -67,12 +67,27 @@ function rand(state) {
 }
 const roll = (state, faces) => faces[Math.floor(rand(state) * faces.length)];
 
+/**
+ * Where unit names appear in a line: longest names first and never overlapping, so a unit called
+ * "Organ Gun" is not found inside "Organ Gun Battery" (or "Ghouls (1)" inside "Ghouls (10)").
+ */
+function nameSpans(msg, units) {
+  const spans = [];
+  for (const u of [...units].sort((a, b) => b.name.length - a.name.length)) {
+    for (let i = msg.indexOf(u.name); i >= 0; i = msg.indexOf(u.name, i + 1)) {
+      const end = i + u.name.length;
+      if (!spans.some((x) => i < x.end && end > x.start)) spans.push({ start: i, end, id: u.id });
+    }
+  }
+  return spans.sort((a, b) => a.start - b.start);
+}
+
 function log(state, msg) {
   // Record which units a line mentions, so fog of war can scrub it per viewer.
-  const named = state.units.filter((u) => msg.includes(u.name));
-  const refs = named.map((u) => u.id);
+  const spans = nameSpans(msg, state.units);
+  const refs = [...new Set(spans.map((x) => x.id))];
   // The acting unit is the one the line starts with (for colouring the line by army).
-  const actor = named.filter((u) => msg.startsWith(u.name)).sort((a, b) => b.name.length - a.name.length)[0];
+  const actor = spans[0]?.start === 0 ? unit(state, spans[0].id) : null;
   state.log.push({ round: state.round, phase: state.phase, msg, refs, who: actor?.owner ?? null });
   if (state.log.length > 300) state.log.shift();
 }
@@ -457,10 +472,12 @@ export function setDials(state, pid, dials) {
   const entries = Object.entries(dials);
   if (entries.length > 30) fail("Too many dials.");
   const before = { ...state.dials };
+  const wasReady = player(state, pid)?.ready;
   try {
     for (const [uid, code] of entries) setDial(state, pid, uid, code);
   } catch (err) {
     state.dials = before;
+    if (player(state, pid)) player(state, pid).ready = wasReady;
     throw err;
   }
 }
@@ -624,12 +641,19 @@ export function planMove(state, u, code) {
     let dy = pose.y - from.y;
     let d = Math.hypot(dx, dy);
     if (d < 1) [dx, dy, d] = [-Math.sin((pose.h * Math.PI) / 180), Math.cos((pose.h * Math.PI) / 180), 1]; // straight back
+    // Every point of the way back must be clear (no hopping a rock or a base), and the points are
+    // added to the path so terrain crossed on the way still takes effect.
+    const at = (dist) => ({ x: pose.x + (dx / d) * dist, y: pose.y + (dy / d) * dist, h: pose.h });
+    const clear = (p2) => insideBoard(corners(p2, size), state.board) && !overlapsAny(state, u, p2).length && !blocksAt(state, u, p2);
     for (const f of [1, 0.75, 0.5, 0.25]) {
-      const p2 = { x: pose.x + (dx / d) * room * f, y: pose.y + (dy / d) * room * f, h: pose.h };
-      if (room * f < 2 || !insideBoard(corners(p2, size), state.board) || overlapsAny(state, u, p2).length || blocksAt(state, u, p2)) continue;
-      pose = p2;
-      backedOff = room * f;
-      path.push(pose);
+      const dist = room * f;
+      if (dist < 2) continue;
+      const steps = Math.max(1, Math.ceil(dist / 5));
+      const way = Array.from({ length: steps }, (_, i) => at((dist * (i + 1)) / steps));
+      if (!way.every(clear)) continue;
+      path.push(...way);
+      pose = way.at(-1);
+      backedOff = dist;
       break;
     }
   }
@@ -1651,14 +1675,25 @@ export function viewFor(state, pid) {
       if (mineHit && !known(A.attacker)) Object.assign(A, { attacker: null, weapon: null });
       else if (!known(A.attacker) || !known(A.target)) v[k] = null;
     }
-    const nameOf = Object.fromEntries(hiddenUnits.map((u) => [u.id, u.name]));
     for (const entry of v.log) {
-      // A line about what an unseen enemy did (its maneuver, actions) says only that it acted.
-      const actor = (entry.refs || []).find((id) => nameOf[id] && entry.msg.startsWith(nameOf[id]));
-      if (actor) Object.assign(entry, { msg: "An unseen enemy acts.", who: null });
-      else for (const id of entry.refs || []) if (nameOf[id]) entry.msg = entry.msg.split(nameOf[id]).join("an unseen enemy");
+      const refd = new Set(entry.refs || []);
+      const spans = nameSpans(entry.msg, state.units.filter((u) => refd.has(u.id)));
+      // A line about what an unseen enemy did (its maneuver, actions) says only that it acted;
+      // elsewhere an unseen enemy's name becomes "an unseen enemy".
+      if (spans[0]?.start === 0 && hide.has(spans[0].id)) Object.assign(entry, { msg: "An unseen enemy acts.", who: null });
+      else {
+        let out = "";
+        let at = 0;
+        for (const x of spans) {
+          out += entry.msg.slice(at, x.start) + (hide.has(x.id) ? "an unseen enemy" : entry.msg.slice(x.start, x.end));
+          at = x.end;
+        }
+        entry.msg = out + entry.msg.slice(at);
+      }
       entry.refs = (entry.refs || []).filter(known);
     }
+    // A visible unit's Mark on an unseen enemy would point at it: drop the link.
+    for (const u of v.units) if (u.tokens?.mark && hide.has(u.tokens.mark)) u.tokens.mark = null;
   }
   for (const entry of v.log) if (entry.who) entry.who = pub[entry.who] ?? null;
   // Opponents' army lists and terrain purchases stay private until the battle shows them.

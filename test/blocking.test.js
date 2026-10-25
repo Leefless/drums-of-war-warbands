@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import * as E from "../shared/engine.js";
-import { BASE_SIZE, corners, insideBoard } from "../shared/geometry.js";
+import { BASE_SIZE, corners, insideBoard, maneuverPose, parseManeuver } from "../shared/geometry.js";
 
 const A = "tokenAAAA1111";
 const B = "tokenBBBB2222";
@@ -77,10 +77,12 @@ test("a move blocked by a friend or rocks backs away at half speed, facing uncha
     return { mv, u, s };
   };
   for (const blocker of ["friend", "rocks"]) {
-    const { mv } = run(blocker);
+    const { mv, u } = run(blocker);
     assert.ok(mv.backedOff > 0, `${blocker}: it backs away`);
     assert.equal(mv.pose.h, 0, `${blocker}: facing unchanged`);
-    const stopped = mv.path.at(-2);
+    // Half of the unused template length: 3S is 60 + 120 = 180 long.
+    assert.ok(Math.abs(mv.backedOff - ((1 - mv.t) * 180) / 2) < 0.01, `${blocker}: half speed`);
+    const stopped = maneuverPose({ x: u.x, y: u.y, h: u.h }, parseManeuver("3S:w"), 60, mv.t);
     assert.ok(mv.pose.y > stopped.y, `${blocker}: away from the blocker (south)`);
     assert.ok(Math.abs(mv.pose.y - stopped.y - mv.backedOff) < 0.01);
   }
@@ -145,4 +147,17 @@ test("a stance pivot or a pile in never leaves a base off the table", () => {
   t.queue = [];
   E.run(t);
   assert.ok(inside(boyz), "the pile in stops at the table edge");
+});
+
+test("backing away never hops a rock it did not touch", () => {
+  // Light horse (small base) runs 5S north into a rock just ahead, with a small rock behind it.
+  const s = table([{ unit: "ironbreakers", x: 100, y: 100 }], [{ unit: "conLightHorse", x: 450, y: 500, h: 0 }]);
+  s.obstacles = [{ id: "r1", kind: "block", x: 450, y: 458, r: 12 }, { id: "r2", kind: "block", x: 450, y: 550, r: 12 }];
+  const u = s.units[1];
+  const mv = E.planMove(s, u, "5S:w");
+  assert.ok(mv.blockedBy, "premise: the front rock stops it");
+  const halfRoom = ((1 - mv.t) * (40 + 200)) / 2;
+  assert.ok(mv.path.at(-1).y + halfRoom > 562 + 20, "premise: a full back-away would land beyond the rear rock");
+  for (const p of mv.path) assert.ok(!s.obstacles.some((o) => Math.hypot(o.x - p.x, o.y - p.y) < o.r), "no point of the way runs through a rock");
+  assert.ok(mv.pose.y < 550, "it stays on the near side of the rear rock");
 });
