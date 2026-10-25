@@ -138,3 +138,46 @@ test("a person with tied units chooses which goes first; a computer opponent is 
   const ai = start(true);
   assert.notEqual(ai.pending?.type, "pick");
 });
+
+test("a tie choice stands for the rest of the battle: the chosen unit goes first without asking", () => {
+  const s = E.createGame({ seed: 8, budget: 100 });
+  E.addPlayer(s, A, "Ann");
+  E.addPlayer(s, B, "Bo");
+  E.setFaction(s, A, "holds");
+  E.setFaction(s, B, "sylvan");
+  E.submitArmy(s, A, [{ unit: "ironbreakers" }, { unit: "ironbreakers" }]);
+  E.submitArmy(s, B, [{ unit: "wardens" }]);
+  E.run(s);
+  E.ready(s, A);
+  E.ready(s, B);
+  E.run(s);
+  const planAll = () => {
+    for (const u of s.units.filter((x) => !x.dead)) E.setDial(s, u.owner, u.id, u.dial.find((c) => c.startsWith("0")) || u.dial[0]);
+    E.ready(s, A);
+    E.ready(s, B);
+    E.run(s);
+  };
+  // Pass every choice except a pick, which is answered with `choose`.
+  const playUntil = (stop, choose) => {
+    for (let i = 0; i < 200 && !stop(); i++) {
+      if (s.pending?.type === "pick") E.takeTurn(s, s.pending.pid, choose(s.pending.options));
+      else if (s.pending) E.pass(s, s.pending.pid);
+      E.run(s);
+    }
+  };
+  planAll();
+  playUntil(() => s.pending?.type === "pick", () => null);
+  assert.equal(s.pending?.type, "pick");
+  const chosen = s.pending.options[1];
+  const other = s.pending.options[0];
+  E.takeTurn(s, A, chosen);
+  E.run(s);
+  // Finish round 1 (any Engagement tie is answered the same way), then start round 2.
+  playUntil(() => s.phase === "plan" && s.round === 2, (opts) => opts[0]);
+  planAll();
+  let asked = false;
+  playUntil(() => s.phase !== "activation" || !!s.units.find((u) => u.id === other).revealed, () => ((asked = true), chosen));
+  assert.equal(asked, false, "Ann is not asked again");
+  assert.ok(s.units.find((u) => u.id === chosen).revealed, "the remembered unit moved first");
+  assert.ok(!JSON.stringify(E.viewFor(s, B)).includes("tiePref"), "the chosen order stays private");
+});

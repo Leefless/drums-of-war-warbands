@@ -316,7 +316,10 @@ Units activate one at a time from initiative 1 upward. Ties between players go
 in seat order, and the first seat rotates every round. When one player has two
 or more units waiting at the same initiative, that player chooses which goes
 next: click it on the map, on the order track or in the side panel (computer
-opponents take theirs in order). When a unit activates:
+opponents take theirs in order). The choice stands for the rest of the battle:
+from then on that unit activates ahead of the units it was chosen over, without
+asking again. Activation and Engagement choices are remembered separately. When
+a unit activates:
 
 1. **Reveal and move.** It executes its maneuver (section 5).
 2. **Check difficulty.** Red: gain 1 strain. Blue: remove 1 strain.
@@ -331,7 +334,7 @@ weapon against one enemy in that weapon's arc and range. Units with the **same
 initiative fire simultaneously**: a unit destroyed by an attacker of equal
 initiative still makes its own attack before it is removed. As in Activation,
 a player with two or more units able to attack at the same initiative chooses
-which attacks first.
+which attacks first, and that choice also stands for the rest of the battle.
 
 **Pause after attacks.** With the host's **Pause after attacks** setting on
 (the default), the battle holds after each attack until every seated player

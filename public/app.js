@@ -1506,7 +1506,7 @@ function myPromptHTML(p) {
   if (p.type === "pick") {
     const units = p.options.map(unitById).filter(Boolean);
     return `<div class="label">Your turn · initiative ${esc(units[0]?.init ?? "")}</div>
-      <p style="margin:6px 0">These units of yours act at the same initiative. Choose which goes next: click it on the map or here.</p>
+      <p style="margin:6px 0">These units of yours act at the same initiative. Choose which goes next: click it on the map or here. Your choice stands for the rest of the battle: this unit will go ahead of the others in this ${S.phase === "engagement" ? "Engagement" : "Activation"} every round.</p>
       <div class="ulist" style="margin:8px 0">${units.map((x) => `<button data-pick="${esc(x.id)}" data-hover="${esc(x.id)}"><span>${esc(x.name)}</span><span class="muted">initiative ${esc(x.init)}</span></button>`).join("")}</div>`;
   }
   const u = unitById(p.uid);

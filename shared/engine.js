@@ -1259,6 +1259,14 @@ function offerPick(state) {
     .map((id) => unit(state, id))
     .filter((x) => x && !x.dead && x.owner === u.owner && x.init === u.init && (!engage || attackOptions(state, x).length));
   if (tied.length < 2) return false;
+  // A choice made earlier in the battle stands: the remembered unit goes first without asking.
+  const pref = owner.tiePref?.[state.phase] || [];
+  const ranked = tied.filter((x) => pref.includes(x.id)).sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id))[0];
+  if (ranked) {
+    state.queue = [ranked.id, ...state.queue.filter((id) => id !== ranked.id)];
+    state.picked = ranked.id;
+    return false;
+  }
   state.pending = { type: "pick", pid: u.owner, uid: null, options: tied.map((x) => x.id) };
   return true;
 }
@@ -1268,6 +1276,12 @@ export function takeTurn(state, pid, uid) {
   const pend = state.pending;
   if (!pend || pend.type !== "pick" || pend.pid !== pid) fail("You are not choosing a unit right now.");
   if (!pend.options.includes(uid)) fail("That unit cannot go now.");
+  // Remember the choice for the rest of the battle: this unit goes ahead of the ones it was picked over.
+  const p = player(state, pid);
+  p.tiePref ||= { activation: [], engagement: [] };
+  const pref = p.tiePref[state.phase];
+  const before = pend.options.filter((id) => id !== uid).map((id) => pref.indexOf(id)).filter((i) => i >= 0);
+  if (!pref.includes(uid)) pref.splice(before.length ? Math.min(...before) : pref.length, 0, uid);
   state.queue = [uid, ...state.queue.filter((id) => id !== uid)];
   state.picked = uid;
   state.pending = null;
@@ -1507,6 +1521,7 @@ export function viewFor(state, pid) {
     p.army = [];
     delete p.buys;
     delete p.toPlace;
+    delete p.tiePref;
   }
   // Who a Bleeding was inflicted by is a private token: keep it on the server.
   for (const u of v.units) delete u.cond?.bleedingBy;
