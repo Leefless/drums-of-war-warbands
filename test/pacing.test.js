@@ -181,3 +181,38 @@ test("a tie choice stands for the rest of the battle: the chosen unit goes first
   assert.ok(s.units.find((u) => u.id === chosen).revealed, "the remembered unit moved first");
   assert.ok(!JSON.stringify(E.viewFor(s, B)).includes("tiePref"), "the chosen order stays private");
 });
+
+test("tie picks: remembered order applies only among ranked units; a new unit in the tie asks again", () => {
+  const s = E.createGame({ seed: 8, budget: 100 });
+  E.addPlayer(s, A, "Ann");
+  E.addPlayer(s, B, "Bo");
+  E.setFaction(s, A, "holds");
+  E.setFaction(s, B, "sylvan");
+  E.submitArmy(s, A, [{ unit: "ironbreakers" }, { unit: "ironbreakers" }, { unit: "ironbreakers" }]);
+  E.submitArmy(s, B, [{ unit: "wardens" }]);
+  E.run(s);
+  const [x, y, z] = s.units.filter((u) => u.owner === A).map((u) => u.id);
+  s.phase = "activation";
+  const ask = (queue) => {
+    s.pending = null;
+    s.picked = null;
+    s.queue = [...queue];
+    E.run(s);
+    return s.pending?.type === "pick" ? s.pending.options : null;
+  };
+  // x and y tie: Ann is asked and picks y.
+  s.units.find((u) => u.id === z).dead = true;
+  assert.deepEqual(ask([x, y])?.sort(), [x, y].sort());
+  E.takeTurn(s, A, y);
+  assert.deepEqual(s.players[0].tiePref.activation, [y, x], "the pick and the unit it beat are both ranked");
+  assert.equal(ask([x, y]), null, "the same tie does not ask again");
+  assert.ok(!!s.units.find((u) => u.id === y).revealed && !s.units.find((u) => u.id === x).revealed, "the ranked unit goes first");
+  // z joins the tie: it was never ranked, so Ann is asked again.
+  s.units.find((u) => u.id === z).dead = false;
+  for (const u of s.units) u.revealed = null;
+  assert.ok(ask([x, y, z]), "a never-ranked unit makes the tie ask once more");
+  assert.throws(() => E.takeTurn(s, B, z), /not choosing/, "only the owner may pick, while the pick is open");
+  assert.throws(() => E.takeTurn(s, A, "nope"), /cannot go/);
+  E.takeTurn(s, A, z);
+  assert.deepEqual(s.players[0].tiePref.activation, [z, y, x], "z ranks ahead of the units it beat");
+});

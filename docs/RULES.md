@@ -329,7 +329,7 @@ or more units waiting at the same initiative, that player chooses which goes
 next: click it on the map, on the order track or in the side panel (computer
 opponents take theirs in order). The choice stands for the rest of the battle:
 from then on that unit activates ahead of the units it was chosen over, without
-asking again. Activation and Engagement choices are remembered separately. When
+asking again. A tie that includes a unit you have not ranked yet asks once more. Activation and Engagement choices are remembered separately. When
 a unit activates:
 
 1. **Reveal and move.** It executes its maneuver (section 5).

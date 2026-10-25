@@ -1323,9 +1323,10 @@ function offerPick(state) {
     .map((id) => unit(state, id))
     .filter((x) => x && !x.dead && x.owner === u.owner && x.init === u.init && (!engage || attackOptions(state, x).length));
   if (tied.length < 2) return false;
-  // A choice made earlier in the battle stands: the remembered unit goes first without asking.
+  // Choices made earlier in the battle stand: when every tied unit has been ranked before, the
+  // best-ranked one goes without asking. A tie with a never-ranked unit asks once more.
   const pref = owner.tiePref?.[state.phase] || [];
-  const ranked = tied.filter((x) => pref.includes(x.id)).sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id))[0];
+  const ranked = tied.every((x) => pref.includes(x.id)) ? tied.sort((a, b) => pref.indexOf(a.id) - pref.indexOf(b.id))[0] : null;
   if (ranked) {
     state.queue = [ranked.id, ...state.queue.filter((id) => id !== ranked.id)];
     state.picked = ranked.id;
@@ -1340,12 +1341,16 @@ export function takeTurn(state, pid, uid) {
   const pend = state.pending;
   if (!pend || pend.type !== "pick" || pend.pid !== pid) fail("You are not choosing a unit right now.");
   if (!pend.options.includes(uid)) fail("That unit cannot go now.");
-  // Remember the choice for the rest of the battle: this unit goes ahead of the ones it was picked over.
+  // Remember the choice for the rest of the battle: this unit ranks ahead of the ones it was picked
+  // over, and those are recorded too (below it), so the same tie never asks again.
   const p = player(state, pid);
   p.tiePref ||= { activation: [], engagement: [] };
   const pref = p.tiePref[state.phase];
-  const before = pend.options.filter((id) => id !== uid).map((id) => pref.indexOf(id)).filter((i) => i >= 0);
+  const others = pend.options.filter((id) => id !== uid);
+  const before = others.map((id) => pref.indexOf(id)).filter((i) => i >= 0);
+  if (pref.includes(uid) && before.some((i) => i < pref.indexOf(uid))) pref.splice(pref.indexOf(uid), 1); // re-ranked higher
   if (!pref.includes(uid)) pref.splice(before.length ? Math.min(...before) : pref.length, 0, uid);
+  for (const id of others) if (!pref.includes(id)) pref.push(id);
   state.queue = [uid, ...state.queue.filter((id) => id !== uid)];
   state.picked = uid;
   state.pending = null;
