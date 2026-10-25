@@ -35,6 +35,14 @@ This is the PROJECT-LEVEL command for this repo (seeded 2026-10-25 from the gene
   - Every rules change must be reflected in `docs/RULES.md` (rendered in-game) and checked against balance sims.
   - Server robustness: no throw outside a try in request/WS/timer paths; malformed input must never crash the process.
 
+- **Cycle 1 efficiency notes (fold-in, keep current):**
+  - Keep `gate.sh` and `commit.sh` helpers in the session scratchpad (the four gates in one call; the Leefless commit identity, push and account switch-back in another). They kept 22 commits consistent.
+  - Mutation-check every new test immediately (copy the file to the scratchpad, plant the bug, run only that test file, restore, confirm with `git diff --stat`). Four new tests in cycle 1 passed for the wrong reason until this was done.
+  - The Phase 6 re-review of this cycle's own diff is the highest-yield step after the first review (7 regressions in cycle 1). Scope it to `git diff <cycle start>..HEAD` and give the reviewers the list of fixes made.
+  - Highest-yield reviewer instruction: a mutation run on a scratch copy of `shared/engine.js` (survivors name the missing tests directly).
+  - Low yield, skip unless that area changed: re-auditing roster data, item prices and preset legality (the check scripts and the 40 to 300 DP range check cover them).
+  - The client has no unit tests: UI fixes need one live Chrome drive per batch (seat the browser by setting `localStorage` `dow.joined=1`, drive the rest with a `ws` script on the same token, read positions back with a spectator socket).
+
 ## Persistent review state (the ledger)
 
 State lives in `.claude/review-state/` and is committed, so score trends and findings history travel with the repo:

@@ -65,13 +65,13 @@ ol.fix .t span { display: block; color: var(--ink-2); font-size: 14px; }
   <header>
     <div class="label">Drums of War: Warbands · /full-review cycle 1 · 2026-10-25</div>
     <h1>Review scorecard</h1>
-    <div class="meta" style="margin-top:10px"><span id="m-commit">Reviewed at 8e77830</span><span>60 tests passing</span><span>8,800 lines of source</span><span>1 runtime dependency</span><span>3 reviewers + Opus verification</span></div>
+    <div class="meta" style="margin-top:10px"><span id="m-commit">Reviewed at 8e77830, re-reviewed at 1231c1c</span><span>83 tests passing (from 60)</span><span>22 fixes shipped</span><span>8,800 lines of source</span><span>1 runtime dependency</span><span>3 reviewers + Opus verification</span></div>
   </header>
 
   <section class="verdict" aria-label="Overall score">
-    <div class="score-big" id="overall">8.1<small>/10</small><br><span class="pill" id="overall-band">Strong</span></div>
+    <div class="score-big" id="overall">9.6<small>/10</small><br><span class="pill" id="overall-band">Strong · from 8.1</span></div>
     <div>
-      <p id="verdict">The rules engine and map are solid and the server survived about 81,000 junk messages and 640 soak battles without a crash or a leaked seat token. What holds the score down is the battle experience at its edges: a player knocked out or removed stares at a black board, a pause can wait on someone who cannot see the attack, and units can end a stance turn hanging off the table and then die for it. The test suite is the other weak spot: of 102 planted engine bugs it caught 33, including none that would leak a seat token through the pending choice, the winner or bought terrain.</p>
+      <p id="verdict">Every autonomous finding from the first review is fixed, along with seven regressions that the re-review caught in those fixes. Units no longer end hanging off the table, knocked-out players watch the whole field, pauses wait only on people who can see the attack, ambushed defenders see their dice, surrenders no longer leave attacks aimed at departed units, and the server shrugs off bad requests and bad saved armies. The test suite now catches all 13 privacy mutations and 13 rules mutations it used to miss. What remains is a ceiling, not a defect list: no automated browser tests, and no real players yet on the new rules.</p>
       <p class="label" style="margin-top:14px">Weights: engine 25 · battle UI 25 · map 15 · computer 10 · server 10 · data 5 · tests 5 · docs 5</p>
       <div class="legend"><span><i class="dot" style="background:var(--good)"></i>8+ strong</span><span><i class="dot" style="background:var(--ink-2)"></i>7 to 7.9 solid</span><span><i class="dot" style="background:var(--warn)"></i>5 to 6.9 watch</span><span><i class="dot" style="background:var(--crit)"></i>below 5 act now</span></div>
     </div>
@@ -101,30 +101,31 @@ ol.fix .t span { display: block; color: var(--ink-2); font-size: 14px; }
 const BAND = (s) => (s >= 8 ? ["strong", "Strong"] : s >= 7 ? ["solid", "Solid"] : s >= 5 ? ["watch", "Watch"] : ["act", "Act now"]);
 const DATA = {
   features: [
-    { name: "Rules engine", score: 8.0, read: "State machine, scoring and fog held across 640 soak battles; units can hang off the table after a pivot or pile in, and stale attack options survive a surrender." },
-    { name: "Battle and muster UI", score: 7.0, read: "Every pending type has a prompt and nothing unescaped; knocked-out seats see a black board, a hidden attack hides the Continue button, focus drops on every update." },
-    { name: "Map renderer", score: 9.1, read: "Camera, markers, greyed units and attack lines work; the fog layer is rebuilt every frame and status text is tiny at fit zoom." },
-    { name: "Computer opponent", score: 9.1, read: "Plans through the engine's own checks; acts on stale options after a surrender and cannot replay a failed game." },
+    { name: "Rules engine", score: 9.7, prev: 7.9, read: "Off-table pivots, stale options after a surrender, log name clashes, rock hops and the tie order are fixed; the ceiling is a real playtest." },
+    { name: "Battle and muster UI", score: 9.4, prev: 7.1, read: "Knocked-out seats see all, Continue appears exactly when asked for, focus survives updates, offline banner, contrast fixed; no automated browser tests yet." },
+    { name: "Map renderer", score: 9.7, prev: 9.1, read: "Fog and art cached, status readable at low zoom, deployment nudges add up, map dial stays attached." },
+    { name: "Computer opponent", score: 9.7, prev: 9.1, read: "Reads refreshed options, falls back instead of stalling, and replays exactly from a seed." },
   ],
   engineering: [
-    { name: "Server and networking", score: 8.5, read: "Survived 81k junk commands and binary frames; a socket that never joined can add opponents on an empty table, and one bad saved army blanks every screen." },
-    { name: "Game data", score: 8.9, read: "6,264 preset builds all legal; the pile in rule is written out in three files." },
-    { name: "Tests and tooling", score: 7.0, read: "Gates green, but 69 of 102 planted engine bugs survive, most in the view filter and this week's rules." },
-    { name: "Docs", score: 8.6, read: "Rulebook renders cleanly in game; the tie pick and minimum range wording do not match the engine." },
+    { name: "Server and networking", score: 9.7, prev: 8.4, read: "Host actions need a seat, bad saved armies are skipped and kept, every timer and socket error path is guarded, and a server test covers it." },
+    { name: "Game data", score: 9.6, prev: 8.9, read: "One pile in rule and one strain cap everywhere; presets legal at every DP; Greenskin costs 10% more (65 to 55%)." },
+    { name: "Tests and tooling", score: 9.6, prev: 7.1, read: "83 tests: whole-battle privacy scan, every attack reason, pile in, back away, tie picks, the rulebook renderer and the live server." },
+    { name: "Docs", score: 9.8, prev: 9.3, read: "Rulebook matches the engine (tie picks, minimum range) and a test renders it the way the game does." },
   ],
   fix: [
-    { t: "Units can end a stance pivot or pile in off the table", d: "Check the board edge for pivots and pile in (engine).", tri: "auto" },
-    { t: "Knocked-out or removed players see a black board", d: "Treat an eliminated seat as a watcher in the view and the client.", tri: "auto" },
-    { t: "Attacks accepted on a surrendered player's dead units", d: "Re-check the target is alive; refresh other seats' options on surrender.", tri: "auto" },
-    { t: "Pause shows Continue text with no button when the attack is hidden", d: "Show the Continue strip without the combat card.", tri: "auto" },
-    { t: "Ambushed defenders choose modifiers without seeing the dice", d: "Keep the attack visible to its target, masking only the attacker.", tri: "auto" },
-    { t: "A socket that never joined passes host checks on an empty table", d: "Require a seat id for host actions.", tri: "auto" },
-    { t: "One bad saved army blanks every screen", d: "Validate saved armies on load.", tri: "auto" },
-    { t: "View filter and new rules are barely tested", d: "All-phase token and fog scan; cases for pile in, back away, attack reasons, tie picks.", tri: "auto" },
-    { t: "Pile in rule copied in three places; strain cap copied in three", d: "Export one engine helper for each and call it everywhere.", tri: "auto" },
-    { t: "Tie pick rulebook text differs from the engine", d: "Decide: reword the rule or tighten the code.", tri: "hand" },
-    { t: "Keyboard focus, disconnect banner, stale last attack, terrain mode, contrast", d: "UI polish batch.", tri: "auto" },
-    { t: "Start Game: no Node 20 check, kills whatever holds port 3000", d: "Needs a double-click test on the Mac.", tri: "hand" },
+    { t: "Units can end a stance pivot or pile in off the table", d: "36837ae", tri: "done" },
+    { t: "Knocked-out or removed players see a black board", d: "5ba284c", tri: "done" },
+    { t: "Attacks accepted on a surrendered player's dead units", d: "ec39fe4", tri: "done" },
+    { t: "Pause asks for a Continue with no button", d: "a86025e, 126b55f", tri: "done" },
+    { t: "Ambushed defenders choose modifiers without seeing the dice", d: "f8fa878", tri: "done" },
+    { t: "Host checks, saved armies, timer and socket error paths", d: "f1ee9d4, 1231c1c", tri: "done" },
+    { t: "View filter and new rules barely tested", d: "586847b, 875a75e, 7a1ae09, c1d7e94", tri: "done" },
+    { t: "Pile in and strain cap copied in several files", d: "6adae99", tri: "done" },
+    { t: "Tie picks follow the rulebook, including three-way ties", d: "714bf1d, 1231c1c", tri: "done" },
+    { t: "Focus, offline banner, contrast, terrain mode, map performance", d: "e501f3b, 41bd8c2", tri: "done" },
+    { t: "Greenskin balance", d: "a79f49d: 65 to 55% at 100 DP", tri: "done" },
+    { t: "Automated browser tests for the client and map", d: "Needs an e2e harness kept out of the game install.", tri: "def" },
+    { t: "Start Game: Node 20 check and safer port handling", d: "Needs a double-click test on the Mac.", tri: "hand" },
     { t: "Real playtests and a four-device LAN session", d: "The ceiling for every score.", tri: "def" },
   ],
 };

@@ -1,9 +1,10 @@
 {
  "lastRun": {
-  "commit": "8e77830",
+  "commit": "1231c1c",
   "date": "2026-10-25",
-  "overallScore": 8.1,
-  "cycleCounter": 1
+  "overallScore": 9.6,
+  "cycleCounter": 1,
+  "prevOverall": 8.1
  },
  "artifactUrl": "https://claude.ai/artifact/YRvah2e5hMDMbfYuBg48V5",
  "siblingSync": {
@@ -22,8 +23,8 @@
     "shared/terrain.js",
     "shared/battlefield.js"
    ],
-   "score": 7.9,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.7,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "Soak: 640 AI games, no stall/overlap; token scan of 40 games clean.",
    "deductions": [
@@ -33,7 +34,8 @@
      "points": 0.5,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "36837ae"
     },
     {
      "id": "E2",
@@ -41,7 +43,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "ec39fe4"
     },
     {
      "id": "E4",
@@ -49,7 +52,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "d3cdee0"
     },
     {
      "id": "E5",
@@ -57,7 +61,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "d3cdee0"
     },
     {
      "id": "E6",
@@ -65,7 +70,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "d3cdee0"
     },
     {
      "id": "E7",
@@ -73,7 +79,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "d3cdee0"
     },
     {
      "id": "D1",
@@ -81,7 +88,8 @@
      "points": 0.4,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "714bf1d"
     },
     {
      "id": "E8",
@@ -90,8 +98,18 @@
      "bucket": "wontfix",
      "unlock": "playtest sessions",
      "status": "open"
+    },
+    {
+     "id": "E-TIE3",
+     "desc": "Re-review: 3-way ties auto-ordered after the first pick (engine.js offerPick/takeTurn), regression from D1",
+     "points": 0.4,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "1231c1c"
     }
-   ]
+   ],
+   "prevScore": 7.9
   },
   {
    "key": "client-ui",
@@ -101,8 +119,8 @@
     "public/styles.css",
     "public/index.html"
    ],
-   "score": 7.1,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.4,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "All pending types have prompts; XSS clean; handlers not duplicated.",
    "deductions": [
@@ -112,7 +130,8 @@
      "points": 0.4,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "5ba284c"
     },
     {
      "id": "UI-2",
@@ -120,7 +139,8 @@
      "points": 0.4,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "a86025e"
     },
     {
      "id": "UI-3",
@@ -128,7 +148,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f8fa878"
     },
     {
      "id": "UI-4",
@@ -136,7 +157,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "6adae99"
     },
     {
      "id": "UI-5",
@@ -144,7 +166,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "6adae99"
     },
     {
      "id": "UI-6",
@@ -152,7 +175,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-7",
@@ -160,7 +184,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-8",
@@ -168,7 +193,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-9",
@@ -176,7 +202,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-10",
@@ -184,7 +211,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-11",
@@ -192,7 +220,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-12",
@@ -200,7 +229,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-13",
@@ -208,7 +238,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-14",
@@ -216,7 +247,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "e501f3b"
     },
     {
      "id": "UI-15",
@@ -224,9 +256,45 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
+     "status": "burned",
+     "commit": "e501f3b"
+    },
+    {
+     "id": "CUI-FOCUS-CONT",
+     "desc": "Re-review: focus restore swallowed the Space/Enter Continue after a click",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "126b55f"
+    },
+    {
+     "id": "CUI-BEAT-TEXT",
+     "desc": "Re-review: ambushed defender banner asked for a Continue with no button",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "126b55f"
+    },
+    {
+     "id": "UI-E2E",
+     "desc": "No automated browser test harness; client verified by live drives only",
+     "points": 0.4,
+     "bucket": "deferred",
+     "unlock": "Playwright or similar e2e harness (local-only tooling)",
+     "status": "open"
+    },
+    {
+     "id": "UI-HUMAN",
+     "desc": "UI comprehension not validated with real players",
+     "points": 0.2,
+     "bucket": "wontfix",
+     "unlock": "human playtests",
      "status": "open"
     }
-   ]
+   ],
+   "prevScore": 7.1
   },
   {
    "key": "board",
@@ -235,8 +303,8 @@
     "public/board.js",
     "public/art.js"
    ],
-   "score": 9.1,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.7,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "reachMarks 0.003ms per call: not a perf trap.",
    "deductions": [
@@ -246,7 +314,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "41bd8c2"
     },
     {
      "id": "B-2",
@@ -254,7 +323,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "41bd8c2"
     },
     {
      "id": "B-3",
@@ -262,7 +332,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "41bd8c2"
     },
     {
      "id": "B-4",
@@ -270,7 +341,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "41bd8c2"
     },
     {
      "id": "B-5",
@@ -278,9 +350,28 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
+     "status": "burned",
+     "commit": "41bd8c2"
+    },
+    {
+     "id": "BRD-DIAL-STALE",
+     "desc": "Re-review: map dial key lacked canvas rect (scroll/layout drift)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "126b55f"
+    },
+    {
+     "id": "BRD-E2E",
+     "desc": "Rendering verified only by eye in live drives",
+     "points": 0.3,
+     "bucket": "deferred",
+     "unlock": "visual regression harness",
      "status": "open"
     }
-   ]
+   ],
+   "prevScore": 9.1
   },
   {
    "key": "ai",
@@ -288,8 +379,8 @@
    "globs": [
     "shared/ai.js"
    ],
-   "score": 9.1,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.7,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "",
    "deductions": [
@@ -299,7 +390,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "ec39fe4"
     },
     {
      "id": "A2",
@@ -307,7 +399,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "A3",
@@ -315,7 +408,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "fa87a20"
     },
     {
      "id": "A4",
@@ -325,7 +419,8 @@
      "unlock": "human playtests",
      "status": "open"
     }
-   ]
+   ],
+   "prevScore": 9.1
   },
   {
    "key": "server",
@@ -335,8 +430,8 @@
     "public/receive.html",
     "scripts/install-art.mjs"
    ],
-   "score": 8.4,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.7,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "81k junk commands, 33 junk WS frames, traversal probes: no crash.",
    "deductions": [
@@ -346,7 +441,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "S2",
@@ -354,7 +450,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "S3",
@@ -362,7 +459,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "S4",
@@ -370,7 +468,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "S5",
@@ -378,7 +477,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "S6",
@@ -386,7 +486,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "a86025e"
     },
     {
      "id": "S7",
@@ -394,7 +495,8 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "f1ee9d4"
     },
     {
      "id": "S8",
@@ -403,8 +505,27 @@
      "bucket": "wontfix",
      "unlock": "four-device LAN session",
      "status": "open"
+    },
+    {
+     "id": "S-ARM2",
+     "desc": "Re-review: skipped armies erased on next save (no .bad)",
+     "points": 0.2,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "1231c1c"
+    },
+    {
+     "id": "S-BEAT2",
+     "desc": "Re-review: spectator close could end an unwaited pause",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "1231c1c"
     }
-   ]
+   ],
+   "prevScore": 8.4
   },
   {
    "key": "data",
@@ -418,8 +539,8 @@
     "shared/factions.js",
     "shared/roster-check.js"
    ],
-   "score": 8.9,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.6,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "6,264 preset builds legal.",
    "deductions": [
@@ -429,7 +550,8 @@
      "points": 0.4,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "6adae99"
     },
     {
      "id": "X2",
@@ -445,7 +567,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "fa87a20"
     },
     {
      "id": "X4",
@@ -461,9 +584,20 @@
      "points": 0.1,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "c1d7e94"
+    },
+    {
+     "id": "D-COST1",
+     "desc": "Re-review: cost breakdown ignored FACTION_COST and champion premium",
+     "points": 0.1,
+     "bucket": "autonomous",
+     "unlock": "",
+     "status": "burned",
+     "commit": "1231c1c"
     }
-   ]
+   ],
+   "prevScore": 8.9
   },
   {
    "key": "tests-tooling",
@@ -473,8 +607,8 @@
     "scripts/",
     "package.json"
    ],
-   "score": 7.1,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.6,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "Mutation run: 33 of 102 killed.",
    "deductions": [
@@ -484,7 +618,8 @@
      "points": 1.0,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "586847b"
     },
     {
      "id": "T2",
@@ -492,7 +627,8 @@
      "points": 0.5,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "875a75e"
     },
     {
      "id": "T3",
@@ -500,7 +636,8 @@
      "points": 0.4,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "875a75e"
     },
     {
      "id": "T4",
@@ -508,7 +645,8 @@
      "points": 0.4,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "875a75e"
     },
     {
      "id": "T5",
@@ -516,7 +654,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "875a75e"
     },
     {
      "id": "T6",
@@ -524,7 +663,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "7a1ae09"
     },
     {
      "id": "T7",
@@ -533,8 +673,17 @@
      "bucket": "deferred",
      "unlock": "invariant design",
      "status": "open"
+    },
+    {
+     "id": "T8",
+     "desc": "Client logic (app.js) has no unit tests: DOM-bound",
+     "points": 0.3,
+     "bucket": "deferred",
+     "unlock": "extract pure helpers to shared/ or an e2e harness",
+     "status": "open"
     }
-   ]
+   ],
+   "prevScore": 7.1
   },
   {
    "key": "docs",
@@ -543,8 +692,8 @@
     "docs/",
     "README.md"
    ],
-   "score": 9.3,
-   "lastReviewedCommit": "8e77830",
+   "score": 9.8,
+   "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "Rulebook renders under mdToHTML; tables and counts verified.",
    "deductions": [
@@ -554,7 +703,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "c1d7e94"
     },
     {
      "id": "D3",
@@ -562,7 +712,8 @@
      "points": 0.3,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "6adae99"
     },
     {
      "id": "D4",
@@ -570,7 +721,8 @@
      "points": 0.2,
      "bucket": "autonomous",
      "unlock": "",
-     "status": "open"
+     "status": "burned",
+     "commit": "c1d7e94"
     },
     {
      "id": "D5",
@@ -579,8 +731,17 @@
      "bucket": "wontfix",
      "unlock": "",
      "status": "open"
+    },
+    {
+     "id": "D6",
+     "desc": "Rulebook comprehension not validated with new players",
+     "points": 0.2,
+     "bucket": "wontfix",
+     "unlock": "human playtests",
+     "status": "open"
     }
-   ]
+   ],
+   "prevScore": 9.3
   }
  ],
  "findings": [
@@ -590,9 +751,9 @@
    "ref": "engine.js:551-555, 1375-1384",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "36837ae"
   },
   {
    "id": "E2",
@@ -600,9 +761,9 @@
    "ref": "engine.js:1502, 1104",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "ec39fe4"
   },
   {
    "id": "E4",
@@ -610,9 +771,9 @@
    "ref": "engine.js:72-75, 1600-1602",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "d3cdee0"
   },
   {
    "id": "E5",
@@ -620,9 +781,9 @@
    "ref": "engine.js:615-621",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "d3cdee0"
   },
   {
    "id": "E6",
@@ -630,9 +791,9 @@
    "ref": "",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "d3cdee0"
   },
   {
    "id": "E7",
@@ -640,9 +801,9 @@
    "ref": "engine.js:440, 452",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "d3cdee0"
   },
   {
    "id": "D1",
@@ -650,9 +811,9 @@
    "ref": "engine.js offerPick); decided: ask",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "714bf1d"
   },
   {
    "id": "E8",
@@ -670,9 +831,9 @@
    "ref": "engine.js:1586, app.js:1236",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "5ba284c"
   },
   {
    "id": "UI-2",
@@ -680,9 +841,9 @@
    "ref": "app.js:978-981, 1115",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "a86025e"
   },
   {
    "id": "UI-3",
@@ -690,9 +851,9 @@
    "ref": "engine.js:1596, app.js:1498",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f8fa878"
   },
   {
    "id": "UI-4",
@@ -700,9 +861,9 @@
    "ref": "app.js:1675, 1838, 1944",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "6adae99"
   },
   {
    "id": "UI-5",
@@ -710,9 +871,9 @@
    "ref": "app.js:1271",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "6adae99"
   },
   {
    "id": "UI-6",
@@ -720,9 +881,9 @@
    "ref": "app.js:259-267",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-7",
@@ -730,9 +891,9 @@
    "ref": "toast, light ink-3, red glyph, blank die",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-8",
@@ -740,9 +901,9 @@
    "ref": "app.js:81-86",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-9",
@@ -750,9 +911,9 @@
    "ref": "lastAttack never cleared",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-10",
@@ -760,9 +921,9 @@
    "ref": "app.js:1613",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-11",
@@ -770,9 +931,9 @@
    "ref": "app.js:850",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-12",
@@ -780,9 +941,9 @@
    "ref": "app.js:1489",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-13",
@@ -790,9 +951,9 @@
    "ref": "styles.css:178",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-14",
@@ -800,9 +961,9 @@
    "ref": "",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "UI-15",
@@ -810,9 +971,9 @@
    "ref": "index.html:8-9",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "e501f3b"
   },
   {
    "id": "B-1",
@@ -820,9 +981,9 @@
    "ref": "board.js:586, 921-951",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "41bd8c2"
   },
   {
    "id": "B-2",
@@ -830,9 +991,9 @@
    "ref": "board.js:834",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "41bd8c2"
   },
   {
    "id": "B-3",
@@ -840,9 +1001,9 @@
    "ref": "board.js:651-664",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "41bd8c2"
   },
   {
    "id": "B-4",
@@ -850,9 +1011,9 @@
    "ref": "board.js:1356, 1383",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "41bd8c2"
   },
   {
    "id": "B-5",
@@ -860,9 +1021,9 @@
    "ref": "app.js:1368-1389",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "41bd8c2"
   },
   {
    "id": "A1",
@@ -870,9 +1031,9 @@
    "ref": "ai.js:142-186",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "ec39fe4"
   },
   {
    "id": "A2",
@@ -880,9 +1041,9 @@
    "ref": "server/index.js:386-392",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "A3",
@@ -890,9 +1051,9 @@
    "ref": "ai.js:20,129",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "fa87a20"
   },
   {
    "id": "A4",
@@ -910,9 +1071,9 @@
    "ref": "server/index.js:312,407,423,451",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "S2",
@@ -920,9 +1081,9 @@
    "ref": "server/index.js:77,137",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "S3",
@@ -930,9 +1091,9 @@
    "ref": "server/index.js:438-447",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "S4",
@@ -940,9 +1101,9 @@
    "ref": "install-art.mjs:14",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "S5",
@@ -950,9 +1111,9 @@
    "ref": "\"error\"); oversize frame reaches uncaughtException",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "S6",
@@ -960,9 +1121,9 @@
    "ref": "",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "a86025e"
   },
   {
    "id": "S7",
@@ -970,9 +1131,9 @@
    "ref": "receive.html:19",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "f1ee9d4"
   },
   {
    "id": "S8",
@@ -990,9 +1151,9 @@
    "ref": "",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "6adae99"
   },
   {
    "id": "X2",
@@ -1010,9 +1171,9 @@
    "ref": "",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "fa87a20"
   },
   {
    "id": "X4",
@@ -1030,9 +1191,9 @@
    "ref": "items.js:26-27",
    "severity": "low",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "c1d7e94"
   },
   {
    "id": "T1",
@@ -1040,9 +1201,9 @@
    "ref": "pending.pid, winner, obstacle owner, army, queue...",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "586847b"
   },
   {
    "id": "T2",
@@ -1050,9 +1211,9 @@
    "ref": "",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "875a75e"
   },
   {
    "id": "T3",
@@ -1060,9 +1221,9 @@
    "ref": "",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "875a75e"
   },
   {
    "id": "T4",
@@ -1070,9 +1231,9 @@
    "ref": "",
    "severity": "high",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "875a75e"
   },
   {
    "id": "T5",
@@ -1080,9 +1241,9 @@
    "ref": "",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "875a75e"
   },
   {
    "id": "T6",
@@ -1090,9 +1251,9 @@
    "ref": "",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "7a1ae09"
   },
   {
    "id": "T7",
@@ -1110,9 +1271,9 @@
    "ref": "range 2+ weapons at range 1",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "c1d7e94"
   },
   {
    "id": "D3",
@@ -1120,9 +1281,9 @@
    "ref": "via X1",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
-   "resolved": null
+   "resolved": "6adae99"
   },
   {
    "id": "D4",
@@ -1130,7 +1291,127 @@
    "ref": "",
    "severity": "medium",
    "bucket": "autonomous",
-   "status": "open",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "c1d7e94"
+  },
+  {
+   "id": "E-TIE3",
+   "title": "Re-review: 3-way ties auto-ordered after the first pick (engine.js offerPick/takeTurn), regression from D1",
+   "ref": "",
+   "severity": "high",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "1231c1c"
+  },
+  {
+   "id": "CUI-FOCUS-CONT",
+   "title": "Re-review: focus restore swallowed the Space/Enter Continue after a click",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "126b55f"
+  },
+  {
+   "id": "CUI-BEAT-TEXT",
+   "title": "Re-review: ambushed defender banner asked for a Continue with no button",
+   "ref": "",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "126b55f"
+  },
+  {
+   "id": "UI-E2E",
+   "title": "No automated browser test harness; client verified by live drives only",
+   "ref": "",
+   "severity": "high",
+   "bucket": "deferred",
+   "status": "deferred",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "UI-HUMAN",
+   "title": "UI comprehension not validated with real players",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "wontfix",
+   "status": "wontfix",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "BRD-DIAL-STALE",
+   "title": "Re-review: map dial key lacked canvas rect (scroll/layout drift)",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "126b55f"
+  },
+  {
+   "id": "BRD-E2E",
+   "title": "Rendering verified only by eye in live drives",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "deferred",
+   "status": "deferred",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "S-ARM2",
+   "title": "Re-review: skipped armies erased on next save (no .bad)",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "1231c1c"
+  },
+  {
+   "id": "S-BEAT2",
+   "title": "Re-review: spectator close could end an unwaited pause",
+   "ref": "",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "1231c1c"
+  },
+  {
+   "id": "D-COST1",
+   "title": "Re-review: cost breakdown ignored FACTION_COST and champion premium",
+   "ref": "",
+   "severity": "low",
+   "bucket": "autonomous",
+   "status": "fixed",
+   "firstSeen": "2026-10-25",
+   "resolved": "1231c1c"
+  },
+  {
+   "id": "T8",
+   "title": "Client logic (app.js) has no unit tests: DOM-bound",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "deferred",
+   "status": "deferred",
+   "firstSeen": "2026-10-25",
+   "resolved": null
+  },
+  {
+   "id": "D6",
+   "title": "Rulebook comprehension not validated with new players",
+   "ref": "",
+   "severity": "medium",
+   "bucket": "wontfix",
+   "status": "wontfix",
    "firstSeen": "2026-10-25",
    "resolved": null
   }
@@ -1145,11 +1426,17 @@
   "Spectators see every unit; dead enemy units stay visible under fog (decision 2026-10-25).",
   "LAN with no auth; client-generated tokens; one process is one table.",
   "No touch-screen pinch zoom (documented). The side-panel dial coexists with the map dial.",
-  "docs/STATUS.html is a marked historical snapshot."
+  "docs/STATUS.html is a marked historical snapshot.",
+  "The blank die face is deliberately plain (low contrast by design: it carries no symbol).",
+  "A masked attacker (attack.attacker null) only reaches the target owner for an earlier unseen attack; live attacks reveal the attacker (firedRound).",
+  "README says 60 to 300 DP: that is what the host can pick; the server accepts 40 to 300 by design."
  ],
  "learnings": [
   "Mutation runs on a scratch copy are the highest-yield test lens here: 69 of 102 survived in cycle 1.",
   "Balance regressions after rules changes came from AI planning twice (facing, bump avoidance): diagnose per-unit attack availability before touching costs.",
-  "Hand-placed test geometry lies: assert the premise (range band, contact) before the behavior."
+  "Hand-placed test geometry lies: assert the premise (range band, contact) before the behavior.",
+  "Re-reviewing this cycle's own fixes found 7 regressions (focus vs shortcut, dial drift, tie ordering, armies erase, beat close, banner text, cost display): the Phase 6 re-review is mandatory, not optional.",
+  "Mutation-check every new test the moment it is written: 4 new tests this cycle passed for the wrong reason (2-player surrender ended the battle; pile-in rock premise; 3-way tie; rock-hop geometry) until a planted bug showed they could not fail.",
+  "gate.sh and commit.sh helper scripts in the session scratchpad kept 20 commits consistent (Leefless identity, push, account switch back)."
  ]
 }
