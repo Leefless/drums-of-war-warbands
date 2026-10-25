@@ -108,7 +108,7 @@ const DATA = {
   ],
   engineering: [
     { name: "Server and networking", score: 9.7, prev: 8.4, read: "Host actions need a seat, bad saved armies are skipped and kept, every timer and socket error path is guarded, and a server test covers it." },
-    { name: "Game data", score: 9.6, prev: 8.9, read: "One pile in rule and one strain cap everywhere; presets legal at every DP; Greenskin costs 10% more (65 to 55%)." },
+    { name: "Game data", score: 9.8, prev: 8.9, read: "One pile in rule and one strain cap everywhere; presets legal at every DP; Greenskin costs 10% more (65 to 55%)." },
     { name: "Tests and tooling", score: 9.6, prev: 7.1, read: "83 tests: whole-battle privacy scan, every attack reason, pile in, back away, tie picks, the rulebook renderer and the live server." },
     { name: "Docs", score: 9.8, prev: 9.3, read: "Rulebook matches the engine (tie picks, minimum range) and a test renders it the way the game does." },
   ],
@@ -125,7 +125,7 @@ const DATA = {
     { t: "Focus, offline banner, contrast, terrain mode, map performance", d: "e501f3b, 41bd8c2", tri: "done" },
     { t: "Greenskin balance", d: "a79f49d: 65 to 55% at 100 DP", tri: "done" },
     { t: "Automated browser tests for the client and map", d: "Needs an e2e harness kept out of the game install.", tri: "def" },
-    { t: "Start Game: Node 20 check and safer port handling", d: "Needs a double-click test on the Mac.", tri: "hand" },
+    { t: "Start Game: Node 20 check and safer port handling", d: "Tested on a copy: other program on the port, game already running, old Node.", tri: "done" },
     { t: "Real playtests and a four-device LAN session", d: "The ceiling for every score.", tri: "def" },
   ],
 };

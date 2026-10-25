@@ -539,7 +539,7 @@
     "shared/factions.js",
     "shared/roster-check.js"
    ],
-   "score": 9.6,
+   "score": 9.8,
    "lastReviewedCommit": "1231c1c",
    "lastReviewedDate": "2026-10-25",
    "notes": "6,264 preset builds legal.",
@@ -574,9 +574,10 @@
      "id": "X4",
      "desc": "Start Game.command: no Node 20 check, blind kill of port 3000",
      "points": 0.2,
-     "bucket": "handoff",
+     "bucket": "autonomous",
      "unlock": "double-click test on the Mac",
-     "status": "open"
+     "status": "burned",
+     "commit": "Start Game fix, 2026-10-25"
     },
     {
      "id": "X5",
@@ -1181,7 +1182,7 @@
    "ref": "",
    "severity": "medium",
    "bucket": "handoff",
-   "status": "handoff",
+   "status": "fixed",
    "firstSeen": "2026-10-25",
    "resolved": null
   },

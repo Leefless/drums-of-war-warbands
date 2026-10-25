@@ -20,10 +20,9 @@ and renderer test (c1d7e94), Greenskin balance (a79f49d), server test (7a1ae09),
 | --- | --- | --- | --- | --- | --- |
 | 1 | No automated browser tests (UI-E2E, BRD-E2E) | UI, map | +0.7 | Deferred | A Playwright harness as local-only tooling (never in `dependencies`), driving muster, deploy, plan, attack and pause journeys |
 | 2 | Client logic has no unit tests (T8) | tests | +0.3 | Deferred | Extract pure helpers (turnInfo, reachMarks, spentUnits) into `shared/` and test them, or cover them via the e2e harness |
-| 3 | Start Game.command: Node 20 check, safer port handling (X4) | data | +0.2 | Handoff | Needs a double-click test on Jesse's Mac |
-| 4 | roster-check imports `../public/art.js`; no cross-army name checks (X2) | data | +0.2 | Deferred | Move ICONS to shared or pass them in |
-| 5 | Fuzz tests assert only that games finish (T7) | tests | +0.1 | Deferred | Add invariants: no overlaps, units on the table, DP conservation |
-| 6 | Balance: Iron Holds 41% at 100 DP, Calamity 37% at 200 DP | engine, data | n/a | Handoff (decision) | ROADMAP 1.4: rules or roster levers, after a human playtest |
+| 3 | roster-check imports `../public/art.js`; no cross-army name checks (X2) | data | +0.2 | Deferred | Move ICONS to shared or pass them in |
+| 4 | Fuzz tests assert only that games finish (T7) | tests | +0.1 | Deferred | Add invariants: no overlaps, units on the table, DP conservation |
+| 5 | Balance: Iron Holds 41% at 100 DP, Calamity 37% at 200 DP | engine, data | n/a | Handoff (decision) | ROADMAP 1.4: rules or roster levers, after a human playtest |
 
 ## Honest ceiling
 

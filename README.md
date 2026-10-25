@@ -24,7 +24,10 @@ One computer hosts. Node 20 or newer.
 
 **Easiest:** double-click **`Start Game.command`** in this folder. It installs
 on first run, starts the server, opens the game in your browser, and prints the
-Wi-Fi address for the other players. Close that window to stop the game.
+Wi-Fi address for the other players. Close that window to stop the game. It
+needs Node.js 20 or newer and says so if this Mac has an older one. If another
+program already uses port 3000, the game takes the next free port and prints its
+address; it never stops another program.
 
 Or from a terminal:
 
