@@ -726,7 +726,7 @@ export function resetBoard() {
   current = { canvas: null, state: null, opts: {} };
 }
 /**
- * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, spent: Set<uid>, zones: bool }
+ * opts: { selected, active, ghost: {uid, code}, attackLine: {from, to}, highlight: Set<uid>, spent: Set<uid>, reach: Map<uid, mark>, zones: bool }
  */
 export function updateBoard(canvas, state, opts = {}) {
   if ((state.board || BOARD) !== SIZE) {
@@ -853,6 +853,7 @@ function render(canvas, state, opts, now) {
     ctx.stroke();
     ctx.restore();
   }
+  if (opts.reach) drawReachMarks(ctx, state, opts.reach, now);
   if (opts.attackLine) drawAttackLine(ctx, state, opts.attackLine, now);
   drawEffects(ctx, k, now);
   drawPings(ctx, state, now);
@@ -1014,6 +1015,47 @@ function drawTrails(ctx, state) {
   ctx.lineWidth = 3;
   for (const u of state.units) if (u.trail && u.trail.length > 1) strokePolyline(ctx, u.trail);
   ctx.restore();
+}
+
+/**
+ * Target markers for the selected unit: a solid red target with its range on enemies it can
+ * attack, a dashed ring with the reason ("turn", "no sight", "hidden") on enemies in range it
+ * cannot attack as it stands.
+ */
+function drawReachMarks(ctx, state, marks, now) {
+  for (const [uid, m] of marks) {
+    const u = state.units.find((x) => x.id === uid);
+    if (!u || u.dead) continue;
+    const p = displayPose(u, now);
+    const r = BASE_SIZE[u.base] * 0.5 + 12;
+    const hit = m.kind === "hit";
+    ctx.save();
+    ctx.lineWidth = hit ? 2.5 : 1.6;
+    ctx.strokeStyle = hit ? "#E16E50" : "rgba(234, 223, 200, 0.75)";
+    ctx.setLineDash(hit ? [] : [5, 4]);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (hit) {
+      // Crosshair ticks at the four points of the ring.
+      ctx.beginPath();
+      for (const [dx, dy] of [[0, -1], [1, 0], [0, 1], [-1, 0]]) {
+        ctx.moveTo(p.x + dx * (r - 6), p.y + dy * (r - 6));
+        ctx.lineTo(p.x + dx * (r + 6), p.y + dy * (r + 6));
+      }
+      ctx.stroke();
+    }
+    const text = hit ? `R${m.range}` : m.why;
+    ctx.font = `700 ${hit ? 12 : 10}px ${DISPLAY}`;
+    ctx.textAlign = "center";
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(10, 8, 5, 0.9)";
+    ctx.strokeText(text, p.x, p.y - r - 5);
+    ctx.fillStyle = hit ? "#F3A68E" : PARCHMENT;
+    ctx.fillText(text, p.x, p.y - r - 5);
+    ctx.restore();
+  }
 }
 
 function drawReach(ctx, u) {

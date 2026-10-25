@@ -5,10 +5,10 @@ import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, presetBuild } from "/shared/presets.js";
 import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
-import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
-import { CRIT_TEXT, boughtRadius, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
+import { BASE_SIZE, inArc, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
+import { CRIT_TEXT, attackOptions, boughtRadius, parseAction, planMove, rangeBetween, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
 import { boardToScreen, focusPoint, focusUnit, onFrame, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
-import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
+import { TERRAIN, lineOfSight, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -982,7 +982,9 @@ function turnInfo() {
   }
   const pd = S.pending;
   if (pd) {
-    const u = pd.uid ? unitById(pd.uid) : null;
+    // Dice choices carry no unit of their own: they belong to the attack's attacker or defender.
+    const uid = pd.uid || (pd.type === "attackMods" ? S.attack?.attacker : pd.type === "defenseMods" ? S.attack?.target : null);
+    const u = uid ? unitById(uid) : null;
     const ini = u && u.init != null ? ` (initiative ${u.init})` : "";
     const mine = !!S.you && pd.pid === S.you;
     if (mine) {
@@ -1229,10 +1231,53 @@ function drawBoard() {
     preview: S.phase === "deploy" && L.placing ? L.preview : null,
     highlight,
     spent: spentUnits(),
+    reach: (L.reach = reachMarks()),
     zones: S.phase === "deploy",
     fog: !S.spectator && !!me() && S.phase !== "over",
     attackLine: A ? { from: A.attacker, to: A.target } : L.hoverTarget ? { from: p?.uid, to: L.hoverTarget } : null,
   });
+  updateReachLine();
+}
+
+/**
+ * What the selected unit could attack, for the target markers on the map: from where it stands,
+ * or in Planning from the end of the maneuver being previewed or set. Uses the engine's own
+ * attack rules (range bands and minimum range, hills, arcs, line of sight, spotting, Stealthy).
+ * Returns Map<uid, { kind: "hit" | "miss", range, why }>, or null when nothing is selected.
+ */
+function reachMarks() {
+  const sel = unitById(L.selected);
+  if (!sel || sel.dead || !["deploy", "plan", "activation", "engagement"].includes(S.phase)) return null;
+  let pose = sel;
+  if (S.phase === "plan" && sel.owner === S.you) {
+    const code = L.hover || S.dials[sel.id];
+    if (code) pose = planMove(S, sel, code).pose;
+  }
+  const g = { ...sel, x: pose.x, y: pose.y, h: pose.h };
+  const marks = new Map();
+  for (const o of attackOptions(S, g)) {
+    const m = marks.get(o.target);
+    if (!m || o.range < m.range) marks.set(o.target, { kind: "hit", range: o.range });
+  }
+  // Near misses: within a weapon's range band but turned the wrong way, out of sight, or hidden.
+  const high = onKind(S, g, "hill") ? 1 : 0;
+  for (const t of S.units) {
+    if (t.dead || t.owner === sel.owner || marks.has(t.id)) continue;
+    const r = rangeBetween(g, t);
+    const ws = sel.weapons.filter((w) => r >= w.range[0] && r <= Math.min(4, w.range[1] + high));
+    if (!ws.length) continue;
+    const why = !lineOfSight(S, g, t) ? "no sight" : !ws.some((w) => inArc(g, w.arc, t, BASE_SIZE[t.base])) ? "turn" : "hidden";
+    marks.set(t.id, { kind: "miss", range: r, why });
+  }
+  return marks;
+}
+
+/** One line for the dial: how many enemies the previewed move leaves in reach. */
+function reachSummary(marks) {
+  const hits = [...(marks?.values() || [])].filter((m) => m.kind === "hit").length;
+  const near = (marks?.size || 0) - hits;
+  if (!hits && !near) return "No enemy in reach from there.";
+  return `${hits ? `${hits} enem${hits === 1 ? "y" : "ies"} in reach` : "None in reach"}${near ? ` · ${near} in range but ${near === 1 ? "needs" : "need"} a turn or a clear view` : ""}.`;
 }
 
 /** My tied units waiting for me to pick which goes next, or null. */
@@ -1285,6 +1330,7 @@ function renderMapDial() {
       <button class="small ghost" data-mdclose aria-label="Close the dial">×</button></div>
     ${facingHTML(u)}
     ${dialHTML(u.dial, S.dials[u.id], false, strained(u))}
+    <div class="md-reach" id="mdReach"></div>
     <div class="md-foot">${S.dials[u.id] ? `<span class="muted">Set: ${esc(S.dials[u.id].replace(":", " "))}</span>` : `<span class="muted">Hover to preview, click to set</span>`}
       ${next ? `<button class="small" data-mdnext="${esc(next.id)}">Next unit</button>` : ""}</div>`;
   el.dataset.uid = u.id;
@@ -1308,6 +1354,12 @@ function facingHTML(u) {
   const h = ((Math.round(u.h) % 360) + 360) % 360;
   const name = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(h / 45) % 8];
   return `<div class="md-face" title="The dial's arrows are relative to the unit: straight means straight ahead the way it faces."><span class="md-arrow" style="transform:rotate(${h}deg)" aria-hidden="true">↑</span><span>Facing ${name} <span class="muted">· moves are relative to its front</span></span></div>`;
+}
+
+/** Keep the dial's reach line current as maneuvers are hovered (drawBoard recomputes L.reach). */
+function updateReachLine() {
+  const el = $("#mdReach");
+  if (el) el.innerHTML = `<span class="rk hit"></span>${esc(reachSummary(L.reach))}`;
 }
 
 /** Keep the map dial beside its unit, on whichever side covers fewer of my other units, on screen. */

@@ -471,3 +471,5 @@ button.die { padding: 0; cursor: pointer; }
 .mapdial .md-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 13px; }
 .md-face { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 13px; color: var(--ink-2); }
 .md-arrow { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 50%; font-weight: 700; color: var(--accent-text, var(--ink)); transition: transform 200ms ease; }
+.md-reach { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
+.rk { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #E16E50; flex: none; }

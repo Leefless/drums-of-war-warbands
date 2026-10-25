@@ -38,6 +38,15 @@ consideration, see [ROADMAP.md](ROADMAP.md).
   hit declares that attack straight away. Clicking your unit whose turn it is
   brings its choices forward in the side panel. **Follow** (on by default) pans
   the zoomed map to each move and attack.
+- **Who can hit whom.** Select any unit and the enemies it could attack get a
+  red target with the range band (for example **R2**): in a weapon's range
+  (minimum range and hills included), inside its arc, in sight and spotted.
+  Enemies within range that it cannot attack as it stands get a dashed ring
+  saying why: **turn** (outside the arc), **no sight** (terrain in the way) or
+  **hidden** (not spotted, or Stealthy at range 3 or more). In Planning the
+  markers follow the dial: hover a maneuver to see what the unit could hit
+  after that move, and the dial shows how many enemies are in reach. Select an
+  enemy to see which of your units it threatens.
 - **Following the battle.** A banner over the map says whose turn it is and
   what they are doing; when the decision is yours it turns bright, plays a short
   chime (the Sound button mutes it) and, if the tab is in the background, the
