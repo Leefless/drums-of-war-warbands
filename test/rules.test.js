@@ -127,7 +127,7 @@ test("back away keeps the stopped facing and moves away from the blocker", () =>
 test("tie rankings are kept separately for Activation and Engagement", () => {
   const s = table([{ unit: "gunners", x: 450, y: 700 }, { unit: "gunners", x: 550, y: 700 }], [{ unit: "halberdiers", x: 500, y: 470, h: 180 }]);
   const [g1, g2] = s.units;
-  s.players.find((p) => p.id === A).tiePref = { activation: [g2.id, g1.id], engagement: [] };
+  s.players.find((p) => p.id === A).tiePref = { activation: { [g2.id]: [g1.id] }, engagement: {} };
   assert.ok(E.attackOptions(s, g1).length && E.attackOptions(s, g2).length, "premise: both gunners can shoot");
   s.queue = [g1.id, g2.id, s.units[2].id];
   s.group = null;

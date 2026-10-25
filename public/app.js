@@ -1,6 +1,6 @@
 // Browser client. Holds no game logic beyond previews: the server is
 // authoritative and sends a fresh filtered state after every change.
-import { ABILITIES, ACTIONS, CATEGORIES, FACTIONS, UPGRADES, armyLimits, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
+import { ABILITIES, ACTIONS, CATEGORIES, CHAMPION_PREMIUM, FACTIONS, FACTION_COST, UPGRADES, armyLimits, categoryOf, unitDef, upgradesFor, validateArmy } from "/shared/factions.js";
 import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, presetBuild } from "/shared/presets.js";
 import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
@@ -373,13 +373,16 @@ function rosterRows(f) {
 function detailsHTML(u) {
   const b = costBreakdown(u, u.dial);
   const part = (k, label) => `<span>${label} <b>${b[k].toFixed(1)}</b></span>`;
+  // The model's total, then the champion premium and any army adjustment, ending on the real price.
+  const fid = Object.keys(FACTIONS).find((f) => FACTIONS[f].units.includes(u));
+  const mult = [u.champion ? `× ${CHAMPION_PREMIUM} champion` : "", (FACTION_COST[fid] ?? 1) !== 1 ? `× ${FACTION_COST[fid]} army` : ""].filter(Boolean);
   return `<div class="urow-details">
     <div class="stats">${u.weapons.map((w) => `<span>${weaponText(w)}</span>`).join("")}</div>
     <div class="tags">${u.actions.map((a) => `<span class="tag">${esc(actionLabel(a))}</span>`).join("") || "<span class='tag'>no actions</span>"}</div>
     ${u.abilities.length ? `<div class="muted" style="font-size:14px">${u.abilities.map((a) => esc(ABILITIES[a] || a)).join("<br>")}</div>` : ""}
     <div style="font-size:14px;color:var(--ink-2)"><i>${esc(u.flavor)}</i></div>
     ${dialHTML(u.dial, null, true)}
-    <div class="stats costparts" title="Cost is computed from the profile">${part("power", "Power")}${part("movement", "Move")}${part("initiative", "Init")}${part("actions", "Actions")}${part("abilities", "Abilities")}<span>= <b>${b.total}</b> DP</span></div>
+    <div class="stats costparts" title="Cost is computed from the profile">${part("power", "Power")}${part("movement", "Move")}${part("initiative", "Init")}${part("actions", "Actions")}${part("abilities", "Abilities")}${mult.length ? `<span>= ${b.total}</span>${mult.map((m) => `<span>${m}</span>`).join("")}` : ""}<span>= <b>${u.cost}</b> DP</span></div>
   </div>`;
 }
 

@@ -81,7 +81,11 @@ try {
   // Keep only well-formed entries: one bad hand edit must not break every screen.
   const ok = (a) => a && typeof a === "object" && typeof a.id === "string" && typeof a.owner === "string" && typeof a.name === "string" && Object.hasOwn(FACTIONS, a.faction) && Array.isArray(a.list);
   const bad = armies.filter((a) => !ok(a)).length;
-  if (bad) console.error(`data/armies.json: skipped ${bad} malformed saved arm${bad === 1 ? "y" : "ies"}.`);
+  if (bad) {
+    // Keep the original for recovery: the next save rewrites the file without the skipped entries.
+    await writeFile(`${ARMIES}.bad`, JSON.stringify(armies, null, 2)).catch(() => {});
+    console.error(`data/armies.json: skipped ${bad} malformed saved arm${bad === 1 ? "y" : "ies"}; the original is kept as armies.json.bad.`);
+  }
   armies = armies.filter(ok);
 } catch (err) {
   armies = [];
@@ -516,8 +520,9 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     sockets.delete(ws);
     if (info.token && !info.spectator && game.phase === "muster") freeSeatLater(info.token);
-    // A pause waiting on someone who just left may now be complete.
-    if (game.beat && beatWaitsFor().every((p) => beatAcks.has(p.id))) endBeat();
+    // A pause waiting on someone who just left may now be complete. A pause nobody is waited on
+    // (a computer-only table) keeps its timer, so watchers still get their look.
+    if (game.beat && info.token && !info.spectator && beatAcks.size && beatWaitsFor().every((p) => beatAcks.has(p.id))) endBeat();
     broadcast();
   });
 });

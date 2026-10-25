@@ -204,7 +204,7 @@ test("tie picks: remembered order applies only among ranked units; a new unit in
   s.units.find((u) => u.id === z).dead = true;
   assert.deepEqual(ask([x, y])?.sort(), [x, y].sort());
   E.takeTurn(s, A, y);
-  assert.deepEqual(s.players[0].tiePref.activation, [y, x], "the pick and the unit it beat are both ranked");
+  assert.deepEqual(s.players[0].tiePref.activation, { [y]: [x] }, "y was chosen over x");
   assert.equal(ask([x, y]), null, "the same tie does not ask again");
   assert.ok(!!s.units.find((u) => u.id === y).revealed && !s.units.find((u) => u.id === x).revealed, "the ranked unit goes first");
   // z joins the tie: it was never ranked, so Ann is asked again.
@@ -214,5 +214,30 @@ test("tie picks: remembered order applies only among ranked units; a new unit in
   assert.throws(() => E.takeTurn(s, B, z), /not choosing/, "only the owner may pick, while the pick is open");
   assert.throws(() => E.takeTurn(s, A, "nope"), /cannot go/);
   E.takeTurn(s, A, z);
-  assert.deepEqual(s.players[0].tiePref.activation, [z, y, x], "z ranks ahead of the units it beat");
+  assert.deepEqual(s.players[0].tiePref.activation[z].sort(), [x, y].sort(), "z was chosen over both");
+  // Next time all three tie, z goes, then y goes ahead of x, with no questions.
+  for (const u of s.units) u.revealed = null;
+  assert.equal(ask([x, y, z]), null);
+  assert.ok(s.units.find((u) => u.id === z).revealed, "z first");
+});
+
+test("a fresh three-way tie asks twice: the first pick does not decide the order of the other two", () => {
+  const s = E.createGame({ seed: 8, budget: 100 });
+  E.addPlayer(s, A, "Ann");
+  E.addPlayer(s, B, "Bo");
+  E.setFaction(s, A, "holds");
+  E.setFaction(s, B, "sylvan");
+  E.submitArmy(s, A, [{ unit: "ironbreakers" }, { unit: "ironbreakers" }, { unit: "ironbreakers" }]);
+  E.submitArmy(s, B, [{ unit: "wardens" }]);
+  E.run(s);
+  const ids = s.units.filter((u) => u.owner === A).map((u) => u.id);
+  s.phase = "activation";
+  s.queue = [...ids];
+  E.run(s);
+  assert.equal(s.pending?.type, "pick", "first question");
+  E.takeTurn(s, A, ids[2]);
+  E.run(s);
+  while (s.pending?.type === "action") E.pass(s, A), E.run(s);
+  assert.equal(s.pending?.type, "pick", "the remaining two are asked about too");
+  assert.deepEqual(s.pending.options.sort(), [ids[0], ids[1]].sort());
 });
