@@ -600,7 +600,28 @@ export function planMove(state, u, code) {
   const path = [];
   for (let s = 0; s <= t + 1e-9; s += 0.05) path.push(maneuverPose(start, man, size, Math.min(s, t)));
   path.push(pose);
-  return { man, pose, t, bumped, path, slowedBy, blockedBy, fled: !insideBoard(corners(pose, size), state.board) };
+  // Blocked by rocks or a friendly unit: the unit spends the rest of its move backing away, at half
+  // speed and without turning. Bumping an enemy is different: it stays in contact, ready to fight.
+  let backedOff = 0;
+  const enemyBump = bumped.some((b) => b.owner !== u.owner);
+  if ((bumped.length || blockedBy) && !enemyBump && t < 1) {
+    const len = man.type === "S" || man.type === "A" ? size + 40 * man.speed : maneuverLength(man, size);
+    const room = ((1 - t) * len) / 2;
+    const from = bumped[0] || blockedBy;
+    let dx = pose.x - from.x;
+    let dy = pose.y - from.y;
+    let d = Math.hypot(dx, dy);
+    if (d < 1) [dx, dy, d] = [-Math.sin((pose.h * Math.PI) / 180), Math.cos((pose.h * Math.PI) / 180), 1]; // straight back
+    for (const f of [1, 0.75, 0.5, 0.25]) {
+      const p2 = { x: pose.x + (dx / d) * room * f, y: pose.y + (dy / d) * room * f, h: pose.h };
+      if (room * f < 2 || !insideBoard(corners(p2, size), state.board) || overlapsAny(state, u, p2).length || blocksAt(state, u, p2)) continue;
+      pose = p2;
+      backedOff = room * f;
+      path.push(pose);
+      break;
+    }
+  }
+  return { man, pose, t, bumped, path, slowedBy, blockedBy, backedOff, fled: !insideBoard(corners(pose, size), state.board) };
 }
 
 /** Dice a stance (or Aim) is worth: the movement given up, so faster units gain more (top speed 1 to 3: 1, 4 to 5: 2). */
@@ -623,7 +644,7 @@ function executeManeuver(state, u, code) {
   Object.assign(u, { x: mv.pose.x, y: mv.pose.y, h: mv.pose.h });
   u.revealed = code;
   const climbed = !wasHigh && onKind(state, u, "hill");
-  const bumpNote = mv.bumped.length ? `, bumping ${mv.bumped.map((b) => b.name).join(", ")}` : mv.blockedBy ? ", stopped by rocks" : mv.slowedBy ? `, slowed by the ${mv.slowedBy.kind}` : "";
+  const bumpNote = (mv.bumped.length ? `, bumping ${mv.bumped.map((b) => b.name).join(", ")}` : mv.blockedBy ? ", stopped by rocks" : mv.slowedBy ? `, slowed by the ${mv.slowedBy.kind}` : "") + (mv.backedOff ? ", and backs away" : "");
   if (isHold(man)) {
     const turn = { D: "holds its facing", DL: "turns left", DBL: "turns half left", DBR: "turns half right", DR: "turns right", DA: "turns to face the rear" }[man.type.replace(/^M/, "D")];
     const stuck = mv.pose.h === mv.path[0].h && man.type !== "D" && man.type !== "M";
@@ -975,14 +996,15 @@ export const isMelee = (w) => w.range[1] === 1;
 const maxRange = (state, u, w) => (isMelee(w) ? 1 : Math.min(4, w.range[1] + (onKind(state, u, "hill") ? 1 : 0)));
 
 /**
- * Another unit's base (friend or foe) on the line between attacker and target blocks the attack.
- * Bases in contact always fight; a unit on a hill sees over the ranks; Flying attackers and
- * targets are above them. Bases count a little smaller than drawn, so a shot past a corner gets through.
+ * An enemy base on the line between attacker and target blocks the attack (your own units never
+ * block your shots, so a gunline can fire past its shield wall). Bases in contact always fight; a
+ * unit on a hill sees over the ranks; Flying attackers and targets are above them. Bases count a
+ * little smaller than drawn, so a shot past a corner gets through.
  */
 export function unitsBlock(state, u, t) {
   if (flies(u) || flies(t) || onKind(state, u, "hill") || onKind(state, t, "hill")) return false;
   if (polyDistance(poly(u), poly(t)) <= CONTACT) return false;
-  return alive(state).some((o) => o.id !== u.id && o.id !== t.id && segmentHitsCircle(u, t, { x: o.x, y: o.y, r: sizeOf(o) * 0.45 }));
+  return alive(state).some((o) => o.owner !== u.owner && o.id !== t.id && segmentHitsCircle(u, t, { x: o.x, y: o.y, r: sizeOf(o) * 0.45 }));
 }
 
 /**

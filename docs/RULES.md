@@ -46,7 +46,7 @@ consideration, see [ROADMAP.md](ROADMAP.md).
   (minimum range and hills included), inside its arc, in sight and spotted.
   Enemies within range that it cannot attack as it stands get a dashed ring
   saying why: **turn** (outside the arc), **close in** (a melee weapon not yet
-  in base contact), **blocked** (another unit in the way), **no sight** (terrain
+  in base contact), **blocked** (an enemy unit in the way), **no sight** (terrain
   in the way) or **hidden** (not spotted, or Stealthy at range 3 or more). In Planning the
   markers follow the dial: hover a maneuver to see what the unit could hit
   after that move, and the dial shows how many enemies are in reach. Select an
@@ -402,6 +402,10 @@ The base travels its own length plus the template, exactly like X-Wing.
 - **Bumping.** If the unit would end overlapping another base, it backs up
   along its path until it no longer overlaps. A bumped unit skips its actions.
   A Wheel About that bumps does not turn around.
+  - **Into an enemy:** it stops there, in base contact, ready to fight.
+  - **Into a friendly unit or rocks:** it spends the rest of its move backing
+    away from what blocked it, at half speed (half the distance it had left)
+    and without turning, as far as there is room.
 - **Fleeing.** A unit whose base ends partly off the table is lost. Its points
   score for every opponent still fighting.
 - **Obstacles** apply as the unit moves (section 8).
@@ -455,7 +459,7 @@ board to see its effects.
 | **Lava** | Heat haze: attacks that cross it give the defender +1 die. | Burns for 1 damage, and a unit that enters it stops 40 into it. Calamity units are not burned and gain a Calamity charge instead. |
 | **Marsh** | Mist: attacks that cross it give the defender +1 die. | A unit that enters it stops 40 into it, and units standing in it roll 1 fewer defence die. |
 | **Rift** | Calamity units gain a Calamity charge when they touch it. | Others roll an attack die: Omen = 1 strain, Strike or Rend = damage. |
-| **Rocks** | Block line of sight completely: hide behind them. | Impassable: a moving unit stops before touching them and loses its actions, like a bump. |
+| **Rocks** | Block line of sight completely: hide behind them. | Impassable: a moving unit stops before touching them, backs away with half its remaining move, and loses its actions, like a bump. |
 
 Random pieces vary in size. Radius by terrain:
 
@@ -488,8 +492,9 @@ damage or climbing), but still cannot end a move on rocks.
 ruins block it unless one of the two units stands in that piece, or either unit
 is on a hill.
 
-**Units in the way.** For attacks, any other unit's base (friend or foe) on the
-line between attacker and target blocks the attack. A shot that only clips the
+**Units in the way.** For attacks, an enemy base on the line between attacker
+and target blocks the attack. Your own units never block your shots, so a
+gunline can fire past its shield wall. A shot that only clips the
 corner of a base gets through, bases in contact can always fight, a unit on a
 hill (attacker or target) sees over the ranks, and Flying units are above
 them. Units in the way do not hide anything from sight: they only stop attacks.
