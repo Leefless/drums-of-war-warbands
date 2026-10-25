@@ -99,10 +99,14 @@ export function armyLimits(budget) {
   return { units: Math.round(MAX_UNITS * k), copies: Math.round(MAX_COPIES * k) };
 }
 export const CHAMPION_PREMIUM = 1.15;
+// Per-army balance on top of the cost model: under the base-contact melee rules the fast
+// Greenskin horde won about 65% of simulated battles, so its units cost 10% more.
+export const FACTION_COST = { greenskin: 1.1 };
 for (const [fid, roster] of Object.entries(ROSTERS)) {
   // Champions carry a 15% premium over their computed cost: a unique, optional slot of
   // concentrated power (simulated champion armies otherwise won about 60% of games).
-  const build = (u, champion) => ({ ...u, champion, unique: champion, dialKey: u.dial, dial: DIALS[u.dial], cost: Math.round(unitCost(u, DIALS[u.dial]) * (champion ? CHAMPION_PREMIUM : 1)) });
+  const k = FACTION_COST[fid] ?? 1;
+  const build = (u, champion) => ({ ...u, champion, unique: champion, dialKey: u.dial, dial: DIALS[u.dial], cost: Math.round(unitCost(u, DIALS[u.dial]) * k * (champion ? CHAMPION_PREMIUM : 1)) });
   FACTIONS[fid].units = [...roster.champions.map((u) => build(u, true)), ...roster.units.map((u) => build(u, false))];
 }
 

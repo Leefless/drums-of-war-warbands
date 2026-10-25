@@ -43,17 +43,14 @@ settled, tune them at 200 DP too.
 ### 1.4 After the contact and blocking rules (2026-10-25)
 
 Melee now needs base contact (with pile in at the start of the Engagement) and enemy
-bases block attacks. After Greenskin's item prices rose (latest): at 100 DP Greenskin 65%, Concord 51%, Sylvan
-50%, Umbral 49%, Calamity 45%, Iron Holds 40% (4 games per preset). At 200 DP: Greenskin
-64%, Concord 64%, Umbral 48%, Sylvan 47%, Holds 42%, Calamity 35%.
+bases block attacks. Latest (after the Greenskin cost factor, 4 games per preset at 100 DP, 2 at 200): at 100 DP
+Greenskin 55%, Umbral 53%, Concord 52%, Sylvan 50%, Calamity 49%, Iron Holds 41%. At 200 DP:
+Concord 65%, Sylvan 51%, Umbral 50%, Greenskin 49%, Holds 48%, Calamity 37%.
 
-- **Greenskin is the new outlier.** Fast melee is the big winner under contact rules.
-  Tried (2026-10-25): standard 1.5x item prices (done, commit 8a05ae0) moved it only
-  66 -> 65% at 100 DP and 68 -> 64% at 200 DP, because prebuilt warbands spend only about
-  12% on items. Trimming Momentum to speed 5 (trial only, not kept) moved it 65 -> 63%.
-  The stronger lever is likely the units themselves: a Greenskin cost factor (for example
-  +10% on every Greenskin unit in `shared/cost.js`), or a look at Mob (strain cap 2) and
-  how cheap their fast melee bodies are. Re-run the sims after any change.
+- **Greenskin (done, 2026-10-25).** Standard 1.5x item prices moved it only 66 to 65% at
+  100 DP; a 10% cost factor on every Greenskin unit (`FACTION_COST` in `shared/factions.js`)
+  brought it to 55% at 100 DP and 49% at 200 DP without pushing any other army down. Momentum
+  trimmed to speed 5 was tried and not kept (65 to 63%).
 - **The Holds are still a little low.** Slow, low-initiative melee moves first and is
   often left short of contact. A melee value that scales with speed in `shared/cost.js`
   was tried and did not help (Holds stayed at 35% before pile in), so the lever is rules

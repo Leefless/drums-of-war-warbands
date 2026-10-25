@@ -125,7 +125,9 @@ of magic items drawn from its own lore. The game has 247 units (179 units and
 ### Points costs
 
 No cost is set by hand: each unit's price is computed from its profile, and the
-builder shows the breakdown.
+builder shows the breakdown. Champions cost 15% more, and every Greenskin unit costs
+10% more (a balance adjustment: the fast horde won too often under the melee contact
+rules).
 
 | Part | What drives it |
 | --- | --- |

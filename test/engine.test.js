@@ -352,7 +352,8 @@ test("surrender: the warband quits without scoring, and the battle ends when no 
   toPlan(t, ["h", "c1", "c2"]);
   E.surrender(t, "h");
   assert.equal(t.phase, "over");
-  assert.ok(["c1", "c2"].includes(t.winner));
+  // The computers are ranked by points on the field; an exact tie is a draw.
+  assert.ok(["c1", "c2"].includes(t.winner) || (t.draw && t.winner === null));
 
   // Three people: the other two keep fighting.
   const u = E.createGame({ seed: 4, budget: 100 });
