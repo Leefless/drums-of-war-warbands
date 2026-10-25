@@ -218,7 +218,9 @@ function render() {
   // Broadcasts re-render the page; keep focus where it was: the field being typed in, or the
   // button a keyboard player was on (found again by its id or its data-* key).
   const active = document.activeElement;
-  const dataKey = active && active !== document.body ? [...active.attributes].find((a) => a.name.startsWith("data-") && a.name !== "data-hover") : null;
+  // Buttons are refocused only for keyboard players: a mouse click must not leave focus on a
+  // button (that would swallow the Space/Enter Continue shortcut).
+  const dataKey = active && active !== document.body && T.keyboard ? [...active.attributes].find((a) => a.name.startsWith("data-") && a.name !== "data-hover") : null;
   const keep = active?.id ? { sel: `#${CSS.escape(active.id)}`, a: active.selectionStart, b: active.selectionEnd }
     : dataKey ? { sel: `[${dataKey.name}="${CSS.escape(dataKey.value)}"]` } : null;
   renderInner();
@@ -928,6 +930,10 @@ function noteArrival(hadState) {
   updateTitle();
 }
 
+// Whether the player is driving with the keyboard (Tab and arrows) or the pointer, for focus handling.
+window.addEventListener("keydown", (ev) => { if (ev.key === "Tab") T.keyboard = true; }, true);
+window.addEventListener("pointerdown", () => { T.keyboard = false; }, true);
+
 /** How many people the pause waits on, as the server counts them (those who can see the attack). */
 const beatTotal = () => S.beat?.total ?? 0;
 /** The pause waits on this screen and it has not pressed Continue yet. */
@@ -956,6 +962,7 @@ function turnInfo() {
     const acked = (S.beat.acked || []).length;
     const total = Math.max(beatTotal(), acked);
     if (!S.lastAttack) return { text: "An attack resolves out of your sight", pid: null, mine: false };
+    if (!S.beat.waiting) return { text: total ? `Attack resolved: waiting for the others (${acked} of ${total})` : "Attack resolved", pid: null, mine: false };
     return { text: total ? `Attack resolved: Continue when ready (${acked} of ${total})` : "Attack resolved", pid: null, mine: false };
   }
   const pd = S.pending;
@@ -1304,7 +1311,7 @@ function renderMapDial() {
   const el = $("#mapdial");
   if (!el) return;
   const u = mapDialUnit();
-  if (!u) { el.hidden = true; el.innerHTML = ""; el.dataset.uid = ""; return; }
+  if (!u) { el.hidden = true; el.innerHTML = ""; el.dataset.uid = ""; T.dialKey = null; return; }
   const next = myUnits().find((x) => x.id !== u.id && !S.dials[x.id]);
   el.innerHTML = `<div class="md-head"><span>${esc(u.name)} <span class="muted">i${esc(u.init)}${strained(u) ? " · strained" : ""}</span></span>
       <button class="small ghost" data-mdclose aria-label="Close the dial">×</button></div>
@@ -1315,6 +1322,7 @@ function renderMapDial() {
       ${next ? `<button class="small" data-mdnext="${esc(next.id)}">Next unit</button>` : ""}</div>`;
   el.dataset.uid = u.id;
   el.hidden = false;
+  T.dialKey = null; // a re-rendered dial is always placed afresh
   el.querySelectorAll("[data-man]").forEach((b) => {
     b.onclick = () => {
       if (L.order) L.manual.add(u.id);
@@ -1350,7 +1358,8 @@ function placeMapDial() {
   const u = unitById(el.dataset.uid);
   if (!u) return;
   // Measuring forces a layout: only do it when the camera, the window, the unit or the dial changed.
-  const key = `${viewStamp()}|${window.innerWidth}x${window.innerHeight}|${u.id},${u.x},${u.y}|${el.innerHTML.length}`;
+  const r = canvas.getBoundingClientRect(); // one read: page scroll and layout shifts move the board
+  const key = `${viewStamp()}|${window.innerWidth}x${window.innerHeight}|${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)}|${u.id},${u.x},${u.y}|${el.innerHTML.length}`;
   if (key === T.dialKey) return;
   T.dialKey = key;
   const p = boardToScreen(canvas, u.x, u.y);
