@@ -6,7 +6,8 @@
   <title>Drums of War: Warbands</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+  <!-- Loaded without blocking the first paint: a LAN table may have no internet; the fallbacks render at once. -->
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Crimson+Pro:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -22,7 +23,8 @@
   <div id="stale" class="stale" role="alert" hidden><span id="staleMsg"></span> <button id="restartNow" class="small" hidden>Restart now</button></div>
   <div id="rulesHost"></div>
   <main id="app"></main>
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <div id="offline" class="offline" role="alert" hidden>Connection to the table lost. Reconnecting...</div>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

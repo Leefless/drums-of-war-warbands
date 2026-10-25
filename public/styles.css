@@ -22,7 +22,7 @@
   --crit: #B85C4A;
   --ward: #7FA3C8;
   --blue: #7FA3C8;
-  --red: #B85C4A;
+  --red: #D7826F; /* red maneuvers: 4.5:1 or better on the raised dark surface */
   --ruins: #A39A86;
   --thicket: #7FA36B;
   --rift: #B85C4A;
@@ -45,7 +45,7 @@
   --line: #CDBB97;
   --ink: #2A2118;
   --ink-2: #5C4E3A;
-  --ink-3: #7A6A50;
+  --ink-3: #5E5039; /* 5.8:1 on raised light surfaces */
   --accent: #C9A227;
   --accent-text: #8A6A12;
   --on-accent: #1A140B;
@@ -175,7 +175,7 @@ main { flex: 1; min-height: 0; }
 .stats b { color: var(--ink); font-weight: 600; }
 .tags { display: flex; gap: 6px; flex-wrap: wrap; }
 .tag { font: 600 11px var(--display); letter-spacing: 0.06em; border: 1px solid var(--line); padding: 1px 6px; color: var(--ink-2); border-radius: 2px; background: var(--raise); }
-.list { position: sticky; top: 12px; background: var(--texture), var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 14px; display: grid; gap: 10px;
+.list { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; background: var(--texture), var(--panel); border: 1px solid var(--line); border-radius: 2px; padding: 14px; display: grid; gap: 10px;
   box-shadow: inset 0 0 0 1px var(--inset), 0 2px 8px var(--shade); }
 .budget { height: 6px; background: var(--raise); border: 1px solid var(--line); border-radius: 1px; }
 .budget i { display: block; height: 100%; background: var(--ink-2); }
@@ -329,7 +329,7 @@ canvas { display: block; cursor: crosshair; touch-action: none; border: 1px soli
   100% { transform: rotate(0) scale(1); }
 }
 
-.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--crit); color: #F7EFDC; border: 1px solid var(--line); padding: 8px 14px; border-radius: 3px; max-width: 90vw; box-shadow: 0 4px 14px var(--shade); }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #8A3527; color: #F7EFDC; /* 7:1 */ border: 1px solid var(--line); padding: 8px 14px; border-radius: 3px; max-width: 90vw; box-shadow: 0 4px 14px var(--shade); }
 .victory { font-size: 17px; }
 .big { font: 700 48px/1 var(--display); letter-spacing: 0.04em; color: var(--accent-text); }
 
@@ -388,7 +388,7 @@ canvas { display: block; cursor: crosshair; touch-action: none; border: 1px soli
   .urow-text .stats { display: none; }
   .lrow.entry { flex-wrap: wrap; }
 }
-.toast.ok { background: var(--good); }
+.toast.ok { background: #3F5E33; } /* 6.4:1 with the toast text */
 
 /* Selectable dice are buttons (keyboard and screen readers) styled like the dice. */
 button.die { padding: 0; cursor: pointer; }
@@ -473,3 +473,4 @@ button.die { padding: 0; cursor: pointer; }
 .md-arrow { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 50%; font-weight: 700; color: var(--accent-text, var(--ink)); transition: transform 200ms ease; }
 .md-reach { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 13px; color: var(--ink-2); }
 .rk { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #E16E50; flex: none; }
+.offline { position: fixed; top: 0; left: 0; right: 0; z-index: 20; padding: 8px max(16px, env(safe-area-inset-left, 0px)); background: #8A3527; color: #F7EFDC; text-align: center; font-weight: 600; }

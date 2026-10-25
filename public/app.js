@@ -48,6 +48,7 @@ let ws;
 function connect() {
   ws = new WebSocket(`${location.protocol === "https:" ? "wss" : "ws"}://${location.host}`);
   ws.onopen = () => {
+    $("#offline").hidden = true;
     if (L.joined || L.spectate) send("hello", { token, name: L.name, spectate: L.spectate });
   };
   ws.onmessage = (ev) => {
@@ -78,7 +79,10 @@ function connect() {
       render();
     } else if (m.t === "error") toast(m.msg);
   };
-  ws.onclose = () => setTimeout(connect, 1000);
+  ws.onclose = () => {
+    $("#offline").hidden = false; // the board would otherwise look live while nothing reaches the table
+    setTimeout(connect, 1000);
+  };
 }
 function send(t, payload = {}) {
   if (ws?.readyState === 1) ws.send(JSON.stringify({ t, ...payload }));
@@ -255,14 +259,17 @@ window.addEventListener("keydown", (ev) => {
 
 function render() {
   applyArmyTheme();
-  // Broadcasts re-render the page; keep the field being typed in focused.
+  // Broadcasts re-render the page; keep focus where it was: the field being typed in, or the
+  // button a keyboard player was on (found again by its id or its data-* key).
   const active = document.activeElement;
-  const keep = active?.id && (active.tagName === "INPUT" || active.tagName === "SELECT") ? { id: active.id, a: active.selectionStart, b: active.selectionEnd } : null;
+  const dataKey = active && active !== document.body ? [...active.attributes].find((a) => a.name.startsWith("data-") && a.name !== "data-hover") : null;
+  const keep = active?.id ? { sel: `#${CSS.escape(active.id)}`, a: active.selectionStart, b: active.selectionEnd }
+    : dataKey ? { sel: `[${dataKey.name}="${CSS.escape(dataKey.value)}"]` } : null;
   renderInner();
   if (keep) {
-    const el = document.getElementById(keep.id);
+    const el = document.querySelector(keep.sel);
     if (el && el !== document.activeElement) {
-      el.focus();
+      el.focus({ preventScroll: true });
       try { if (keep.a != null) el.setSelectionRange(keep.a, keep.b); } catch { /* not a text field */ }
     }
   }
@@ -730,7 +737,8 @@ function dialHTML(dial, current, mini = false, strainedNow = false) {
           : ms.find((x) => x.speed === s && (c === "*" ? ["A", "RF", "X"].includes(x.type) : x.type === c));
       if (!m) { html += `<button class="empty" disabled></button>`; continue; }
       const blocked = strainedNow && m.color === "red";
-      html += `<button class="${m.color} ${isStance(m) ? "stance" : isAim(m) ? "aim" : ""} ${current === m.code ? "on" : ""}" ${mini ? "disabled" : `data-man="${m.code}"`} ${blocked ? "disabled" : ""} title="${blocked ? "Strained: no red maneuvers" : isStance(m) ? `Defensive stance, ${holdName(m)}: +${bonus} defence this round` : isAim(m) ? `Aim, ${holdName(m)}: offsets up to ${bonus} of a target's stance dice this round` : m.code}">${GLYPH[m.type]}</button>`;
+      const tip = blocked ? "Strained: no red maneuvers" : isStance(m) ? `Defensive stance, ${holdName(m)}: +${bonus} defence this round` : isAim(m) ? `Aim, ${holdName(m)}: offsets up to ${bonus} of a target's stance dice this round` : m.code;
+      html += `<button class="${m.color} ${isStance(m) ? "stance" : isAim(m) ? "aim" : ""} ${current === m.code ? "on" : ""}" ${mini ? "disabled" : `data-man="${m.code}"`} ${blocked ? "disabled" : ""} aria-label="${tip}" aria-pressed="${current === m.code}" title="${blocked ? "Strained: no red maneuvers" : isStance(m) ? `Defensive stance, ${holdName(m)}: +${bonus} defence this round` : isAim(m) ? `Aim, ${holdName(m)}: offsets up to ${bonus} of a target's stance dice this round` : m.code}">${GLYPH[m.type]}</button>`;
     }
   }
   return `${html}</div>`;
@@ -741,7 +749,7 @@ function renderBattle(app) {
   if (L.mode !== "battle") {
     L.mode = "battle";
     app.innerHTML = `<div class="battle"><div class="boardcol">
-      <div class="turnhead"><div class="turnbar" id="turnbar"><span class="turntext" id="turnText"></span><button class="small ghost" id="muteBtn" aria-pressed="false" title="Mute or unmute the turn chime"></button></div><div class="track" id="track" hidden aria-label="Initiative order"></div></div>
+      <div class="turnhead"><div class="turnbar" id="turnbar"><span class="turntext" id="turnText" aria-live="polite"></span><button class="small ghost" id="muteBtn" aria-pressed="false" title="Mute or unmute the turn chime"></button></div><div class="track" id="track" hidden aria-label="Initiative order"></div></div>
       <div class="boardwrap"><canvas id="board"></canvas><div id="mapdial" class="mapdial" hidden></div>
       <div class="combat out" id="combat" role="status" aria-live="polite" aria-hidden="true" title="Click to dismiss"></div>
       <div class="zoomctl" aria-label="Map zoom"><button class="small ${T.follow ? "on" : ""}" id="follow" aria-pressed="${T.follow}" title="Camera follows the action when zoomed in">Follow</button><button class="small" id="zoomIn" title="Zoom in (or scroll)">+</button><button class="small" id="zoomOut" title="Zoom out (or scroll)">−</button><button class="small" id="zoomFit" title="Show the whole battlefield">Fit</button><span id="zoomPct" class="label"></span></div></div><div class="unitbar" id="roster"></div></div>
@@ -844,10 +852,16 @@ function renderBattle(app) {
       }
       if (ev.key === "Escape" && L.cardFor) { L.cardFor = null; return render(); }
       if (ev.key === "Escape" && mapDialUnit()) { L.dialClosed = L.selected; return render(); }
+      if (ev.key === "Escape" && L.placing) { Object.assign(L, { placing: null, preview: null }); return render(); }
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
       if (!u || u.owner !== S.you) return;
-      if (ev.key === "q" || ev.key === "e") send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + (ev.key === "e" ? 45 : -45) });
+      if (ev.key === "q" || ev.key === "e") {
+        // Held keys repeat fast: at most ten turns a second, like the arrow nudges.
+        if (ev.repeat && Date.now() - (L.lastNudge || 0) < 100) return;
+        L.lastNudge = Date.now();
+        send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + (ev.key === "e" ? 45 : -45) });
+      }
       // Arrow keys nudge the selected unit, so deployment works without a mouse.
       const nudge = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] }[ev.key];
       if (nudge) {
@@ -1487,7 +1501,7 @@ function promptHTML() {
     html = `<div class="label">${S.draw ? "Draw" : "Victory"}</div><div class="big">${S.draw ? "No victor" : esc(winner?.name ?? "Nobody")}</div>
       <p class="muted">${S.draw ? "The warbands are exactly level." : winner ? `Victory for ${esc(FACTIONS[winner.faction].name)}.` : ""}</p>
       <table class="victory num" style="width:100%">${S.players.map((x) => `<tr><td>${esc(x.name)}</td><td>${x.vp} VP</td><td class="muted">${((n) => `${n} unit${n === 1 ? "" : "s"} left`)(S.units.filter((u) => u.owner === x.id && !u.dead).length)}</td></tr>`).join("")}</table>
-      <div class="btns" style="margin-top:10px"><button class="cta" id="reset">New battle</button></div>`;
+      ${me() ? `<div class="btns" style="margin-top:10px"><button class="cta" id="reset">New battle</button></div>` : `<p class="muted">A seated player can start the next battle.</p>`}`;
   } else if (p && p.pid === S.you) {
     html = myPromptHTML(p);
   } else if (p) {
@@ -1496,7 +1510,8 @@ function promptHTML() {
     html = `<div class="label">${PHASES[S.phase]}</div>`;
   }
   if (S.hidden && S.phase !== "over") html += `<div class="label" style="margin-top:8px">Fog of war: ${S.hidden} enemy unit${S.hidden === 1 ? "" : "s"} unseen</div>`;
-  if (S.attack || S.lastAttack) html += diceHTML(S.attack || S.lastAttack, !!S.attack);
+  // The last attack's dice belong to the Engagement it happened in, not to later phases.
+  if (S.attack || (S.lastAttack && S.phase === "engagement")) html += diceHTML(S.attack || S.lastAttack, !!S.attack);
   return html;
 }
 
@@ -1611,7 +1626,7 @@ function wirePrompt() {
     const u = unitById(L.selected);
     if (u) send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + Number(el.dataset.rot) });
   });
-  on("[data-sel]", (el) => { L.selected = el.dataset.sel; L.hover = null; render(); });
+  on("[data-sel]", (el) => { Object.assign(L, { selected: el.dataset.sel, hover: null, placing: null, preview: null }); render(); });
   on("[data-man]", (el) => {
     if (L.order) L.manual.add(L.selected);
     send("dial", { uid: L.selected, code: el.dataset.man });
