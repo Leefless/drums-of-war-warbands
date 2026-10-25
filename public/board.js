@@ -1212,6 +1212,22 @@ function drawToken(ctx, k, u, pose, opts, now, alpha, scale) {
   ctx.lineWidth = band;
   ctx.strokeStyle = col;
   ctx.stroke();
+  // Facing pointer: an arrowhead standing out past the front edge, so the way the unit
+  // faces reads at a glance at any zoom and over any portrait.
+  const tip = Math.max(7, size * 0.2);
+  const wing = Math.max(6, size * 0.17);
+  const edge = -half - band;
+  ctx.beginPath();
+  ctx.moveTo(0, edge - tip);
+  ctx.lineTo(wing, edge + 1);
+  ctx.lineTo(-wing, edge + 1);
+  ctx.closePath();
+  ctx.lineJoin = "round";
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = "rgba(8, 6, 4, 0.85)";
+  ctx.stroke();
+  ctx.fillStyle = col;
+  ctx.fill();
 
   // Selection, activation and target rings follow the base.
   if (isSel || isActive || isHi) {

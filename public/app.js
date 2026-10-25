@@ -1283,6 +1283,7 @@ function renderMapDial() {
   const next = myUnits().find((x) => x.id !== u.id && !S.dials[x.id]);
   el.innerHTML = `<div class="md-head"><span>${esc(u.name)} <span class="muted">i${esc(u.init)}${strained(u) ? " · strained" : ""}</span></span>
       <button class="small ghost" data-mdclose aria-label="Close the dial">×</button></div>
+    ${facingHTML(u)}
     ${dialHTML(u.dial, S.dials[u.id], false, strained(u))}
     <div class="md-foot">${S.dials[u.id] ? `<span class="muted">Set: ${esc(S.dials[u.id].replace(":", " "))}</span>` : `<span class="muted">Hover to preview, click to set</span>`}
       ${next ? `<button class="small" data-mdnext="${esc(next.id)}">Next unit</button>` : ""}</div>`;
@@ -1300,6 +1301,13 @@ function renderMapDial() {
   const nb = el.querySelector("[data-mdnext]");
   if (nb) nb.onclick = () => { L.selected = nb.dataset.mdnext; L.dialClosed = null; L.hover = null; focusUnit(nb.dataset.mdnext); render(); };
   placeMapDial();
+}
+
+/** Which way a unit faces on the map (the top of the board is north), for reading its dial. */
+function facingHTML(u) {
+  const h = ((Math.round(u.h) % 360) + 360) % 360;
+  const name = ["north", "north-east", "east", "south-east", "south", "south-west", "west", "north-west"][Math.round(h / 45) % 8];
+  return `<div class="md-face" title="The dial's arrows are relative to the unit: straight means straight ahead the way it faces."><span class="md-arrow" style="transform:rotate(${h}deg)" aria-hidden="true">↑</span><span>Facing ${name} <span class="muted">· moves are relative to its front</span></span></div>`;
 }
 
 /** Keep the map dial beside its unit, on whichever side covers fewer of my other units, on screen. */
@@ -1415,7 +1423,7 @@ function promptHTML() {
       html = `<div class="label">Planning · secret</div><h3>Set a maneuver for every unit</h3>
         <div class="orders"><div class="btns">${Object.entries(ORDERS).map(([k, o]) => `<button data-order="${k}" class="${ord === k ? "on" : ""}" title="${esc(o.hint)}" ${mine.ready ? "disabled" : ""}>${o.name}</button>`).join("")}</div>
           <p class="muted">${ord ? esc(ORDERS[ord].hint) : "Quick orders set every dial at once. You can still change any unit afterwards."}</p></div>
-        <div class="ulist" style="margin:8px 0">${units.map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)} <span class="muted">i${u.init}${strained(u) ? " · strained" : ""}</span></span><span class="set">${S.dials[u.id] ? esc(S.dials[u.id].replace(":", " ")) : ""}</span></button>${u === sel ? `<div class="inline-dial" id="seldial"><div class="label">Dial (hover to preview)</div>${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}</div>` : ""}`).join("")}</div>
+        <div class="ulist" style="margin:8px 0">${units.map((u) => `<button data-sel="${u.id}" class="${L.selected === u.id ? "on" : ""}"><span>${esc(u.name)} <span class="muted">i${u.init}${strained(u) ? " · strained" : ""}</span></span><span class="set">${S.dials[u.id] ? esc(S.dials[u.id].replace(":", " ")) : ""}</span></button>${u === sel ? `<div class="inline-dial" id="seldial"><div class="label">Dial (hover to preview)</div>${facingHTML(sel)}${dialHTML(sel.dial, S.dials[sel.id], false, strained(sel))}</div>` : ""}`).join("")}</div>
         ${sel && sel.owner === S.you ? "" : `<p class="muted">Select a unit to open its dial.</p>`}
         <div class="btns" style="margin-top:10px">${mine.ready ? `<span class="muted">Orders locked. Waiting for the others.</span><button id="unready">Change orders</button>` : `<button class="cta" id="ready" ${allSet ? "" : "disabled"}>Lock in orders</button>`}</div>`;
     }

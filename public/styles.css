@@ -469,3 +469,5 @@ button.die { padding: 0; cursor: pointer; }
 .mapdial { position: fixed; z-index: 4; padding: 8px 10px 10px; background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--accent); border-radius: 3px; box-shadow: 0 6px 22px var(--shade); color: var(--ink); max-width: calc(100vw - 16px); }
 .mapdial .md-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; font: 600 15px var(--display); letter-spacing: 0.03em; }
 .mapdial .md-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 8px; font-size: 13px; }
+.md-face { display: flex; align-items: center; gap: 8px; margin: 0 0 6px; font-size: 13px; color: var(--ink-2); }
+.md-arrow { display: inline-grid; place-items: center; width: 24px; height: 24px; border: 1px solid var(--line); border-radius: 50%; font-weight: 700; color: var(--accent-text, var(--ink)); transition: transform 200ms ease; }
