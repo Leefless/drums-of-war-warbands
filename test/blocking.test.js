@@ -94,3 +94,26 @@ test("hills no longer stretch melee to range 2", () => {
   s.obstacles = [{ id: "h1", kind: "hill", x: 500, y: 600, r: 80 }];
   assert.equal(check(s, 0, 1).why, "range");
 });
+
+test("pile in: melee units step into contact at the start of the Engagement, if the way is clear", () => {
+  const engage = (s) => {
+    s.phase = "activation";
+    s.queue = [];
+    E.run(s);
+  };
+  // Ironbreakers 50 short of a Halberdier line, facing it: they pile in and can fight.
+  let s = table([{ unit: "ironbreakers", x: 500, y: 600 }], [{ unit: "halberdiers", x: 500, y: 490, h: 180 }]);
+  engage(s);
+  const [wall, foe] = s.units;
+  assert.equal(E.attackCheck(s, wall, foe, wall.weapons[0]).ok, true, "in contact after piling in");
+  assert.equal(wall.h, 0, "facing unchanged");
+  assert.ok(s.log.some((e) => /piles in/.test(e.msg)));
+  // The same pair with a rock in the gap: the way is not clear, so no pile in.
+  s = table([{ unit: "ironbreakers", x: 500, y: 600 }], [{ unit: "halberdiers", x: 500, y: 490, h: 180 }]);
+  s.obstacles = [{ id: "r1", kind: "block", x: 500, y: 545, r: 12 }];
+  assert.equal(E.rangeBetween(s.units[0], s.units[1]), 1, "still within range 1");
+  const before = { x: s.units[0].x, y: s.units[0].y };
+  engage(s);
+  assert.deepEqual({ x: s.units[0].x, y: s.units[0].y }, before, "a blocked unit does not move");
+  assert.equal(E.attackCheck(s, s.units[0], s.units[1], s.units[0].weapons[0]).why, "contact");
+});

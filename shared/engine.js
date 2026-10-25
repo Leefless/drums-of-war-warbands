@@ -1350,8 +1350,45 @@ function startActivation(state) {
   log(state, "Dials revealed. Activation begins, lowest initiative first.");
 }
 
+/**
+ * Pile in: at the start of the Engagement, each unit with a melee weapon steps straight into base
+ * contact with the nearest spotted enemy within range 1 in that weapon's arc, facing unchanged, if
+ * the way is clear (no other base, no rocks, no terrain it is not already in). Highest initiative first.
+ */
+function pileIn(state) {
+  const order = initiativeQueue(state, true).map((id) => unit(state, id));
+  for (const u of order) {
+    if (!u || u.dead) continue;
+    const melee = u.weapons.filter(isMelee);
+    if (!melee.length) continue;
+    const seen = visibleTo(state, u.owner);
+    const foes = enemiesOf(state, u)
+      .filter((t) => seen.has(t.id) && rangeBetween(u, t) <= 1 && melee.some((w) => inArc(u, w.arc, t, sizeOf(t))))
+      .map((t) => ({ t, gap: polyDistance(poly(u), poly(t)) }))
+      .sort((a, b) => a.gap - b.gap);
+    if (!foes.length || foes[0].gap <= CONTACT) continue; // already fighting
+    const { t, gap } = foes[0];
+    const d = Math.hypot(t.x - u.x, t.y - u.y) || 1;
+    const dir = { x: (t.x - u.x) / d, y: (t.y - u.y) / d };
+    const startIn = new Set(state.obstacles.filter((o) => touches(u, o)).map((o) => o.id));
+    let pose = null;
+    for (let step = 2; step <= gap + 2; step += 2) {
+      const p = { x: u.x + dir.x * step, y: u.y + dir.y * step, h: u.h };
+      if (overlapsAny(state, u, p).length) break;
+      if (state.obstacles.some((o) => !startIn.has(o.id) && touches(u, o, p))) break;
+      pose = p;
+      if (polyDistance(corners(p, sizeOf(u)), poly(t)) <= CONTACT / 2) break;
+    }
+    if (!pose || polyDistance(corners(pose, sizeOf(u)), poly(t)) > CONTACT) continue; // the way is not clear
+    u.trail = [{ x: u.x, y: u.y }, { x: pose.x, y: pose.y }];
+    Object.assign(u, { x: pose.x, y: pose.y });
+    log(state, `${u.name} piles in against ${t.name}.`);
+  }
+}
+
 function startEngagement(state) {
   state.phase = "engagement";
+  pileIn(state);
   for (const f of alive(state).filter((x) => has(x, "fear"))) {
     for (const e of enemiesOf(state, f)) {
       if (!deathless(e) && !has(e, "fearless") && rangeBetween(f, e) <= 1) {

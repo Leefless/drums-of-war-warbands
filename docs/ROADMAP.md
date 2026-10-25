@@ -39,6 +39,22 @@ Medium.
 Preset gear shares (`gear` in `shared/presets/*.js`) are tuned at 100 DP only. Once 1.1 is
 settled, tune them at 200 DP too.
 
+### 1.4 After the contact and blocking rules (2026-10-25)
+
+Melee now needs base contact (with pile in at the start of the Engagement) and enemy
+bases block attacks. At 100 DP the armies now win 41 to 66% (4 games per preset):
+Greenskin 66%, Sylvan 52%, Concord 51%, Umbral 46%, Calamity 43%, Iron Holds 41%. At
+200 DP: Greenskin 68%, Concord 65%, Sylvan 50%, Holds 43%, Umbral 42%, Calamity 32%.
+
+- **Greenskin is the new outlier.** Fast melee is the big winner under contact rules.
+  Cheapest levers: raise its magic item price factor from 1.0 toward the standard 1.5,
+  or trim Momentum (Frenzy at speed 4+). Small.
+- **The Holds are still a little low.** Slow, low-initiative melee moves first and is
+  often left short of contact. A melee value that scales with speed in `shared/cost.js`
+  was tried and did not help (Holds stayed at 35% before pile in), so the lever is rules
+  or the Holds roster, not price.
+- **Calamity at 200 DP** (32%) was already low and is unchanged.
+
 ## 2. Ideas from A Song of Ice and Fire: Tabletop Miniatures Game
 
 Research into CMON's ASOIAF miniatures game (2026-10-24). Its combat (blocks of troops

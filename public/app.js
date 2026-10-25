@@ -5,7 +5,7 @@ import { costBreakdown } from "/shared/cost.js";
 import { PRESETS, presetBuild } from "/shared/presets.js";
 import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.js";
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
-import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
+import { BASE_SIZE, inArc, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, attackCheck, attackDice, attackOptions, boughtRadius, defenseDice, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
 import { boardToScreen, focusPoint, focusUnit, onFrame, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
@@ -1267,7 +1267,9 @@ function reachMarks() {
     const checks = sel.weapons.map((w) => attackCheck(S, g, t, w)).filter((c) => c.why !== "range");
     if (!checks.length) continue;
     const c = checks.find((x) => x.ok) || checks.sort((a, b) => ORDER.indexOf(a.why) - ORDER.indexOf(b.why))[0];
-    marks.set(t.id, c.ok ? { kind: "miss", range: c.range, why: "hidden" } : { kind: "miss", range: c.range, why: LABEL[c.why] || c.why });
+    // A melee weapon short of contact but with the enemy in its arc piles in at the start of the Engagement.
+    const piles = c.why === "contact" && sel.weapons.some((w) => w.range[1] === 1 && inArc(g, w.arc, t, BASE_SIZE[t.base]));
+    marks.set(t.id, c.ok ? { kind: "miss", range: c.range, why: "hidden" } : { kind: "miss", range: c.range, why: piles ? "pile in" : LABEL[c.why] || c.why });
   }
   return marks;
 }

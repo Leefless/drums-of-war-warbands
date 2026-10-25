@@ -23,6 +23,12 @@ consideration, see [ROADMAP.md](ROADMAP.md).
 - **Melee weapons** (those whose longest reach is range 1) only strike a unit
   whose base is **in contact**: touching, or within 10. A weapon that reaches
   range 2 or more (bows, blowpipes, spells) strikes anywhere in range 1.
+- **Pile in.** At the start of each Engagement (before Fear and Warcry), every
+  unit with a melee weapon that has a spotted enemy within range 1 inside that
+  weapon's arc, but is not yet in contact, steps straight toward the nearest
+  such enemy until the bases touch, without turning. It only moves if the way
+  is clear: no other base, no rocks and no terrain piece it is not already in.
+  Units pile in from the highest initiative down.
 - Random terrain pieces are placed in the middle of the table: hills, forests,
   ruins, lava, marsh, rifts and rocks (see section 8). The ground is one of
   three painted battlefields, chosen per battle, and the battlefield decides
@@ -45,8 +51,9 @@ consideration, see [ROADMAP.md](ROADMAP.md).
   red target with the range band (for example **R2**): in a weapon's range
   (minimum range and hills included), inside its arc, in sight and spotted.
   Enemies within range that it cannot attack as it stands get a dashed ring
-  saying why: **turn** (outside the arc), **close in** (a melee weapon not yet
-  in base contact), **blocked** (an enemy unit in the way), **no sight** (terrain
+  saying why: **turn** (outside the arc), **pile in** (a melee weapon in arc at
+  range 1: it steps into contact at the start of the Engagement if the way is
+  clear), **close in** (a melee weapon not yet in base contact), **blocked** (an enemy unit in the way), **no sight** (terrain
   in the way) or **hidden** (not spotted, or Stealthy at range 3 or more). In Planning the
   markers follow the dial: hover a maneuver to see what the unit could hit
   after that move, and the dial shows how many enemies are in reach. Select an

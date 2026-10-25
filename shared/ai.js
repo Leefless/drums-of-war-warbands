@@ -5,7 +5,7 @@
 //   if it did something; the server calls it on a timer so moves stay watchable.
 import * as E from "./engine.js";
 import { FACTIONS, armyLimits, upgradesFor, validateArmy } from "./factions.js";
-import { isAim, isStance, parseManeuver } from "./geometry.js";
+import { BASE_SIZE, inArc, isAim, isStance, parseManeuver } from "./geometry.js";
 import { visibleTo } from "./terrain.js";
 import { MAPS, mapEffect } from "./battlefield.js";
 import { itemCost, itemsFor } from "./items.js";
@@ -81,7 +81,11 @@ function preferredRange(u) {
  */
 function hasShot(state, u, pose, foes) {
   const g = { ...u, x: pose.x, y: pose.y, h: pose.h };
-  return foes.some((f) => u.weapons.some((w) => E.attackCheck(state, g, f, w).ok));
+  // A melee weapon within range 1 and in arc counts: the unit piles in at the start of the Engagement.
+  return foes.some((f) => u.weapons.some((w) => {
+    const c = E.attackCheck(state, g, f, w);
+    return c.ok || (c.why === "contact" && inArc(g, w.arc, f, BASE_SIZE[f.base]));
+  }));
 }
 
 function planDials(state, pid) {
@@ -91,6 +95,7 @@ function planDials(state, pid) {
     const target = nearest(u, foes) || { x: state.board / 2, y: state.board / 2 };
     const want = foes.length ? preferredRange(u) : 0;
     const noClose = u.weapons.every((w) => w.range[0] >= 2);
+    const meleeOnly = u.weapons.every((w) => E.isMelee(w));
     let best = null;
     let bestScore = -Infinity;
     for (const code of u.dial) {
@@ -101,7 +106,10 @@ function planDials(state, pid) {
       let score = -Math.abs(dist(mv.pose, target) - want);
       if (m.color === "red") score -= 12;
       if (m.color === "blue" && u.strain > 0) score += 15;
-      if (mv.bumped.length || mv.blockedBy) score -= 40;
+      // A bump costs the actions, so avoid it, except that a melee unit bumping an enemy is how it
+      // gets into base contact to fight: that is the point of its move.
+      const intoFoe = mv.bumped.length && mv.bumped.every((x) => x.owner !== u.owner);
+      if ((mv.bumped.length && !(intoFoe && meleeOnly)) || mv.blockedBy) score -= 40;
       if (mv.slowedBy?.kind === "lava" && u.faction !== "calamity") score -= 30;
       // A defensive stance only pays when an enemy is close enough to attack this round, and a
       // brawler only braces once it is in contact; until then it keeps closing.
