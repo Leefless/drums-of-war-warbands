@@ -274,7 +274,10 @@ Every round has four phases.
 
 ### 4.1 Planning (secret, simultaneous)
 
-Every player sets one maneuver on the dial of each of their units. Opponents see
+Every player sets one maneuver on the dial of each of their units: click a unit
+on the map and its dial opens beside it (hover a maneuver to preview the move,
+click to set it, **Next unit** jumps to the next unit without a dial; Escape or
+× closes it). The same dial is also in the side panel. Opponents see
 that a player is ready (the ready marker by their name), never which units have
 dials set or which maneuver is chosen. Press **Lock in orders**; the round
 continues when everyone has locked in. You cannot lock in until every unit has a

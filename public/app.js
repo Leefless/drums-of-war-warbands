@@ -7,7 +7,7 @@ import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.j
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, boughtRadius, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
-import { focusPoint, focusUnit, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
+import { boardToScreen, focusPoint, focusUnit, onFrame, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
@@ -742,7 +742,7 @@ function renderBattle(app) {
     L.mode = "battle";
     app.innerHTML = `<div class="battle"><div class="boardcol">
       <div class="turnhead"><div class="turnbar" id="turnbar"><span class="turntext" id="turnText"></span><button class="small ghost" id="muteBtn" aria-pressed="false" title="Mute or unmute the turn chime"></button></div><div class="track" id="track" hidden aria-label="Initiative order"></div></div>
-      <div class="boardwrap"><canvas id="board"></canvas>
+      <div class="boardwrap"><canvas id="board"></canvas><div id="mapdial" class="mapdial" hidden></div>
       <div class="combat out" id="combat" role="status" aria-live="polite" aria-hidden="true" title="Click to dismiss"></div>
       <div class="zoomctl" aria-label="Map zoom"><button class="small ${T.follow ? "on" : ""}" id="follow" aria-pressed="${T.follow}" title="Camera follows the action when zoomed in">Follow</button><button class="small" id="zoomIn" title="Zoom in (or scroll)">+</button><button class="small" id="zoomOut" title="Zoom out (or scroll)">−</button><button class="small" id="zoomFit" title="Show the whole battlefield">Fit</button><span id="zoomPct" class="label"></span></div></div><div class="unitbar" id="roster"></div></div>
       <aside class="side"><section id="prompt" class="scroll"></section><section id="card" class="scroll"></section><section class="log" id="log"></section></aside></div><div id="umodal"></div>`;
@@ -843,6 +843,7 @@ function renderBattle(app) {
         return pressContinue();
       }
       if (ev.key === "Escape" && L.cardFor) { L.cardFor = null; return render(); }
+      if (ev.key === "Escape" && mapDialUnit()) { L.dialClosed = L.selected; return render(); }
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
       if (!u || u.owner !== S.you) return;
@@ -873,6 +874,7 @@ function renderBattle(app) {
   renderTurn();
   renderTrack();
   renderCombat();
+  renderMapDial();
   renderLog();
   wirePrompt();
   // Bring a newly opened dial into view once, so it sits under its unit without manual scrolling.
@@ -1265,6 +1267,65 @@ function flashPrompt() {
   el.classList.add("flash");
 }
 
+// ── Dial on the map: planning a unit opens its dial right beside it ──────────
+/** The unit whose dial is open on the map, or null. */
+function mapDialUnit() {
+  if (S?.phase !== "plan" || !me() || me().ready) return null;
+  const u = unitById(L.selected);
+  return u && u.owner === S.you && !u.dead && L.dialClosed !== u.id ? u : null;
+}
+
+function renderMapDial() {
+  const el = $("#mapdial");
+  if (!el) return;
+  const u = mapDialUnit();
+  if (!u) { el.hidden = true; el.innerHTML = ""; el.dataset.uid = ""; return; }
+  const next = myUnits().find((x) => x.id !== u.id && !S.dials[x.id]);
+  el.innerHTML = `<div class="md-head"><span>${esc(u.name)} <span class="muted">i${esc(u.init)}${strained(u) ? " · strained" : ""}</span></span>
+      <button class="small ghost" data-mdclose aria-label="Close the dial">×</button></div>
+    ${dialHTML(u.dial, S.dials[u.id], false, strained(u))}
+    <div class="md-foot">${S.dials[u.id] ? `<span class="muted">Set: ${esc(S.dials[u.id].replace(":", " "))}</span>` : `<span class="muted">Hover to preview, click to set</span>`}
+      ${next ? `<button class="small" data-mdnext="${esc(next.id)}">Next unit</button>` : ""}</div>`;
+  el.dataset.uid = u.id;
+  el.hidden = false;
+  el.querySelectorAll("[data-man]").forEach((b) => {
+    b.onclick = () => {
+      if (L.order) L.manual.add(u.id);
+      send("dial", { uid: u.id, code: b.dataset.man });
+    };
+    b.onmouseenter = () => { L.hover = b.dataset.man; drawBoard(); };
+    b.onmouseleave = () => { L.hover = null; drawBoard(); };
+  });
+  el.querySelector("[data-mdclose]").onclick = () => { L.dialClosed = u.id; L.hover = null; render(); };
+  const nb = el.querySelector("[data-mdnext]");
+  if (nb) nb.onclick = () => { L.selected = nb.dataset.mdnext; L.dialClosed = null; L.hover = null; focusUnit(nb.dataset.mdnext); render(); };
+  placeMapDial();
+}
+
+/** Keep the map dial beside its unit, on whichever side covers fewer of my other units, on screen. */
+function placeMapDial() {
+  const el = $("#mapdial");
+  const canvas = $("#board");
+  if (!el || el.hidden || !canvas) return;
+  const u = unitById(el.dataset.uid);
+  if (!u) return;
+  const p = boardToScreen(canvas, u.x, u.y);
+  const half = (BASE_SIZE[u.base] / 2) * p.scale;
+  const w = el.offsetWidth;
+  const h = el.offsetHeight;
+  const y = Math.max(8, Math.min(window.innerHeight - h - 8, p.y - h / 2));
+  const fit = (x) => Math.max(8, Math.min(window.innerWidth - w - 8, x));
+  // Beside the unit rather than above it, so the move preview ahead stays visible.
+  const others = myUnits().filter((o) => o.id !== u.id).map((o) => boardToScreen(canvas, o.x, o.y));
+  const covered = (x) => others.filter((q) => q.x > x - half && q.x < x + w + half && q.y > y - half && q.y < y + h + half).length;
+  const right = fit(p.x + half + 14);
+  const left = fit(p.x - half - 14 - w);
+  const x = covered(left) < covered(right) ? left : right;
+  el.style.left = `${Math.round(x)}px`;
+  el.style.top = `${Math.round(y)}px`;
+}
+onFrame(placeMapDial);
+
 function onBoardClick(ev) {
   if (L.dragged) { L.dragged = false; return; }
   const canvas = $("#board");
@@ -1303,6 +1364,7 @@ function onBoardClick(ev) {
     if (opts.length === 1) return send("attack", { target: u.id, weapon: opts[0].weapon });
   }
   L.selected = u?.id || null;
+  L.dialClosed = null; // clicking a unit (again) reopens its dial
   L.hover = null;
   render();
 }

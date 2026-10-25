@@ -113,6 +113,12 @@ const canvasPx = (canvas, ev) => {
   return { x: ((ev.clientX - r.left) / r.width) * canvas.width, y: ((ev.clientY - r.top) / r.height) * canvas.height };
 };
 export const zoomLevel = () => view.z;
+/** Where a board point is on screen right now (viewport pixels), for things drawn over the map. */
+export function boardToScreen(canvas, x, y) {
+  const cam = camera(canvas);
+  const r = canvas.getBoundingClientRect();
+  return { x: r.left + ((cam.ox + x * cam.s) * r.width) / canvas.width, y: r.top + ((cam.oy + y * cam.s) * r.height) / canvas.height, scale: (cam.s * r.width) / canvas.width };
+}
 /** Zoom by a factor, keeping the board point under the pointer (or the centre) where it is. */
 export function zoomAt(canvas, ev, factor) {
   glide = null;
@@ -752,6 +758,11 @@ export function focusUnit(uid) {
 }
 
 let lastFrame = 0;
+let afterFrame = null;
+/** Run fn after every drawn frame (app.js keeps map overlays attached to units while the camera moves). */
+export function onFrame(fn) {
+  afterFrame = fn;
+}
 function frame(ts) {
   requestAnimationFrame(frame);
   if (ts - lastFrame < 30) return; // about 30 fps is plenty for a tabletop
@@ -759,6 +770,7 @@ function frame(ts) {
   const { canvas, state, opts } = current;
   if (!canvas || !state || !canvas.isConnected) return;
   render(canvas, state, opts, ts);
+  afterFrame?.();
 }
 requestAnimationFrame(frame);
 
