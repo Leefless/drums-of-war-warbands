@@ -1233,7 +1233,7 @@ function drawBoard() {
     spent: spentUnits(),
     reach: (L.reach = reachMarks()),
     zones: S.phase === "deploy",
-    fog: !S.spectator && !!me() && S.phase !== "over",
+    fog: !S.spectator && !!me() && !me().eliminated && S.phase !== "over",
     attackLine: A ? { from: A.attacker, to: A.target } : L.hoverTarget ? { from: p?.uid, to: L.hoverTarget } : null,
   });
   updateReachLine();

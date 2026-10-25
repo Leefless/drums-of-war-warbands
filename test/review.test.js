@@ -126,3 +126,21 @@ test("a magic item that gives a melee unit range brings the Aim row", () => {
   assert.ok(armed.weapons.some((w) => w.range[1] >= 2));
   assert.ok(armed.dial.length > plain.dial.length, "the item carrier gains the Aim row");
 });
+
+test("a seat whose warband is out of the battle watches with full sight", () => {
+  const C = "tokenCCCC3333";
+  const s = E.createGame({ seed: 11, budget: 100 });
+  for (const [id, f] of [[A, "umbral"], [B, "concord"], [C, "holds"]]) {
+    E.addPlayer(s, id, id);
+    E.setFaction(s, id, f);
+  }
+  E.submitArmy(s, A, [{ unit: "skeletons" }]);
+  E.submitArmy(s, B, [{ unit: "halberdiers" }]);
+  E.submitArmy(s, C, [{ unit: "ironbreakers" }]);
+  E.run(s);
+  assert.ok(E.viewFor(s, A).hidden > 0, "premise: fog hides enemies from a seat still fighting");
+  E.surrender(s, A);
+  assert.equal(s.phase, "deploy", "premise: two warbands fight on");
+  const v = E.viewFor(s, A);
+  assert.equal(v.hidden, 0, "nothing is hidden from a knocked-out seat");
+});

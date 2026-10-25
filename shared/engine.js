@@ -1584,7 +1584,9 @@ export function viewFor(state, pid) {
   v.hidden = 0;
   const battle = state.phase !== "muster" && state.phase !== "over";
   let seen = null;
-  if (battle && seated) seen = visibleTo(state, pid); // watchers (pid null) always see every unit
+  // Watchers (pid null) always see every unit, and so does a seat whose warband is out of the
+  // battle (broken, surrendered or removed): it has nothing left to hide or to scout with.
+  if (battle && seated && !seated.eliminated) seen = visibleTo(state, pid);
   if (seen) {
     const hiddenUnits = v.units.filter((u) => !u.dead && !seen.has(u.id) && u.owner !== pid);
     const hide = new Set(hiddenUnits.map((u) => u.id));
