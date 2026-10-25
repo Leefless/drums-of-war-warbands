@@ -17,10 +17,10 @@ export const AI_NAMES = {
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const nearest = (p, xs) => xs.reduce((best, x) => (!best || dist(p, x) < dist(p, best) ? x : best), null);
-const pick = (xs) => xs[Math.floor(Math.random() * xs.length)];
+const pick = (xs, rnd = Math.random) => xs[Math.floor(rnd() * xs.length)];
 
 /** A random legal army for the budget, with a champion about half the time. */
-export function randomArmy(fid, budget) {
+export function randomArmy(fid, budget, rnd = Math.random) {
   const us = FACTIONS[fid].units;
   const champs = us.filter((u) => u.champion && u.cost <= budget * 0.4);
   const regs = us.filter((u) => !u.champion);
@@ -28,8 +28,8 @@ export function randomArmy(fid, budget) {
     const list = [];
     let cost = 0;
     const copies = {};
-    if (champs.length && Math.random() < 0.5) {
-      const c = pick(champs);
+    if (champs.length && rnd() < 0.5) {
+      const c = pick(champs, rnd);
       list.push({ unit: c.id, upgrade: null });
       cost += c.cost;
     }
@@ -38,14 +38,14 @@ export function randomArmy(fid, budget) {
     for (let g = 0; g < 400 && list.filter((e) => !us.find((u) => u.id === e.unit).champion).length < lim.units; g++) {
       const ok = regs.filter((u) => u.cost <= budget - reserve - cost && (copies[u.id] || 0) < lim.copies);
       if (!ok.length) break;
-      const u = pick(ok);
+      const u = pick(ok, rnd);
       list.push({ unit: u.id, upgrade: null });
       cost += u.cost;
       copies[u.id] = (copies[u.id] || 0) + 1;
     }
     // Magic items: give the best affordable item to units that can carry one.
     const used = new Set();
-    for (const e of [...list].sort(() => Math.random() - 0.5)) {
+    for (const e of [...list].sort(() => rnd() - 0.5)) {
       const options = itemsFor(fid, e.unit).filter((it) => !used.has(it.id) && itemCost(fid, it, e.unit) <= budget - cost);
       if (!options.length) continue;
       const it = options.reduce((a, b) => (itemCost(fid, b, e.unit) > itemCost(fid, a, e.unit) ? b : a));
@@ -127,7 +127,7 @@ function planDials(state, pid) {
       const ang = (Math.atan2(target.x - mv.pose.x, -(target.y - mv.pose.y)) * 180) / Math.PI;
       const off = Math.abs(((ang - mv.pose.h + 540) % 360) - 180);
       if (u.weapons.some((w) => w.arc === "front")) score -= off / 6;
-      score += Math.random() * 4; // a little unpredictability
+      score += E.random(state) * 4; // a little unpredictability (seeded: battles replay)
       if (score > bestScore) {
         bestScore = score;
         best = code;
@@ -192,8 +192,9 @@ export function aiStep(state, pid) {
   if (!me || me.eliminated) return false;
   if (state.phase === "muster") {
     if (me.ready) return false;
-    if (!me.faction) E.setFaction(state, pid, pick(Object.keys(FACTIONS)));
-    E.submitArmy(state, pid, randomArmy(me.faction, state.settings.budget));
+    const rnd = () => E.random(state);
+    if (!me.faction) E.setFaction(state, pid, pick(Object.keys(FACTIONS), rnd));
+    E.submitArmy(state, pid, randomArmy(me.faction, state.settings.budget, rnd));
     E.ready(state, pid);
     return true;
   }

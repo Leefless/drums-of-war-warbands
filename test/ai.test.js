@@ -28,3 +28,21 @@ test("computer opponents play full battles against each other in every pairing",
     assert.equal(s.phase, "over", `${fa} vs ${fb} did not finish`);
   }
 });
+
+test("computer battles replay exactly from their seed", () => {
+  const play = (seed) => {
+    const s = E.createGame({ seed, budget: 100 });
+    for (const [id, f] of [["a", "holds"], ["b", "greenskin"]]) {
+      E.addPlayer(s, id, id);
+      s.players.find((p) => p.id === id).ai = true;
+      E.setFaction(s, id, f);
+    }
+    for (let i = 0; i < 5000 && s.phase !== "over"; i++) {
+      for (const p of s.players) aiStep(s, p.id);
+      E.run(s);
+    }
+    return JSON.stringify([s.winner, s.round, s.players.map((p) => p.vp), s.units.map((u) => [u.type, Math.round(u.x), Math.round(u.y), u.dead])]);
+  };
+  assert.equal(play(42), play(42), "the same seed gives the same battle");
+  assert.notEqual(play(42), play(43), "a different seed gives a different battle");
+});

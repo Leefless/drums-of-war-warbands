@@ -8,7 +8,10 @@ import { presetBuild } from "../shared/presets.js";
 const ALL = Object.keys(FACTIONS);
 const only = process.argv[2] && ALL.includes(process.argv[2]) ? process.argv[2] : null;
 const showDP = Number(process.argv[only ? 3 : 2]) || 100;
+// The DPs the host can pick in the muster (public/app.js): full checks there. The server accepts any
+// DP from 40 to 300, so every preset must also be legal at each step of 10 across that range.
 const DPS = [60, 100, 150, 200, 300];
+const RANGE = Array.from({ length: 27 }, (_, i) => 40 + i * 10);
 let bad = 0;
 for (const fid of only ? [only] : ALL) {
   const { presets } = await import(`../shared/presets/${fid}.js?t=${Date.now()}`);
@@ -24,6 +27,11 @@ for (const fid of only ? [only] : ALL) {
       const it = itemById(fid, id);
       if (!it) problems.push(`unknown preferred item ${id}`);
       else if (!it.units.some((u) => p.list.some((e) => e.unit === u))) problems.push(`preferred item ${id} fits no unit in the list`);
+    }
+    for (const dp of RANGE) {
+      const b = presetBuild(fid, p, dp);
+      const v = validateArmy(fid, b.list, dp, b.buys);
+      if (!v.ok) problems.push(`at ${dp}: ${v.errors.join(" ")}`);
     }
     for (const dp of DPS) {
       const b = presetBuild(fid, p, dp);

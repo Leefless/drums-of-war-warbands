@@ -66,6 +66,8 @@ function rand(state) {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 const roll = (state, faces) => faces[Math.floor(rand(state) * faces.length)];
+/** The game's own seeded random number (0 to 1), so computer decisions replay with the game. */
+export const random = (state) => rand(state);
 
 /**
  * Where unit names appear in a line: longest names first and never overlapping, so a unit called
