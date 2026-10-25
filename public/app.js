@@ -7,7 +7,7 @@ import { ITEMS, ITEM_KINDS, itemById, itemCost, itemsFor } from "/shared/items.j
 import { HUNT_REASON, MAPS, TERRAIN_SHOP, hunterOf, mapEffect, preyOf, terrainLimit } from "/shared/battlefield.js";
 import { BASE_SIZE, isAim, isHold, isStance, parseManeuver } from "/shared/geometry.js";
 import { CRIT_TEXT, attackCheck, attackDice, attackOptions, boughtRadius, defenseDice, pileInTarget, strainCap, parseAction, planMove, stanceBonus, strained, terrainSpotOk, zoneFor } from "/shared/engine.js";
-import { boardToScreen, focusPoint, focusUnit, onFrame, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
+import { boardToScreen, focusPoint, focusUnit, onFrame, viewStamp, healthColor, panBy, playerColor, resetBoard, resetView, setFollow, sizeCanvas, terrainAt, toBoard, unitAt, updateBoard, zoomAt, zoomLevel } from "/board.js";
 import { TERRAIN, onKind, terrainAt as terrainUnder } from "/shared/terrain.js";
 import { DIE_ICON, UNIT_ICON, artTag, emblemSVG, iconSVG, loadArtIndex } from "/art.js";
 
@@ -77,7 +77,10 @@ function connect() {
       if (S.pending?.uid && S.pending.pid === S.you) L.selected = S.pending.uid;
       if (L.placing && !(me()?.toPlace || []).includes(L.placing)) Object.assign(L, { placing: null, preview: null }); // placed
       render();
-    } else if (m.t === "error") toast(m.msg);
+    } else if (m.t === "error") {
+      L.nudge = null; // a refused placement: build the next nudge on the confirmed position
+      toast(m.msg);
+    }
   };
   ws.onclose = () => {
     $("#offline").hidden = false; // the board would otherwise look live while nothing reaches the table
@@ -856,11 +859,18 @@ function renderBattle(app) {
       if (S?.phase !== "deploy" || !L.selected) return;
       const u = unitById(L.selected);
       if (!u || u.owner !== S.you) return;
+      // Quick presses arrive faster than the server answers: build each nudge or turn on the last
+      // one sent (for a moment), not on the last position the server has confirmed.
+      const at = L.nudge?.uid === u.id && Date.now() - L.nudge.at < 800 ? L.nudge : u;
+      const place = (x, y, h) => {
+        L.nudge = { uid: u.id, x, y, h, at: Date.now() };
+        send("deploy", { uid: u.id, x, y, h });
+      };
       if (ev.key === "q" || ev.key === "e") {
         // Held keys repeat fast: at most ten turns a second, like the arrow nudges.
         if (ev.repeat && Date.now() - (L.lastNudge || 0) < 100) return;
         L.lastNudge = Date.now();
-        send("deploy", { uid: u.id, x: u.x, y: u.y, h: u.h + (ev.key === "e" ? 45 : -45) });
+        place(at.x, at.y, at.h + (ev.key === "e" ? 45 : -45));
       }
       // Arrow keys nudge the selected unit, so deployment works without a mouse.
       const nudge = { ArrowLeft: [-10, 0], ArrowRight: [10, 0], ArrowUp: [0, -10], ArrowDown: [0, 10] }[ev.key];
@@ -869,7 +879,7 @@ function renderBattle(app) {
         // Held keys repeat fast: send at most ten nudges a second to stay under the server's rate limit.
         if (ev.repeat && Date.now() - (L.lastNudge || 0) < 100) return;
         L.lastNudge = Date.now();
-        send("deploy", { uid: u.id, x: u.x + nudge[0], y: u.y + nudge[1], h: u.h });
+        place(at.x + nudge[0], at.y + nudge[1], at.h);
       }
     };
   }
@@ -1386,6 +1396,10 @@ function placeMapDial() {
   if (!el || el.hidden || !canvas) return;
   const u = unitById(el.dataset.uid);
   if (!u) return;
+  // Measuring forces a layout: only do it when the camera, the window, the unit or the dial changed.
+  const key = `${viewStamp()}|${window.innerWidth}x${window.innerHeight}|${u.id},${u.x},${u.y}|${el.innerHTML.length}`;
+  if (key === T.dialKey) return;
+  T.dialKey = key;
   const p = boardToScreen(canvas, u.x, u.y);
   const half = (BASE_SIZE[u.base] / 2) * p.scale;
   const w = el.offsetWidth;

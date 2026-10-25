@@ -75,7 +75,18 @@ export async function loadArtIndex() {
 }
 const missing = (path) => index && !index.has(path);
 /** Art paths that exist and match a prefix, e.g. artList("terrain/ruins-"). */
-export const artList = (prefix) => (index ? [...index].filter((p) => p.startsWith(prefix)).sort() : []);
+// Lists are asked for every frame: build each once per art index.
+const lists = new Map();
+let listsFor = null;
+export const artList = (prefix) => {
+  if (!index) return [];
+  if (listsFor !== index) {
+    lists.clear();
+    listsFor = index;
+  }
+  if (!lists.has(prefix)) lists.set(prefix, [...index].filter((p) => p.startsWith(prefix)).sort());
+  return lists.get(prefix);
+};
 
 /** The loaded image for an art path such as "units/thane.png", or null. */
 export function artImage(path) {

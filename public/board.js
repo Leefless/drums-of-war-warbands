@@ -113,6 +113,8 @@ const canvasPx = (canvas, ev) => {
   return { x: ((ev.clientX - r.left) / r.width) * canvas.width, y: ((ev.clientY - r.top) / r.height) * canvas.height };
 };
 export const zoomLevel = () => view.z;
+/** Changes whenever the camera moves, so overlays only re-measure when they must. */
+export const viewStamp = () => `${view.cx.toFixed(1)},${view.cy.toFixed(1)},${view.z.toFixed(3)}`;
 /** Where a board point is on screen right now (viewport pixels), for things drawn over the map. */
 export function boardToScreen(canvas, x, y) {
   const cam = camera(canvas);
@@ -655,12 +657,16 @@ function diffState(state) {
       })
       .sort((a, b) => a.init - b.init);
     // Several units revealed at once play in initiative order, compressed to about 3s.
-    const dur = moved.length > 4 ? Math.max(280, 2800 / moved.length) : 700;
+    // In deployment a move is a placement: a quick slide that replaces any slide still running,
+    // so held nudge keys never queue up behind each other.
+    const deploy = state.phase === "deploy";
+    const dur = deploy ? 120 : moved.length > 4 ? Math.max(280, 2800 / moved.length) : 700;
     for (const u of moved) {
       const p = prevUnits.get(u.id);
+      if (deploy) anim.moves = anim.moves.filter((m) => m.uid !== u.id);
       followPoint(u.x, u.y, t);
-      anim.moves.push({ uid: u.id, path: buildPath(p, u), h0: p.h, h1: u.h, t0: t, t1: t + dur });
-      t += dur * 0.9;
+      anim.moves.push({ uid: u.id, path: buildPath(p, u), h0: p.h, h1: u.h, t0: deploy ? now : t, t1: (deploy ? now : t) + dur });
+      if (!deploy) t += dur * 0.9;
     }
   }
 
@@ -779,6 +785,9 @@ function render(canvas, state, opts, now) {
   const k = canvas.width / SIZE;
   stepGlide(now);
   const cam = camera(canvas);
+  // Status numbers are drawn in board units: at low zoom scale them so the initiative digit is
+  // at least about 10 screen pixels (capped so a zoomed-out giant board stays tidy).
+  statusK = Math.max(1, Math.min(2.2, 10 / (9 * (cam.s / (window.devicePixelRatio || 1)))));
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.setTransform(view.z, 0, 0, view.z, cam.ox, cam.oy);
@@ -831,9 +840,10 @@ function render(canvas, state, opts, now) {
     } else {
       // Units that have already moved or attacked this phase (or have their dial set) draw greyed out.
       const spent = opts.spent?.has(u.id);
-      if (spent) ctx.filter = "grayscale(0.85) brightness(0.62)";
+      if (spent && CAN_FILTER) ctx.filter = "grayscale(0.85) brightness(0.62)";
       drawToken(ctx, k, u, displayPose(u, now), opts, now, 1, 1);
-      if (spent) ctx.filter = "none";
+      if (spent && CAN_FILTER) ctx.filter = "none";
+      if (spent && !CAN_FILTER) drawVeil(ctx, u, displayPose(u, now)); // browsers without canvas filters
     }
   }
 
@@ -918,11 +928,27 @@ function drawRiftGlow(ctx, k, now) {
 // Fog of war: darkness outside what this player's units can see (vision is
 // computed on the server; this is the matching visual).
 let fogLayer = null;
+let fogKey = "";
 function drawFog(ctx, canvas, state) {
   if (!fogLayer || fogLayer.width !== canvas.width) {
     fogLayer = document.createElement("canvas");
     fogLayer.width = fogLayer.height = canvas.width;
+    fogKey = "";
   }
+  // The fog depends only on where my units stand and how far they see: rebuild it when that changes.
+  const key = `${canvas.width}|${state.units.filter((u) => !u.dead && u.owner === state.you).map((u) => `${u.x},${u.y},${u.base},${visionOf(state, u)}`).join(";")}`;
+  if (key !== fogKey) {
+    fogKey = key;
+    paintFog(canvas, state);
+  }
+  ctx.save();
+  const cam = camera(canvas);
+  ctx.setTransform(view.z, 0, 0, view.z, cam.ox, cam.oy);
+  ctx.drawImage(fogLayer, 0, 0);
+  ctx.restore();
+}
+
+function paintFog(canvas, state) {
   const k = canvas.width / SIZE;
   const g = fogLayer.getContext("2d");
   g.setTransform(1, 0, 0, 1, 0, 0);
@@ -943,11 +969,6 @@ function drawFog(ctx, canvas, state) {
     g.arc(u.x, u.y, r, 0, Math.PI * 2);
     g.fill();
   }
-  ctx.save();
-  const cam = camera(canvas);
-  ctx.setTransform(view.z, 0, 0, view.z, cam.ox, cam.oy);
-  ctx.drawImage(fogLayer, 0, 0);
-  ctx.restore();
 }
 
 /** Terrain under a board point, for tooltips. */
@@ -1313,6 +1334,18 @@ export function healthColor(f) {
   return `hsl(${hue.toFixed(0)}, 70%, ${light.toFixed(0)}%)`;
 }
 
+let statusK = 1;
+const CAN_FILTER = typeof CanvasRenderingContext2D !== "undefined" && "filter" in CanvasRenderingContext2D.prototype;
+/** A dark veil over a spent token, where the canvas cannot grey it out. */
+function drawVeil(ctx, u, pose) {
+  const half = BASE_SIZE[u.base] / 2;
+  ctx.save();
+  ctx.translate(pose.x, pose.y);
+  ctx.rotate((pose.h * Math.PI) / 180);
+  ctx.fillStyle = "rgba(10, 8, 5, 0.55)";
+  ctx.fillRect(-half, -half, half * 2, half * 2);
+  ctx.restore();
+}
 function drawStatus(ctx, u, pose, size) {
   const reach = size * 0.72; // clears the base at any rotation
   ctx.save();
@@ -1350,39 +1383,41 @@ function drawStatus(ctx, u, pose, size) {
   // Initiative on a small shield, top left.
   const ix = pose.x - reach + 2;
   const iy = pose.y - reach + 2;
+  const q = statusK; // grows at low zoom so the numbers stay readable on screen
   ctx.fillStyle = "#1D1913";
-  drawPath24(ctx, ICONS.shield, ix, iy, 15);
+  drawPath24(ctx, ICONS.shield, ix, iy, 15 * q);
   ctx.fillStyle = GOLD;
-  ctx.font = `700 9px ${DISPLAY}`;
+  ctx.font = `700 ${9 * q}px ${DISPLAY}`;
   ctx.textAlign = "center";
-  ctx.fillText(String(u.init), ix, iy + 3);
+  ctx.fillText(String(u.init), ix, iy + 3 * q);
   // Strain (red) and tokens (coins) stacked on the right.
   let sy = pose.y - reach + 4;
   const sx = pose.x + reach;
-  for (let i = 0; i < u.strain; i++, sy += 10) coin(ctx, sx, sy, "#C2412C", "!");
+  for (let i = 0; i < u.strain; i++, sy += 10 * q) coin(ctx, sx, sy, "#C2412C", "!");
   const t = u.tokens;
   const coins = [["steel", "#B9C3CC", "S"], ["guard", "#7FA3C8", "G"], ["brace", "#A07A4A", "B"], ["frenzy", "#D2643C", "F"], ["charge", "#9B59C9", "C"]];
-  for (const [key, c, letter] of coins) for (let i = 0; i < (t[key] || 0); i++, sy += 10) coin(ctx, sx, sy, c, letter);
+  for (const [key, c, letter] of coins) for (let i = 0; i < (t[key] || 0); i++, sy += 10 * q) coin(ctx, sx, sy, c, letter);
   if (u.souls) coin(ctx, sx, sy, "#6E5A9A", String(u.souls));
   ctx.restore();
 }
 
 function coin(ctx, x, y, color, letter) {
+  const q = statusK;
   ctx.fillStyle = "rgba(0,0,0,0.5)";
   ctx.beginPath();
-  ctx.arc(x + 0.8, y + 1, 4.6, 0, Math.PI * 2);
+  ctx.arc(x + 0.8 * q, y + q, 4.6 * q, 0, Math.PI * 2);
   ctx.fill();
   ctx.fillStyle = color;
   ctx.beginPath();
-  ctx.arc(x, y, 4.6, 0, Math.PI * 2);
+  ctx.arc(x, y, 4.6 * q, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = "rgba(255, 240, 200, 0.6)";
   ctx.lineWidth = 0.7;
   ctx.stroke();
   ctx.fillStyle = "#15110B";
-  ctx.font = `700 6.5px ${DISPLAY}`;
+  ctx.font = `700 ${6.5 * q}px ${DISPLAY}`;
   ctx.textAlign = "center";
-  ctx.fillText(letter, x, y + 2.3);
+  ctx.fillText(letter, x, y + 2.3 * q);
 }
 
 function drawAttackLine(ctx, state, line, now) {
